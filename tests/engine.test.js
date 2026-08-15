@@ -32,6 +32,7 @@ console.log('确定性检查:', j1 === j2 ? 'PASS (两次输出完全一致)' : 
 
 /* 渲染 4 张图 */
 const win = { SYM: symG.SYM };
+(new Function('window', fs.readFileSync(path.join(ROOT, 'js', 'layout.js'), 'utf8')))(win);
 const drawings = {};
 ['draw-arch.js', 'draw-wiring.js', 'draw-dual.js', 'draw-cooling.js'].forEach(f => {
   (new Function('window', fs.readFileSync(path.join(ROOT, 'js', f), 'utf8')))(win);
