@@ -55,7 +55,7 @@ window.drawWiring = function (R) {
     t += S.wire(x + 115, 215, x + 115, 245, C.mv, 1.3);
     t += S.pt(x + 115, 245, '#9333ea', 'F1-' + tag + ' 避雷器', true);
     t += S.jdot(x, 215, C.mv, 2.4);
-    t += S.txt(x + 130, 330, '关口计量 0.5S / 保护级 5P20', 8.5, '#475569', 'start');
+    t += S.txt(x + 130, 290, '计量 0.5S', 8, '#475569', 'start');
     return t;
   };
   s += ptBranch(xA, 'A');
@@ -88,7 +88,7 @@ window.drawWiring = function (R) {
     t += S.wire(x, y, x, y + 12, C.bat, 1.3, '5,3'); y += 12;
     t += S.bat(x, y, C.bat, 'BATT-' + tag, P.upsBackupMin + 'min · ' + Math.round(P.batTotalKwh / 2).toLocaleString() + 'kWh'); y += S._batH;
     t += S.wire(x, y, x, 802, C.ups, 1.4);
-    t += S.txt(batSide, 730, '蓄电池室: 2V/12V 阀控铅酸 + 巡检仪', 8.5, '#475569', 'start');
+    t += S.txt(batSide, 760, '蓄电池室', 8.5, '#475569', 'start');
     return t;
   };
   s += upsBranch(xA, 'A', 320);
@@ -109,8 +109,8 @@ window.drawWiring = function (R) {
   s += S.txt(cx + 20, 1024, 'PE 保护接地 (TN-S 系统, 等电位联结)', 9, C.lv, 'start');
 
   /* ---------- 电缆/母线标注 ---------- */
-  s += S.txt(408, 508, P.voltage + 'kV 电缆: YJV22-8.7/15 3×240mm² 双拼', 8.5, '#475569', 'start');
-  s += S.txt(560, 595, '0.4kV 母线槽: ' + P.lvMainA + 'A · 铜排 5mm×200mm×2', 8.5, '#475569', 'start');
+  s += S.txt(408, 508, P.voltage + 'kV 电缆 3×240', 8, '#475569', 'start');
+  s += S.txt(560, 605, '母线槽 ' + P.lvMainA + 'A', 8, '#475569', 'start');
 
   /* ---------- 图例 ---------- */
   s += S.legend([

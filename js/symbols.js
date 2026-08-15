@@ -55,6 +55,12 @@ window.SYM = (function () {
     const dd = pts.map((p, i) => (i === 0 ? 'M' : 'L') + p[0] + ',' + p[1]).join(' ');
     return `<path d="${dd}" fill="none" stroke="${color || C.ink}" stroke-width="${w || 1.4}" ${d}/>`;
   }
+
+  /* 导线交叉半圆跳线 (CAD 标准: 不连接交叉处走半圆) */
+  function jump(cx, cy, color, r) {
+    const c = color || C.ink, rr = r || 4;
+    return `<path d="M${cx - rr},${cy} A${rr},${rr} 0 0,1 ${cx + rr},${cy}" fill="none" stroke="${c}" stroke-width="1.4"/>`;
+  }
   function jdot(x, y, color, r) {
     return `<circle cx="${x}" cy="${y}" r="${r || 2.6}" fill="${color || C.ink}"/>`;
   }
@@ -405,7 +411,7 @@ window.SYM = (function () {
 
   return {
     C, FONT, MONO,
-    txt, wire, pathPts, jdot, block,
+    txt, wire, pathPts, jdot, jump, block,
     pwr, _pwrH, cb, _cbH, ds, _dsH, fu, _fuH, ct, _ctH, pt, _ptH, tx, _txH,
     ups, _upsH, _upsW, bat, _batH, sts, _stsH, _stsW, pdu, rack, gen, pe, bus,
     pump, valve, chk, hx, tower, chiller, cdu, sensor, tank, manifold, flowArrow,

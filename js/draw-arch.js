@@ -33,9 +33,9 @@ window.drawArch = function (R) {
   /* ---------- 第 3 列: 变配电 ---------- */
   s += zone(470, 96, 180, 620, '变配电区');
   s += `<g>${S.block(480, 160, 160, 120, '#d97706', '变压器 T1', P.txName + ' ' + P.txVector + ' Uk=' + P.txUk, '#fffbeb')}</g>`;
-  s += S.tx(520, 176, '#d97706', '', '');
+  s += S.tx(520, 176, '#d97706', 'T1', P.txName);
   s += `<g>${S.block(480, 330, 160, 120, '#d97706', '变压器 T2', P.txName + ' ' + P.txVector, '#fffbeb')}</g>`;
-  s += S.tx(520, 346, '#d97706', '', '');
+  s += S.tx(520, 346, '#d97706', 'T2', P.txName);
   s += S.txt(560, 470, '每路 ' + P.txPerSide + ' 台 + ' + P.spareTx + ' 台备用 (N+1)', 9, '#334155', 'middle');
 
   /* ---------- 第 4 列: 不间断电源 ---------- */
@@ -46,9 +46,9 @@ window.drawArch = function (R) {
   s += S.ups(700, 350, C.ups, 'UPS B', P.upsPerSide + '×' + P.upsUnit + 'kVA · ' + P.upsBackupMin + 'min');
   s += S.bat(640, 390, C.bat, '电池组', P.batTotalKwh.toLocaleString() + ' kWh');
   s += `<g>${S.block(690, 460, 190, 130, C.bat, '三层储能 (HSC→BBU→BESS)', '', '#fffbeb')}</g>`;
-  s += S.txt(785, 485, 'HSC ' + R.storage.hsc.powerKw + 'kW · ' + R.storage.hsc.resp, 9, '#b45309', 'middle');
-  s += S.txt(785, 505, 'BBU ' + R.storage.bbu.powerKw + 'kW · ' + R.storage.bbu.backupMin + 'min · ' + R.storage.bbu.resp, 9, '#b45309', 'middle');
-  s += S.txt(785, 525, 'BESS ' + R.storage.bess.powerKw + 'kW / ' + R.storage.bess.capKwh + 'kWh', 9, '#b45309', 'middle');
+  s += S.txt(785, 485, 'HSC ' + R.storage.hsc.powerKw + 'kW', 8.5, '#b45309', 'middle');
+  s += S.txt(785, 500, 'BBU ' + R.storage.bbu.powerKw + 'kW', 8.5, '#b45309', 'middle');
+  s += S.txt(785, 515, 'BESS ' + R.storage.bess.capKwh + 'kWh', 8.5, '#b45309', 'middle');
   s += S.txt(785, 565, '不重叠时间常数互补闭环', 8.5, '#92400e', 'middle');
   s += S.txt(785, 585, 'IPS 芯片级功率平滑: ' + (R.pulse.ipsEnabled ? '支持' : '不支持'), 8.5, '#92400e', 'middle');
 

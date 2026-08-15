@@ -38,6 +38,63 @@
   }
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
+
+  /* ---------- AI 模型调用 (自然语言 → 参数 JSON) ---------- */
+  const AI_ENDPOINTS = {
+    kimi: { url: 'https://api.moonshot.cn/v1/chat/completions', model: 'moonshot-v1-8k' },
+    deepseek: { url: 'https://api.deepseek.com/v1/chat/completions', model: 'deepseek-chat' },
+    glm: { url: 'https://open.bigmodel.cn/api/paas/v4/chat/completions', model: 'glm-4-flash' }
+  };
+  const AIDC_SYSTEM_PROMPT = `你是储能与微电网电气设计专家系统的需求解析引擎。从用户的自然语言需求中提取结构化工程参数。
+规则：
+1. 只输出一个合法的 JSON 对象，不输出任何其他文字
+2. 所有数值必须是数字类型，不能是字符串
+3. 无法确定的字段填 null，不能猜测或编造
+4. 容量单位统一为 kWh，功率统一为 kW，电压统一为字符串如 "10kV"
+5. 遇到"度"="kWh"，"千瓦"="kW"，"万千瓦"×10000="kW"
+输出 JSON 字段：project_type, scenario, capacity_kwh, power_kw, duration_h, voltage_level, grid_mode, pv_kw, diesel_kw, load_kw, load_type, phases, standard, tier, redundancy, ups_topology, special_requirements`;
+
+  async function callAI(model, apiKey, userText) {
+    const ep = AI_ENDPOINTS[model];
+    if (!ep) throw new Error('未知模型：' + model);
+    const resp = await fetch(ep.url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + apiKey },
+      body: JSON.stringify({
+        model: ep.model,
+        messages: [
+          { role: 'system', content: AIDC_SYSTEM_PROMPT },
+          { role: 'user', content: userText }
+        ],
+        temperature: 0.3
+      })
+    });
+    if (!resp.ok) throw new Error('API 调用失败：' + resp.status + ' ' + resp.statusText);
+    const data = await resp.json();
+    const content = data.choices?.[0]?.message?.content || '';
+    // JSON 提取 + 修复
+    const m = content.match(/```json([\s\S]*?)```/) || content.match(/\{[\s\S]*\}/);
+    if (!m) throw new Error('AI 未返回 JSON');
+    try { return JSON.parse(m[1] || m[0]); }
+    catch (e) {
+      const fixed = (m[1] || m[0]).replace(/,\s*([}\]])/g, '$1');
+      try { return JSON.parse(fixed); }
+      catch (e2) { throw new Error('JSON 解析失败：' + e2.message); }
+    }
+  }
+
+  /* ---------- 从 AI 结果回填表单 ---------- */
+  function fillFormFromAI(ai) {
+    if (ai.project_type === 'aidc') $('f-tier').value = ai.tier === 'IV' ? 'tier4' : ai.tier === 'II' ? 'tier2' : 'tier3';
+    if (ai.redundancy) $('f-red').value = ai.redundancy.toLowerCase().replace(/[^a-z0-9]/g, '');
+    if (ai.voltage_level) {
+      const v = String(ai.voltage_level).replace('kV', '');
+      if (['10', '35', '110'].includes(v)) $('f-voltage').value = v;
+    }
+    if (ai.power_kw) $('f-itload').value = ai.power_kw;
+    if (ai.capacity_kwh) $('f-gpu-count').value = Math.round(ai.capacity_kwh / 15); // 粗略估算
+    logStep('AI 解析完成：IT 负荷 ' + (ai.power_kw || '未知') + ' kW, 电压 ' + (ai.voltage_level || '未知'), 'ok');
+  }
   /* ---------- 生成方案 ---------- */
   window.generateSolution = async function () {
     const P = getParams();
