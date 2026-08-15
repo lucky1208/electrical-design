@@ -43,9 +43,9 @@ window.SYM = (function () {
     const c = color || C.lv, sw = w || 1.4;
     const d = dash ? `stroke-dasharray="${dash}"` : '';
     if (Math.abs(x1 - x2) < 0.5)
-      return `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${c}" stroke-width="${sw}" ${d}/>`;
+      return `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${c}" stroke-width="${sw}" stroke-linecap="round" ${d}/>`;
     if (Math.abs(y1 - y2) < 0.5)
-      return `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${c}" stroke-width="${sw}" ${d}/>`;
+      return `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${c}" stroke-width="${sw}" stroke-linecap="round" ${d}/>`;
     const my = midY !== undefined ? midY : y1;
     return `<polyline points="${x1},${y1} ${x1},${my} ${x2},${my} ${x2},${y2}" fill="none"
       stroke="${c}" stroke-width="${sw}" stroke-linejoin="round" ${d}/>`;
@@ -358,6 +358,29 @@ window.SYM = (function () {
       fill="none" stroke="${c}" stroke-width="1.4"/>${label ? txt(mx, my - 6, label, 8, c, 'middle') : ''}`;
   }
 
+  /* 设备明细表 (CAD 惯例: 图上只放位号, 型号规格集中到明细表) */
+  function schedule(rows, x, y, w) {
+    const c = C.ink, rh = 12, hw = 16;
+    const h = hw + rows.length * rh;
+    const c1 = x + 52, c2 = x + 118;
+    let s = `<rect x="${x}" y="${y}" width="${w}" height="${h}" fill="#fff" stroke="${c}" stroke-width="1.2"/>
+    <text x="${x + w / 2}" y="${y - 5}" text-anchor="middle" font-size="9" font-weight="bold" fill="${c}" font-family="${FONT}">设备明细表</text>
+    <line x1="${x}" y1="${y + hw}" x2="${x + w}" y2="${y + hw}" stroke="${c}" stroke-width="0.9"/>
+    <line x1="${c1}" y1="${y}" x2="${c1}" y2="${y + h}" stroke="${c}" stroke-width="0.7"/>
+    <line x1="${c2}" y1="${y}" x2="${c2}" y2="${y + h}" stroke="${c}" stroke-width="0.7"/>
+    ${txt(x + 4, y + 11, '位号', 8, c, 'start', 'bold')}
+    ${txt(c1 + 4, y + 11, '名称', 8, c, 'start', 'bold')}
+    ${txt(c2 + 4, y + 11, '规格型号', 8, c, 'start', 'bold')}`;
+    rows.forEach((r, i) => {
+      const yy = y + hw + i * rh;
+      s += txt(x + 4, yy + 9, r.tag, 7, c, 'start', '', MONO);
+      s += txt(c1 + 4, yy + 9, r.name, 7, c, 'start');
+      s += txt(c2 + 4, yy + 9, r.spec, 7, '#334155', 'start', '', MONO);
+      if (i < rows.length - 1) s += `<line x1="${x}" y1="${yy + rh}" x2="${x + w}" y2="${yy + rh}" stroke="${c}" stroke-width="0.5"/>`;
+    });
+    return s;
+  }
+
   /* ---------- CAD 图框 + 标题栏 + 图例 ---------- */
 
   /* 开图: A3 幅面 420x297 按比例放大, 双线图框, 右下标题栏 */
@@ -418,6 +441,6 @@ window.SYM = (function () {
     pwr, _pwrH, cb, _cbH, ds, _dsH, fu, _fuH, ct, _ctH, pt, _ptH, tx, _txH,
     ups, _upsH, _upsW, bat, _batH, sts, _stsH, _stsW, pdu, rack, gen, pe, bus,
     pump, valve, chk, hx, tower, chiller, cdu, sensor, tank, manifold, flowArrow,
-    svgOpen, legend
+    svgOpen, legend, schedule
   };
 })();

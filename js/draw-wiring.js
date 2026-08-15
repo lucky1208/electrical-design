@@ -14,6 +14,7 @@ window.drawWiring = function (R) {
     { drawingNo: 'DWG-AIDC-102', scale: 'NTS', rev: 'Rev.A', designer: 'AI 确定性引擎', projName: R.projName, standard: 'GB/T 4728 · IEC 60617 · GB 50052 · GB 50174' });
 
   const xA = 270, xB = 710, busY = 560, cx = 490;
+  const sched = [];   // 设备明细表数据 (图上只放位号)
 
   /* ---------- 电压分区 (虚线边界) ---------- */
   const zone = (x, y, w, h, label) =>
@@ -24,22 +25,30 @@ window.drawWiring = function (R) {
   s += zone(55, 660, 870, 420, 'UPS / IT 负荷区');
 
   /* ============ A 路电源列 ============ */
-  const chain = (x, tag, cbA, lvA) => {
+  const chain = (x, tag) => {
     let t = '', y = 100;
     t += S.pwr(x, y, C.mv, '市电 ' + tag + ' 路', P.voltage + ' 独立 PCC'); y += S._pwrH;
     t += S.wire(x, y, x, y + 6, C.mv, 1.6); y += 6;
-    t += S.ds(x, y, C.mv, 'QS1-' + tag + ' ' + (P.mvInA) + 'A'); y += S._dsH;
+    t += S.ds(x, y, C.mv, 'QS1-' + tag); y += S._dsH;
     t += S.wire(x, y, x, y + 6, C.mv, 1.6); y += 6;
-    t += S.cb(x, y, C.mv, 'QF1-' + tag, P.voltage + ' ' + P.mvInA + 'A Icu=' + P.scKa + 'kA'); y += S._cbH;
+    t += S.cb(x, y, C.mv, 'QF1-' + tag); y += S._cbH;
     t += S.wire(x, y, x, y + 6, C.mv, 1.6); y += 6;
-    t += S.ct(x, y, C.ink, 'CT1-' + tag + ' ' + Math.round(P.mvInA / 10) * 5 + '/5A'); y += S._ctH;
+    t += S.ct(x, y, C.ink, 'CT1-' + tag); y += S._ctH;
     t += S.wire(x, y, x, y + 6, C.mv, 1.6); y += 6;
-    t += S.tx(x, y, '#d97706', 'T-' + tag, P.txName + ' ' + P.voltage + '/0.4kV ' + P.txVector + ' Uk=' + P.txUk); y += S._txH;
+    t += S.tx(x, y, '#d97706', 'T-' + tag, ''); y += S._txH;
     t += S.wire(x, y, x, y + 6, C.lv, 1.8); y += 6;
-    t += S.cb(x, y, C.lv, 'QF2-' + tag, '0.4kV ' + P.lvMainA + 'A ACB'); y += S._cbH;
+    t += S.cb(x, y, C.lv, 'QF2-' + tag); y += S._cbH;
     t += S.wire(x, y, x, y + 6, C.lv, 1.8); y += 6;
-    t += S.ct(x, y, C.ink, 'CT2-' + tag + ' ' + P.lvMainA + '/5A'); y += S._ctH;
+    t += S.ct(x, y, C.ink, 'CT2-' + tag); y += S._ctH;
     t += S.wire(x, y, x, busY, C.lv, 1.8);
+    sched.push(
+      { tag: 'QS1-' + tag, name: '隔离开关', spec: P.mvInA + 'A' },
+      { tag: 'QF1-' + tag, name: '高压断路器', spec: P.voltage + ' ' + P.mvInA + 'A Icu=' + P.scKa + 'kA' },
+      { tag: 'CT1-' + tag, name: '电流互感器', spec: Math.round(P.mvInA / 10) * 5 + '/5A 0.5S' },
+      { tag: 'T-' + tag, name: '干式变压器', spec: P.txName + ' ' + P.txVector + ' Uk=' + P.txUk },
+      { tag: 'QF2-' + tag, name: '低压总开关', spec: 'ACB 0.4kV ' + P.lvMainA + 'A' },
+      { tag: 'CT2-' + tag, name: '电流互感器', spec: P.lvMainA + '/5A' }
+    );
     return t;
   };
   s += `<text x="${xA}" y="88" text-anchor="middle" font-size="10.5" font-weight="bold" fill="${C.mv}" font-family="${S.FONT}">───── A 路电源回路 ─────</text>`;
@@ -82,11 +91,16 @@ window.drawWiring = function (R) {
   const upsBranch = (x, tag, batSide) => {
     let t = '', y = busY;
     t += S.wire(x, y, x, y + 40, C.lv, 1.6); y += 40;
-    t += S.cb(x, y, C.lv, 'QF3-' + tag, P.upsPerSide + '×' + P.upsUnit + 'kVA'); y += S._cbH;
+    t += S.cb(x, y, C.lv, 'QF3-' + tag); y += S._cbH;
     t += S.wire(x, y, x, y + 8, C.ups, 1.6); y += 8;
-    t += S.ups(x - 50, y, C.ups, 'UPS-' + tag, P.upsPerSide + '×' + P.upsUnit + 'kVA'); y += 60;
+    t += S.ups(x - 50, y, C.ups, 'UPS-' + tag, ''); y += 60;
     t += S.wire(x, y, x, y + 12, C.bat, 1.3, '5,3'); y += 12;
-    t += S.bat(x, y, C.bat, 'BATT-' + tag, P.upsBackupMin + 'min · ' + Math.round(P.batTotalKwh / 2).toLocaleString() + 'kWh'); y += S._batH;
+    t += S.bat(x, y, C.bat, 'BATT-' + tag, ''); y += S._batH;
+    sched.push(
+      { tag: 'QF3-' + tag, name: 'UPS 进线开关', spec: P.upsPerSide + '×' + P.upsUnit + 'kVA' },
+      { tag: 'UPS-' + tag, name: '在线双变换 UPS', spec: P.upsPerSide + '×' + P.upsUnit + 'kVA 效率96%' },
+      { tag: 'BATT-' + tag, name: '蓄电池组', spec: P.upsBackupMin + 'min ' + Math.round(P.batTotalKwh / 2) + 'kWh' }
+    );
     t += S.wire(x, y, x, 802, C.ups, 1.4);
     t += S.txt(batSide, 760, '蓄电池室', 8.5, '#475569', 'start');
     return t;
@@ -107,6 +121,15 @@ window.drawWiring = function (R) {
   s += S.wire(cx, 1000, cx, 1012, C.lv, 1.6);
   s += S.pe(cx, 1012, C.lv);
   s += S.txt(cx + 20, 1024, 'PE 保护接地 (TN-S 系统, 等电位联结)', 9, C.lv, 'start');
+
+  /* ---------- 设备明细表 (型号规格集中) ---------- */
+  sched.push(
+    { tag: 'AT', name: '母联开关', spec: '0.4kV ' + P.lvMainA + 'A' },
+    { tag: 'STS', name: '静态切换开关', spec: '<10ms 双路失压' },
+    { tag: 'PDU', name: '列头柜', spec: 'A/B 双路 ' + P.pduCount + ' 台' },
+    { tag: 'G', name: '柴油发电机', spec: P.genCount + '×' + P.genCap + 'kW 8h' }
+  );
+  s += S.schedule(sched, 700, 780, 250);
 
   /* ---------- 电缆/母线标注 ---------- */
   s += S.txt(408, 508, P.voltage + 'kV 电缆 3×240', 8, '#475569', 'start');
