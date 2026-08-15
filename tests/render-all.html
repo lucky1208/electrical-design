@@ -1,0 +1,27 @@
+<!DOCTYPE html><html><head><meta charset="UTF-8"><style>
+body{margin:0;background:#fff;font-family:'Segoe UI','Microsoft YaHei',sans-serif}
+h2{margin:10px;font-size:14px;font-family:sans-serif}
+.d{overflow:hidden;border-bottom:2px solid #333}
+</style></head>
+<body>
+<h2>1. AIDC 系统架构图</h2><div class="d" id="d-arch"></div>
+<h2>2. AIDC 电气一次接线图</h2><div class="d" id="d-wiring"></div>
+<h2>3. AIDC 双路供电拓扑图</h2><div class="d" id="d-dual"></div>
+<h2>4. AIDC 液冷管路图</h2><div class="d" id="d-cooling"></div>
+<script src="../js/symbols.js"></script>
+<script src="../js/engine.js"></script>
+<script src="../js/draw-arch.js"></script>
+<script src="../js/draw-wiring.js"></script>
+<script src="../js/draw-dual.js"></script>
+<script src="../js/draw-cooling.js"></script>
+<script>
+const P = { projName:'上海张江AI算力中心', region:'上海', tier:'tier3', gpuType:'h100', gpuCount:800,
+  itLoad:12000, voltage:'10', redundancy:'2n1', cooling:'liquid', pueTarget:1.25,
+  rackPower:40, pricePeak:1.05, priceValley:0.35 };
+const R = AIDC_ENGINE.build(P);
+document.getElementById('d-arch').innerHTML = drawArch(R);
+document.getElementById('d-wiring').innerHTML = drawWiring(R);
+document.getElementById('d-dual').innerHTML = drawDual(R);
+document.getElementById('d-cooling').innerHTML = drawCooling(R);
+</script>
+</body></html>
