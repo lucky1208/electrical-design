@@ -1,106 +1,91 @@
 /* ============================================================
- * 图纸 3: AIDC 双路供电拓扑图 (Dual-Feed Power Topology)
- * 依据: GB 50174 A级双路电源 / TIA-942 冗余等级 / GB 50052
- * 表达: 两路物理独立电源 → 全程冗余 → STS 无扰切换 → 双电源机柜
+ * 图纸 3: AIDC 双路供电拓扑图 — 基于自动布局引擎 (LAYOUT.layered)
+ * 两路独立馈线(A/B 两行) × 阶段列, 下游 STS→PDU→机柜 居中汇聚
  * ============================================================ */
 window.drawDual = function (R) {
   'use strict';
-  const S = window.SYM, C = S.C;
-  const W = 1360, H = 880;
+  const S = window.SYM, C = S.C, L = window.LAYOUT;
   const P = R.power, Cx = R.compute;
   const tierTxt = R.tier === 'tier4' ? 'IV' : R.tier === 'tier2' ? 'II' : 'III';
-  let s = S.svgOpen(W, H, 'AIDC 双路供电拓扑图', `${R.projName} | Tier ${tierTxt} | ${R.red} | 双路物理独立 · 无单点故障设计`,
-    { drawingNo: 'DWG-AIDC-103', scale: 'NTS', rev: 'Rev.A', designer: 'AI 确定性引擎', projName: R.projName, standard: 'GB 50174-2017 · TIA-942 · GB 50052' });
+  const W = 1360, H = 880;
 
-  const ya = 240, yb = 420;   /* A/B 两路主干线 Y */
+  /* ---------- 节点模型: rank=阶段列, A/B 两行 ---------- */
+  const nodes = [
+    { id: 'sA', rank: 0, title: '变电所 A', sub: P.voltage + ' 双回线', color: C.mv, fill: '#eff6ff' },
+    { id: 'sB', rank: 0, title: '变电所 B', sub: P.voltage + ' 双回线', color: C.mv, fill: '#eff6ff' },
+    { id: 'q1A', rank: 1, title: '中压进线柜 A', sub: 'QF1 ' + P.mvInA + 'A', color: C.mv, fill: '#eff6ff' },
+    { id: 'q1B', rank: 1, title: '中压进线柜 B', sub: 'QF1 ' + P.mvInA + 'A', color: C.mv, fill: '#eff6ff' },
+    { id: 'tA', rank: 2, title: '变压器 T-A', sub: P.txUnit + 'kVA', color: '#d97706', fill: '#fffbeb' },
+    { id: 'tB', rank: 2, title: '变压器 T-B', sub: P.txUnit + 'kVA', color: '#d97706', fill: '#fffbeb' },
+    { id: 'q2A', rank: 3, title: '低压总开关 A', sub: 'ACB ' + P.lvMainA + 'A', color: C.lv, fill: '#f0fdf4' },
+    { id: 'q2B', rank: 3, title: '低压总开关 B', sub: 'ACB ' + P.lvMainA + 'A', color: C.lv, fill: '#f0fdf4' },
+    { id: 'uA', rank: 4, title: 'UPS-A', sub: P.upsPerSide + '×' + P.upsUnit + 'kVA', color: C.ups, fill: '#f5f3ff' },
+    { id: 'uB', rank: 4, title: 'UPS-B', sub: P.upsPerSide + '×' + P.upsUnit + 'kVA', color: C.ups, fill: '#f5f3ff' },
+    { id: 'sts', rank: 5, title: 'STS 切换', sub: '<10ms', color: '#e11d48', fill: '#fff1f2' },
+    { id: 'pdu', rank: 6, title: '列头柜 PDU', sub: 'A/B 双母线', color: C.ups, fill: '#f5f3ff' },
+    { id: 'rack', rank: 7, title: 'GPU 机柜', sub: '×' + Cx.gpuRacks + ' 双电源', color: C.ink, fill: '#f8fafc' }
+  ];
+  const lay = L.layered(nodes, { left: 50, top: 130, colWidth: 130, gapX: 26, rowHeight: 170, nodeH: 62 });
+  const yA = lay.pos.sA.y + 31, yB = lay.pos.sB.y + 31, yM = lay.pos.sts.y + 31;
 
-  const zone = (x, y, w, h, label) =>
-    `<rect x="${x}" y="${y}" width="${w}" height="${h}" fill="none" stroke="#94a3b8" stroke-width="1" stroke-dasharray="6,4" rx="4"/>
-     <text x="${x + 8}" y="${y + 14}" font-size="9" font-weight="bold" fill="#64748b" font-family="${S.FONT}">${label}</text>`;
-  s += zone(40, 100, 160, 470, '电源区');
-  s += zone(220, 100, 210, 470, '中压区');
-  s += zone(450, 100, 130, 470, '变配电');
-  s += zone(600, 100, 360, 470, 'UPS / 储能区');
-  s += zone(980, 100, 350, 470, '切换 / 负荷区');
+  let s = S.svgOpen(W, H, 'AIDC 双路供电拓扑图', `${R.projName} | Tier ${tierTxt} | ${R.red} | 双路物理独立 · 无单点故障`,
+    { drawingNo: 'DWG-AIDC-103', scale: 'NTS', rev: 'Rev.A', designer: 'AI 引擎+自动布局', projName: R.projName, standard: 'GB 50174 · TIA-942 · GB 50052' });
 
-  /* ---------- 一条冗余链 (A/B 对称) ---------- */
-  const lane = (tag, spineY, col) => {
-    let t = '';
-    const pwrY = spineY - S._pwrH, cbY = spineY - S._cbH, ctY = spineY - S._ctH, txY = spineY - S._txH;
-    t += S.pwr(90, pwrY, C.mv, '变电所 ' + tag, P.voltage + ' 独立双回线');
-    t += S.wire(90, spineY, 180, spineY, C.mv, 1.6);
-    t += S.cb(180, cbY, C.mv, 'QF1-' + tag, P.mvInA + 'A');
-    t += S.wire(180, spineY, 260, spineY, C.mv, 1.6);
-    t += S.ct(260, ctY, C.ink, 'CT1-' + tag);
-    t += S.wire(260, spineY, 350, spineY, C.mv, 1.6);
-    t += S.tx(350, txY, '#d97706', 'T' + tag, '');
-    t += S.wire(350, spineY, 450, spineY, C.lv, 1.8);
-    t += S.cb(450, cbY, C.lv, 'QF2-' + tag, P.lvMainA + 'A ACB');
-    t += S.wire(450, spineY, 560, spineY, C.lv, 1.8);
-    t += S.ups(560, spineY - 30, C.ups, 'UPS-' + tag, P.upsPerSide + '×' + P.upsUnit + 'kVA · ' + P.upsBackupMin + 'min');
-    t += S.wire(660, spineY, 990, spineY, C.ups, 1.8);
-    t += S.wire(610, spineY + 30, 610, spineY + 40, C.bat, 1.3, '5,3');
-    t += S.bat(610, spineY + 40, C.bat, 'BATT-' + tag, Math.round(P.batTotalKwh / 2).toLocaleString() + 'kWh');
-    return t;
-  };
-  s += lane('A', ya);
-  s += lane('B', yb);
+  /* ---------- 节点块 ---------- */
+  nodes.forEach((n) => { const p = lay.pos[n.id]; s += S.block(p.x, p.y, p.w, p.h, n.color, n.title, n.sub, n.fill); });
+
+  /* ---------- A/B 两行横向能量流 ---------- */
+  for (let r = 0; r < 4; r++) {
+    const a = lay.cols[r], b = lay.cols[r + 1];
+    [yA, yB].forEach((y) => {
+      s += `<line x1="${a.right}" y1="${y}" x2="${b.x}" y2="${y}" stroke="${C.mv}" stroke-width="1.8"/>
+        <path d="M${b.x - 8},${y - 4} L${b.x},${y} L${b.x - 8},${y + 4}" fill="none" stroke="${C.mv}" stroke-width="1.8"/>`;
+    });
+  }
+  /* UPS → STS 汇聚 */
+  s += S.wire(lay.pos.uA.x + 130, yA, lay.pos.sts.x, yM, C.ups, 1.6);
+  s += S.wire(lay.pos.uB.x + 130, yB, lay.pos.sts.x, yM, C.ups, 1.6);
+  /* STS → PDU → 机柜 */
+  s += `<line x1="${lay.cols[5].right}" y1="${yM}" x2="${lay.cols[6].x}" y2="${yM}" stroke="${C.ups}" stroke-width="1.8"/>
+    <path d="M${lay.cols[6].x - 8},${yM - 4} L${lay.cols[6].x},${yM} L${lay.cols[6].x - 8},${yM + 4}" fill="none" stroke="${C.ups}" stroke-width="1.8"/>`;
+  s += `<line x1="${lay.cols[6].right}" y1="${yM}" x2="${lay.cols[7].x}" y2="${yM}" stroke="${C.ups}" stroke-width="1.8"/>
+    <path d="M${lay.cols[7].x - 8},${yM - 4} L${lay.cols[7].x},${yM} L${lay.cols[7].x - 8},${yM + 4}" fill="none" stroke="${C.ups}" stroke-width="1.8"/>`;
 
   /* ---------- 物理隔离标注 ---------- */
-  s += S.wire(1000, 100, 1000, 295, '#94a3b8', 1.2, '2,3');
-  s += S.txt(1008, 200, 'A / B 路物理隔离', 9, '#64748b', 'start');
-  s += S.txt(1008, 216, '不同母线 · 不同路径 · 不同变电所', 8.5, '#64748b', 'start');
+  const isoX = L.snap((lay.cols[4].right + lay.cols[5].x) / 2);
+  s += S.wire(isoX, 100, isoX, yM - 40, '#94a3b8', 1.2, '2,3');
+  s += S.txt(isoX + 6, 190, 'A/B 路物理隔离', 9, '#64748b', 'start');
+  s += S.txt(isoX + 6, 206, '不同母线·不同路径', 8.5, '#64748b', 'start');
 
-  /* ---------- STS 汇聚 + PDU + 机柜 ---------- */
-  s += S.wire(990, ya, 990, 300, C.ups, 1.8);
-  s += S.wire(990, yb, 990, 344, C.ups, 1.8);
-  s += S.sts(990, 300, 160, 44, '#e11d48', 'STS 静态切换', '<10ms · 无扰切换');
-  s += S.wire(1150, 322, 1180, 322, C.ups, 1.8);
-  s += S.pdu(1180, 300, 130, 44, C.ups, '列头柜 PDU', 'A/B 双母线');
-  s += S.wire(1245, 344, 1245, 380, C.ups, 1.8);
-  s += S.rack(1180, 380, 130, 70, C.ink, 'GPU 机柜', '×' + Cx.gpuRacks + ' 双电源输入');
-  s += S.txt(1245, 470, '机柜 PSU: 2×独立输入', 8.5, '#334155', 'middle');
-  s += S.txt(1245, 486, '(双电源模块 1+1)', 8.5, '#64748b', 'middle');
+  /* ---------- 三层储能 + 柴发 (底部横排) ---------- */
+  const aux = L.rowFlow([
+    { id: 'sto' }, { id: 'gen' }
+  ], { left: 50, y: 640, itemW: 240, gapX: 60, itemH: 64 });
+  s += S.block(aux.pos.sto.x, aux.pos.sto.y, 240, 64, C.bat, '三层储能 HSC→BBU→BESS', 'HSC ' + R.storage.hsc.powerKw + 'kW / BESS ' + R.storage.bess.capKwh + 'kWh', '#fffbeb');
+  s += S.gen(aux.pos.gen.x, aux.pos.gen.y, 240, 64, C.gen, '应急柴发 N+1', P.genCount + '×' + P.genCap + 'kW · 8h储油');
+  s += S.wire(aux.pos.sto.x + 120, aux.pos.sto.y, aux.pos.sto.x + 120, yB + 31, C.bat, 1.3, '5,3');
+  s += S.wire(aux.pos.gen.x + 120, aux.pos.gen.y, aux.pos.gen.x + 120, yB + 31, C.gen, 1.3, '6,3');
 
-  /* ---------- 三层储能 + 应急柴发 ---------- */
-  s += S.block(40, 560, 200, 70, C.bat, '', '', '#fffbeb');
-  s += S.txt(140, 574, '三层储能 HSC→BBU→BESS', 9, C.bat, 'middle', 'bold');
-  s += S.txt(140, 594, 'HSC ' + R.storage.hsc.powerKw + 'kW / BBU ' + R.storage.bbu.powerKw + 'kW', 8, '#92400e', 'middle');
-  s += S.txt(140, 610, 'BESS ' + R.storage.bess.powerKw + 'kW · ' + R.storage.bess.capKwh + 'kWh', 8, '#92400e', 'middle');
-  s += S.wire(140, 560, 140, 310, C.bat, 1.4, '5,3');
-  s += S.wire(140, 310, 140, 490, C.bat, 1.4, '5,3');
-  s += S.jdot(140, 310, C.bat, 2.2);
-  s += S.jdot(140, 490, C.bat, 2.2);
-
-  s += S.gen(720, 560, 170, 70, C.gen, '应急柴发 N+1', P.genCount + '×' + P.genCap.toLocaleString() + 'kW');
-  s += S.wire(805, 560, 805, ya, C.gen, 1.4, '6,3');
-  s += S.wire(805, 560, 805, yb, C.gen, 1.4, '6,3');
-  s += S.jdot(805, ya, C.gen, 2.2);
-  s += S.jdot(805, yb, C.gen, 2.2);
-
-  /* ---------- 冗余等级徽标 ---------- */
+  /* ---------- 冗余徽标 ---------- */
   const badge = (x, y, w, text, color) =>
     `<rect x="${x}" y="${y}" width="${w}" height="20" rx="10" fill="${color}18" stroke="${color}" stroke-width="1.2"/>
      <text x="${x + w / 2}" y="${y + 13.5}" text-anchor="middle" font-size="9" font-weight="bold" fill="${color}" font-family="${S.FONT}">${text}</text>`;
-  s += badge(50, 76, 130, '双路独立电源', C.mv);
-  s += badge(230, 76, 130, '每路 100% 容量', C.mv);
-  s += badge(600, 76, 150, 'UPS ' + R.red, C.ups);
-  s += badge(985, 76, 150, 'STS <10ms 切换', '#e11d48');
-  s += badge(1160, 76, 130, '机柜双电源', C.ups);
-  s += badge(985, 250, 130, '无单点故障设计', '#059669');
+  s += badge(50, 84, 130, '双路独立电源', C.mv);
+  s += badge(300, 84, 140, '每路 100% 容量', C.mv);
+  s += badge(560, 84, 140, 'UPS ' + R.red, C.ups);
+  s += badge(820, 84, 150, 'STS <10ms 切换', '#e11d48');
+  s += badge(1080, 84, 130, '机柜双电源', C.ups);
 
   /* ---------- 图例 ---------- */
   s += S.legend([
     { color: C.mv, label: P.voltage + 'kV 中压主干' },
-    { color: C.lv, thick: 2, label: '0.4kV 低压主干' },
+    { color: C.lv, label: '0.4kV 低压主干' },
     { color: C.ups, label: 'UPS 输出 / PDU' },
     { color: C.gen, dash: '6,3', label: '应急柴发 (N+1)' },
     { color: C.bat, dash: '5,3', label: '储能/电池直流' }
-  ], 1180, 560, 170);
+  ], 1120, 620, 220);
 
-  s += S.txt(680, 800, '冗余说明: ' + (R.red === '2n' ? '2N — 双路各自独立承载 100% 负荷, 任意一路故障不影响运行'
-    : R.red === '2n1' ? '2(N+1) — 双路独立 + 每路内部 N+1 冗余, 任意单点故障/计划维护均可不停机'
-      : 'N+1 — 关键设备 N+1 冗余, 单点故障可在线更换'), 9.5, '#334155', 'middle');
+  s += S.txt(680, 820, '冗余说明: ' + (R.red === '2n' ? '2N — 双路各自独立承载 100% 负荷' : R.red === '2n1' ? '2(N+1) — 双路独立 + 每路 N+1, 单点故障/维护可不停机' : 'N+1 — 关键设备 N+1 冗余'), 9.5, '#334155', 'middle');
   s += '</svg>';
   return s;
 };

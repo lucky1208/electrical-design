@@ -33,6 +33,15 @@ window.LAYOUT = (function () {
     return { pos, cols, maxN, height: o.top + maxN * o.rowHeight, opts: o };
   }
 
+  /* 等距分布: 在 [left,right] 内生成 count 个网格对齐中心点 (馈线/列锚点) */
+  function distribute(count, left, right) {
+    if (count <= 1) return [snap((left + right) / 2)];
+    const step = (right - left) / (count - 1);
+    const out = [];
+    for (let i = 0; i < count; i++) out.push(snap(left + i * step));
+    return out;
+  }
+
   /* 水平流程排布: items=[{id,...}], 从左到右等距, 返回 {pos, width} */
   function rowFlow(items, opts) {
     const o = Object.assign({ left: 40, y: 520, itemW: 150, gapX: 40, itemH: 62 }, opts || {});
@@ -44,5 +53,5 @@ window.LAYOUT = (function () {
     return { pos, width, opts: o };
   }
 
-  return { GRID, snap, layered, rowFlow };
+  return { GRID, snap, layered, rowFlow, distribute };
 })();

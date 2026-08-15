@@ -6,14 +6,17 @@
  * ============================================================ */
 window.drawWiring = function (R) {
   'use strict';
-  const S = window.SYM, C = S.C;
+  const S = window.SYM, C = S.C, L = window.LAYOUT;
   const W = 980, H = 1180;
   const P = R.power, Cx = R.compute;
   const tierTxt = R.tier === 'tier4' ? 'IV' : R.tier === 'tier2' ? 'II' : 'III';
   let s = S.svgOpen(W, H, 'AIDC 电气一次接线图', `${R.projName} | ${P.voltage} 双路进线 | Tier ${tierTxt} | ${R.red} | 0.4kV TN-S`,
     { drawingNo: 'DWG-AIDC-102', scale: 'NTS', rev: 'Rev.A', designer: 'AI 确定性引擎', projName: R.projName, standard: 'GB/T 4728 · IEC 60617 · GB 50052 · GB 50174' });
 
-  const xA = 270, xB = 710, busY = 560, cx = 490;
+  // 馈线列锚点由布局引擎等距分布 + 网格对齐 (替代手工坐标)
+  const [xA, xB] = L.distribute(2, 260, 720);
+  const cx = L.snap((xA + xB) / 2);
+  const busY = L.snap(560);
   const sched = [];   // 设备明细表数据 (图上只放位号)
 
   /* ---------- 电压分区 (虚线边界) ---------- */
