@@ -157,14 +157,14 @@
 
   window.showSubTab = function (id) {
     state.subTab = id;
-    ['arch', 'wiring', 'dual', 'cooling'].forEach(k => {
+    ['arch', 'wiring', 'dual', 'cooling', 'thermal'].forEach(k => {
       $('d-' + k).style.display = k === id ? 'block' : 'none';
       $('sub-' + k).classList.toggle('active', k === id);
     });
   };
 
   window.downloadCurrentSvg = function () {
-    const map = { arch: 'AIDC系统架构图', wiring: 'AIDC电气一次接线图', dual: 'AIDC双路供电拓扑图', cooling: 'AIDC液冷管路图' };
+    const map = { arch: 'AIDC系统架构图', wiring: 'AIDC电气一次接线图', dual: 'AIDC双路供电拓扑图', cooling: 'AIDC液冷管路图', thermal: '液冷热管理方案图' };
     const svg = $('d-' + state.subTab).innerHTML;
     const blob = new Blob([svg], { type: 'image/svg+xml' });
     const a = document.createElement('a');

@@ -7,7 +7,7 @@ const ROOT = path.join(__dirname, '..');
 function load(name, win) { (new Function('window', fs.readFileSync(path.join(ROOT, 'js', name), 'utf8')))(win); }
 const win = { SYM: null };
 load('symbols.js', win); load('engine.js', win); load('layout.js', win);
-['draw-arch.js','draw-wiring.js','draw-dual.js','draw-cooling.js'].forEach(f => load(f, win));
+['draw-arch.js','draw-wiring.js','draw-dual.js','draw-cooling.js','draw-thermal.js'].forEach(f => load(f, win));
 
 const R = win.AIDC_ENGINE.build({ projName:'T', region:'上海', tier:'tier3', gpuType:'h100',
   gpuCount:800, itLoad:12000, voltage:'10', redundancy:'2n1', cooling:'liquid', pueTarget:1.25,
@@ -39,7 +39,7 @@ function overlaps(texts) {
   }
   return bad;
 }
-const names = { drawArch:'系统架构图', drawWiring:'一次接线图', drawDual:'双路拓扑图', drawCooling:'液冷管路图' };
+const names = { drawArch:'系统架构图', drawWiring:'一次接线图', drawDual:'双路拓扑图', drawCooling:'液冷管路图', drawThermal:'热管理方案图' };
 let total = 0;
 for (const [fn, name] of Object.entries(names)) {
   const svg = win[fn](R);

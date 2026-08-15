@@ -8,6 +8,7 @@ h2{margin:10px;font-size:14px;font-family:sans-serif}
 <h2>2. AIDC 电气一次接线图</h2><div class="d" id="d-wiring"></div>
 <h2>3. AIDC 双路供电拓扑图</h2><div class="d" id="d-dual"></div>
 <h2>4. AIDC 液冷管路图</h2><div class="d" id="d-cooling"></div>
+<h2>5. 液冷热管理方案图(形象版)</h2><div class="d" id="d-thermal"></div>
 <script src="../js/symbols.js"></script>
 <script src="../js/engine.js"></script>
 <script src="../js/layout.js"></script>
@@ -15,6 +16,7 @@ h2{margin:10px;font-size:14px;font-family:sans-serif}
 <script src="../js/draw-wiring.js"></script>
 <script src="../js/draw-dual.js"></script>
 <script src="../js/draw-cooling.js"></script>
+<script src="../js/draw-thermal.js"></script>
 <script>
 const P = { projName:'上海张江AI算力中心', region:'上海', tier:'tier3', gpuType:'h100', gpuCount:800,
   itLoad:12000, voltage:'10', redundancy:'2n1', cooling:'liquid', pueTarget:1.25,
@@ -24,5 +26,6 @@ document.getElementById('d-arch').innerHTML = drawArch(R);
 document.getElementById('d-wiring').innerHTML = drawWiring(R);
 document.getElementById('d-dual').innerHTML = drawDual(R);
 document.getElementById('d-cooling').innerHTML = drawCooling(R);
+document.getElementById('d-thermal').innerHTML = drawThermal(R);
 </script>
 </body></html>
