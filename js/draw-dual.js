@@ -33,7 +33,7 @@ window.drawDual = function (R) {
     t += S.wire(180, spineY, 260, spineY, C.mv, 1.6);
     t += S.ct(260, ctY, C.ink, 'CT1-' + tag);
     t += S.wire(260, spineY, 350, spineY, C.mv, 1.6);
-    t += S.tx(350, txY, '#d97706', 'T' + tag, P.txName + ' ' + P.voltage + '/0.4kV');
+    t += S.tx(350, txY, '#d97706', 'T' + tag, '');
     t += S.wire(350, spineY, 450, spineY, C.lv, 1.8);
     t += S.cb(450, cbY, C.lv, 'QF2-' + tag, P.lvMainA + 'A ACB');
     t += S.wire(450, spineY, 560, spineY, C.lv, 1.8);
@@ -63,9 +63,10 @@ window.drawDual = function (R) {
   s += S.txt(1245, 486, '(双电源模块 1+1)', 8.5, '#64748b', 'middle');
 
   /* ---------- 三层储能 + 应急柴发 ---------- */
-  s += S.block(40, 560, 200, 70, C.bat, '三层储能 HSC→BBU→BESS', '', '#fffbeb');
-  s += S.txt(140, 585, 'HSC ' + R.storage.hsc.powerKw + 'kW / BBU ' + R.storage.bbu.powerKw + 'kW', 8.5, '#92400e', 'middle');
-  s += S.txt(140, 603, 'BESS ' + R.storage.bess.powerKw + 'kW · ' + R.storage.bess.capKwh + 'kWh', 8.5, '#92400e', 'middle');
+  s += S.block(40, 560, 200, 70, C.bat, '', '', '#fffbeb');
+  s += S.txt(140, 574, '三层储能 HSC→BBU→BESS', 9, C.bat, 'middle', 'bold');
+  s += S.txt(140, 594, 'HSC ' + R.storage.hsc.powerKw + 'kW / BBU ' + R.storage.bbu.powerKw + 'kW', 8, '#92400e', 'middle');
+  s += S.txt(140, 610, 'BESS ' + R.storage.bess.powerKw + 'kW · ' + R.storage.bess.capKwh + 'kWh', 8, '#92400e', 'middle');
   s += S.wire(140, 560, 140, 310, C.bat, 1.4, '5,3');
   s += S.wire(140, 310, 140, 490, C.bat, 1.4, '5,3');
   s += S.jdot(140, 310, C.bat, 2.2);

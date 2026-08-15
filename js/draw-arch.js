@@ -24,8 +24,8 @@ window.drawArch = function (R) {
 
   /* ---------- 第 2 列: 中压配电 ---------- */
   s += zone(250, 96, 190, 620, '中压配电区 ' + P.voltage);
-  const sw1 = S.block(260, 160, 170, 150, C.mv, '中压开关柜', P.panelType, '#eff6ff');
-  const swInner = S.cb(300, 180, C.mv, 'QF1-A') + S.cb(300, 230, C.mv, 'QF1-B') + S.pt(370, 200, '#9333ea', 'PT') + S.txt(260, 300, '进线/计量/PT/母联', 8.5, '#334155', 'start');
+  const sw1 = S.block(260, 160, 170, 150, C.mv, '中压开关柜', '', '#eff6ff');
+  const swInner = S.cb(300, 196, C.mv, 'QF1-A') + S.cb(300, 250, C.mv, 'QF1-B') + S.pt(395, 214, '#9333ea', 'PT') + S.txt(260, 302, P.panelType + ' 进线/PT/母联', 8, '#334155', 'start');
   s += `<g>${sw1}${swInner}</g>`;
   s += S.block(260, 350, 170, 76, C.mv, '中压计量与PT柜', '0.5S 关口计量', '#eff6ff');
   s += S.block(260, 460, 170, 70, C.mv, '直流屏/所用电', 'DC220V · 交流380V', '#eff6ff');
@@ -33,9 +33,9 @@ window.drawArch = function (R) {
   /* ---------- 第 3 列: 变配电 ---------- */
   s += zone(470, 96, 180, 620, '变配电区');
   s += `<g>${S.block(480, 160, 160, 120, '#d97706', '变压器 T1', P.txName + ' ' + P.txVector + ' Uk=' + P.txUk, '#fffbeb')}</g>`;
-  s += S.tx(520, 176, '#d97706', 'T1', P.txName);
+  s += S.tx(520, 176, '#d97706', '', '');
   s += `<g>${S.block(480, 330, 160, 120, '#d97706', '变压器 T2', P.txName + ' ' + P.txVector, '#fffbeb')}</g>`;
-  s += S.tx(520, 346, '#d97706', 'T2', P.txName);
+  s += S.tx(520, 346, '#d97706', '', '');
   s += S.txt(560, 470, '每路 ' + P.txPerSide + ' 台 + ' + P.spareTx + ' 台备用 (N+1)', 9, '#334155', 'middle');
 
   /* ---------- 第 4 列: 不间断电源 ---------- */

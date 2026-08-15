@@ -120,7 +120,7 @@ window.drawWiring = function (R) {
     { color: C.bat, dash: '5,3', label: '蓄电池直流回路' },
     { color: C.ups, label: 'UPS 输出 / PDU 配电' },
     { color: '#9333ea', label: 'PT/避雷器' }
-  ], 750, 700, 210);
+  ], 60, 940, 210);
 
   s += S.txt(cx, 1088, '注: 本图为方案级一次接线图, 施工图需补充二次回路/端子排/电缆清册 (GB/T 4728)', 8.5, '#64748b', 'middle');
   s += '</svg>';

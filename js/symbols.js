@@ -223,10 +223,12 @@ window.SYM = (function () {
 
   /* 柴油发电机: 框 + G 圆 */
   function gen(x, y, w, h, color, label, sub) {
-    const c = color || C.gen, cx = x + w / 2;
-    const inner = `<circle cx="${cx - 16}" cy="${y + h / 2}" r="12" fill="#fff" stroke="${c}" stroke-width="1.5"/>
-      <text x="${cx - 16}" y="${y + h / 2 + 4}" text-anchor="middle" font-size="10" fill="${c}" font-family="${MONO}">G</text>`;
-    return block(x, y, w, h, c, label, sub, '#faf5ff', inner);
+    const c = color || C.gen;
+    return `<rect x="${x}" y="${y}" width="${w}" height="${h}" fill="#faf5ff" stroke="${c}" stroke-width="1.5" rx="3"/>
+    <circle cx="${x + 18}" cy="${y + h / 2}" r="11" fill="#fff" stroke="${c}" stroke-width="1.5"/>
+    <text x="${x + 18}" y="${y + h / 2 + 4}" text-anchor="middle" font-size="10" fill="${c}" font-family="${MONO}">G</text>
+    <text x="${x + 36}" y="${y + h / 2 - 1}" font-size="10" font-weight="bold" fill="${c}" font-family="${FONT}">${label || ''}</text>
+    ${sub ? `<text x="${x + 36}" y="${y + h / 2 + 13}" font-size="8" fill="${C.ink}" font-family="${FONT}">${sub}</text>` : ''}`;
   }
 
   /* 保护接地 PE (IEC 60617-2), 高16 */
@@ -368,8 +370,9 @@ window.SYM = (function () {
     const no = m.drawingNo || 'DWG-AIDC-000';
     const designer = m.designer || 'AI Engine';
     const proj = m.projName || '';
-    const tbH = 58, tbY = H - tbH - 10;
-    const tbW = 380, tbX = W - tbW - 10;
+    const tbH = 64, tbY = H - tbH - 10;
+    const tbW = 430, tbX = W - tbW - 10;
+    const stdShort = st.split('·').slice(0, 2).join('·').trim();
     return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}">
     <rect width="${W}" height="${H}" fill="#ffffff"/>
     <!-- 外框 -->
@@ -377,18 +380,18 @@ window.SYM = (function () {
     <rect x="14" y="14" width="${W - 28}" height="${H - 28}" fill="none" stroke="${C.ink}" stroke-width="0.8"/>
     <!-- 标题栏 -->
     <rect x="${tbX}" y="${tbY}" width="${tbW}" height="${tbH}" fill="#fff" stroke="${C.ink}" stroke-width="1.5"/>
-    <line x1="${tbX}" y1="${tbY + 18}" x2="${tbX + tbW}" y2="${tbY + 18}" stroke="${C.ink}" stroke-width="0.9"/>
-    <line x1="${tbX}" y1="${tbY + 38}" x2="${tbX + tbW}" y2="${tbY + 38}" stroke="${C.ink}" stroke-width="0.9"/>
-    <line x1="${tbX + 220}" y1="${tbY + 18}" x2="${tbX + 220}" y2="${tbY + tbH}" stroke="${C.ink}" stroke-width="0.9"/>
-    <line x1="${tbX + 300}" y1="${tbY}" x2="${tbX + 300}" y2="${tbY + 18}" stroke="${C.ink}" stroke-width="0.9"/>
-    <text x="${tbX + 8}" y="${tbY + 12}" font-size="9" fill="${C.ink}" font-family="${FONT}">项目: ${proj}</text>
-    <text x="${tbX + 8}" y="${tbY + 31}" font-size="11" font-weight="bold" fill="${C.ink}" font-family="${FONT}">${title}</text>
-    <text x="${tbX + 8}" y="${tbY + 51}" font-size="8.5" fill="${C.ink}" font-family="${FONT}">标准依据: ${st}</text>
-    <text x="${tbX + 228}" y="${tbY + 12}" font-size="9" fill="${C.ink}" font-family="${FONT}">图号: ${no}</text>
-    <text x="${tbX + 228}" y="${tbY + 31}" font-size="9" fill="${C.ink}" font-family="${FONT}">版本: ${rev}</text>
-    <text x="${tbX + 228}" y="${tbY + 51}" font-size="9" fill="${C.ink}" font-family="${FONT}">日期: ${date}</text>
-    <text x="${tbX + 308}" y="${tbY + 12}" font-size="9" fill="${C.ink}" font-family="${FONT}">比例: ${scale}</text>
-    <text x="${tbX + 308}" y="${tbY + 31}" font-size="9" fill="${C.ink}" font-family="${FONT}">设计: ${designer}</text>
+    <line x1="${tbX}" y1="${tbY + 20}" x2="${tbX + tbW}" y2="${tbY + 20}" stroke="${C.ink}" stroke-width="0.9"/>
+    <line x1="${tbX}" y1="${tbY + 42}" x2="${tbX + tbW}" y2="${tbY + 42}" stroke="${C.ink}" stroke-width="0.9"/>
+    <line x1="${tbX + 240}" y1="${tbY}" x2="${tbX + 240}" y2="${tbY + tbH}" stroke="${C.ink}" stroke-width="0.9"/>
+    <line x1="${tbX + 345}" y1="${tbY}" x2="${tbX + 345}" y2="${tbY + 42}" stroke="${C.ink}" stroke-width="0.9"/>
+    <text x="${tbX + 6}" y="${tbY + 13}" font-size="8.5" fill="${C.ink}" font-family="${FONT}">项目: ${proj}</text>
+    <text x="${tbX + 6}" y="${tbY + 35}" font-size="10.5" font-weight="bold" fill="${C.ink}" font-family="${FONT}">${title}</text>
+    <text x="${tbX + 6}" y="${tbY + 57}" font-size="7.5" fill="${C.ink}" font-family="${FONT}">标准: ${stdShort}</text>
+    <text x="${tbX + 246}" y="${tbY + 13}" font-size="8" fill="${C.ink}" font-family="${FONT}">图号: ${no}</text>
+    <text x="${tbX + 246}" y="${tbY + 35}" font-size="8" fill="${C.ink}" font-family="${FONT}">版本: ${rev}</text>
+    <text x="${tbX + 246}" y="${tbY + 57}" font-size="8" fill="${C.ink}" font-family="${FONT}">设计: ${designer}</text>
+    <text x="${tbX + 351}" y="${tbY + 13}" font-size="8" fill="${C.ink}" font-family="${FONT}">比例: ${scale}</text>
+    <text x="${tbX + 351}" y="${tbY + 35}" font-size="8" fill="${C.ink}" font-family="${FONT}">日期: ${date}</text>
     <!-- 图名抬头 -->
     <text x="${W / 2}" y="30" text-anchor="middle" font-size="15" font-weight="bold" fill="${C.ink}" font-family="${FONT}">${title}</text>
     <text x="${W / 2}" y="46" text-anchor="middle" font-size="9.5" fill="#334155" font-family="${FONT}">${sub || ''}</text>`;
