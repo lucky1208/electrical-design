@@ -224,12 +224,13 @@
     $('d-dual').innerHTML = window.drawDual(R);
     $('d-cooling').innerHTML = window.drawCooling(R);
     $('d-thermal').innerHTML = window.drawThermal(R);
+    if (window.ASSET) $('d-assets').innerHTML = window.ASSET.preview();
     showSubTab(state.subTab);
   }
 
   window.showSubTab = function (id) {
     state.subTab = id;
-    ['arch', 'wiring', 'dual', 'cooling', 'thermal'].forEach(k => {
+    ['arch', 'wiring', 'dual', 'cooling', 'thermal', 'assets'].forEach(k => {
       $('d-' + k).style.display = k === id ? 'block' : 'none';
       $('sub-' + k).classList.toggle('active', k === id);
     });
