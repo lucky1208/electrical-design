@@ -9,7 +9,7 @@ window.drawThermal = function (R) {
   const Cl = R.cooling, Cx = R.compute;
   const W = 1500, H = 1000;
   const SUP = '#0284c7', RET = '#dc2626', PRI = '#0ea5e9', CW = '#059669';
-  let s = S.svgOpen(W, H, 'AIDC 液冷与热管理方案图', `${R.projName} | GPU ${Cx.gpuRacks} 柜 | 二次供${Cl.supplyTemp}℃/回${Cl.returnTemp}℃ | CDU ${Cl.cduCount} 台 N+1`,
+  let s = S.svgOpen(W, H, 'AIDC 数据机房 液冷与热管理方案图', `${R.projName} | IT ${Cx.itLoadKw.toLocaleString()}kW · PUE ${R.pue.target} | GPU ${Cx.gpuRacks} 柜 | 供${Cl.supplyTemp}℃/回${Cl.returnTemp}℃ | CDU ${Cl.cduCount} 台 N+1`,
     { drawingNo: 'DWG-AIDC-105', scale: 'NTS', rev: 'Rev.B', designer: 'AI 引擎', projName: R.projName, standard: 'ASHRAE TC9.9 · GB 50174 · GB/T 4728' });
 
   /* ---------- 右侧: 管路图例 / 符号图例 / 监控告警 ---------- */
@@ -31,8 +31,8 @@ window.drawThermal = function (R) {
 
   /* ---------- Zone A: 二次侧 · GPU 冷板 ---------- */
   s += `<rect x="30" y="90" width="1120" height="250" rx="10" fill="#fff" stroke="${SUP}" stroke-width="1.6"/>`;
-  s += S.txt(50, 112, '二次侧液冷回路 · GPU 冷板冷却 (IT 机房)', 11.5, SUP, 'start', 'bold');
-  s += S.txt(50, 128, '冷却对象: GPU 液冷机柜 ×' + Cx.gpuRacks + ' · 冷板流量 5~8L/min/模组 · ' + Cl.branchDn, 8.5, '#475569', 'start');
+  s += S.txt(50, 112, '二次侧液冷回路 · GPU 冷板冷却 (IT 机房 · 冷/热通道封闭)', 11.5, SUP, 'start', 'bold');
+  s += S.txt(50, 128, '冷却对象: GPU 液冷机柜 ×' + Cx.gpuRacks + ' · 冷板 5~8L/min/模组 · ' + Cl.branchDn + (Cl.cracCount > 0 ? ' · 风冷辅助: 精密空调 CRAC ×' + Cl.cracCount : ''), 8.5, '#475569', 'start');
   for (let i = 0; i < 3; i++) {
     const x = 60 + i * 250;
     s += S.block(x, 160, 200, 90, C.ink, 'GPU 液冷柜', '×' + Math.ceil(Cx.gpuRacks / 3) + ' · 冷板', '#f8fafc');
