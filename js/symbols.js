@@ -169,11 +169,14 @@ window.SYM = (function () {
   /* UPS: 框 + 内部 ~/= 变换示意, 高60 */
   const _upsH = 60, _upsW = 100;
   function ups(x, y, color, label, sub) {
-    const c = color || C.ups, cx = x + _upsW / 2;
-    const inner = `<path d="M${cx - 18},${y + 30} q7,-10 14,0 q7,10 14,0" fill="none" stroke="${c}" stroke-width="1.2"/>
-      <line x1="${cx + 12}" y1="${y + 22}" x2="${cx + 20}" y2="${y + 22}" stroke="${c}" stroke-width="1.4"/>
-      <line x1="${cx + 12}" y1="${y + 38}" x2="${cx + 20}" y2="${y + 38}" stroke="${c}" stroke-width="1.4"/>`;
-    return block(x, y, _upsW, _upsH, c, label, sub, '#f5f3ff', inner);
+    const c = color || C.ups;
+    return `<rect x="${x}" y="${y}" width="${_upsW}" height="${_upsH}" fill="#f5f3ff" stroke="${c}" stroke-width="1.5" rx="3"/>
+    <path d="M${x + 10},${y + 30} q5,-8 10,0 q5,8 10,0" fill="none" stroke="${c}" stroke-width="1.2"/>
+    <line x1="${x + 36}" y1="${y + 12}" x2="${x + 36}" y2="${y + 48}" stroke="${c}" stroke-width="1"/>
+    <line x1="${x + 44}" y1="${y + 20}" x2="${x + 58}" y2="${y + 20}" stroke="${c}" stroke-width="1.6"/>
+    <line x1="${x + 44}" y1="${y + 34}" x2="${x + 58}" y2="${y + 34}" stroke="${c}" stroke-width="1.6"/>
+    <text x="${x + 64}" y="${y + 26}" font-size="10" font-weight="bold" fill="${c}" font-family="${FONT}">${label || ''}</text>
+    ${sub ? `<text x="${x + 64}" y="${y + 42}" font-size="7" fill="${C.ink}" font-family="${FONT}">${sub}</text>` : ''}`;
   }
 
   /* 蓄电池组: 极板组 (长-短交替), 高30 */
@@ -181,13 +184,13 @@ window.SYM = (function () {
   function bat(cx, y0, color, label, sub) {
     const c = color || C.bat, cy = y0 + 12;
     return `<line x1="${cx}" y1="${y0}" x2="${cx}" y2="${cy - 8}" stroke="${c}" stroke-width="1.4"/>
-    <line x1="${cx - 12}" y1="${cy}" x2="${cx - 12}" y2="${cy + 14}" stroke="${c}" stroke-width="2"/>
-    <line x1="${cx - 5}" y1="${cy - 5}" x2="${cx - 5}" y2="${cy + 9}" stroke="${c}" stroke-width="1.4"/>
-    <line x1="${cx + 2}" y1="${cy}" x2="${cx + 2}" y2="${cy + 14}" stroke="${c}" stroke-width="2"/>
-    <line x1="${cx + 9}" y1="${cy - 5}" x2="${cx + 9}" y2="${cy + 9}" stroke="${c}" stroke-width="1.4"/>
-    <line x1="${cx}" y1="${cy + 14}" x2="${cx}" y2="${y0 + _batH}" stroke="${c}" stroke-width="1.4"/>
-    ${label ? txt(cx + 18, cy - 2, label, 9.5, c, 'start', 'bold', MONO) : ''}
-    ${sub ? txt(cx + 18, cy + 13, sub, 8, C.ink, 'start', '', MONO) : ''}`;
+    <line x1="${cx - 14}" y1="${cy}" x2="${cx - 14}" y2="${cy + 16}" stroke="${c}" stroke-width="2.4"/>
+    <line x1="${cx - 6}" y1="${cy - 6}" x2="${cx - 6}" y2="${cy + 10}" stroke="${c}" stroke-width="1.4"/>
+    <line x1="${cx + 2}" y1="${cy}" x2="${cx + 2}" y2="${cy + 16}" stroke="${c}" stroke-width="2.4"/>
+    <line x1="${cx + 10}" y1="${cy - 6}" x2="${cx + 10}" y2="${cy + 10}" stroke="${c}" stroke-width="1.4"/>
+    <line x1="${cx}" y1="${cy + 16}" x2="${cx}" y2="${y0 + _batH}" stroke="${c}" stroke-width="1.4"/>
+    ${label ? txt(cx + 20, cy - 2, label, 9.5, c, 'start', 'bold', MONO) : ''}
+    ${sub ? txt(cx + 20, cy + 13, sub, 8, C.ink, 'start', '', MONO) : ''}`;
   }
 
   /* STS 静态切换开关: 框 + 双向切换, 高44 */
@@ -203,10 +206,12 @@ window.SYM = (function () {
 
   /* 列头柜 PDU, 高44 */
   function pdu(x, y, w, h, color, label, sub) {
-    const c = color || C.ups, cx = x + w / 2;
-    const inner = `<line x1="${cx}" y1="${y + 8}" x2="${cx}" y2="${y + h - 8}" stroke="${c}" stroke-width="2.2"/>
-      <line x1="${x + 12}" y1="${y + h / 2}" x2="${x + w - 12}" y2="${y + h / 2}" stroke="${c}" stroke-width="1.4"/>`;
-    return block(x, y, w, h, c, label, sub, '#f5f3ff', inner);
+    const c = color || C.ups;
+    return `<rect x="${x}" y="${y}" width="${w}" height="${h}" fill="#f5f3ff" stroke="${c}" stroke-width="1.5" rx="3"/>
+    <line x1="${x + 10}" y1="${y + 12}" x2="${x + w - 10}" y2="${y + 12}" stroke="${c}" stroke-width="2.2"/>
+    <line x1="${x + w / 2}" y1="${y + 12}" x2="${x + w / 2}" y2="${y + 20}" stroke="${c}" stroke-width="1.4"/>
+    <text x="${x + w / 2}" y="${y + h / 2 + 9}" text-anchor="middle" font-size="10" font-weight="bold" fill="${c}" font-family="${FONT}">${label || ''}</text>
+    ${sub ? `<text x="${x + w / 2}" y="${y + h - 6}" text-anchor="middle" font-size="7.5" fill="${C.ink}" font-family="${FONT}">${sub}</text>` : ''}`;
   }
 
   /* 服务器机柜, 高70 */

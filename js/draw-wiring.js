@@ -7,7 +7,7 @@
 window.drawWiring = function (R) {
   'use strict';
   const S = window.SYM, C = S.C, L = window.LAYOUT;
-  const W = 980, H = 1180;
+  const W = 1280, H = 1180;
   const P = R.power, Cx = R.compute;
   const tierTxt = R.tier === 'tier4' ? 'IV' : R.tier === 'tier2' ? 'II' : 'III';
   let s = S.svgOpen(W, H, 'AIDC 电气一次接线图', `${R.projName} | ${P.voltage} 双路进线 | Tier ${tierTxt} | ${R.red} | 0.4kV TN-S`,
@@ -132,7 +132,7 @@ window.drawWiring = function (R) {
     { tag: 'PDU', name: '列头柜', spec: 'A/B 双路 ' + P.pduCount + ' 台' },
     { tag: 'G', name: '柴油发电机', spec: P.genCount + '×' + P.genCap + 'kW 8h' }
   );
-  s += S.schedule(sched, 700, 780, 250);
+  s += S.schedule(sched, 1000, 120, 260);
 
   /* ---------- 电缆/母线标注 ---------- */
   s += S.txt(408, 508, P.voltage + 'kV 电缆 3×240', 8, '#475569', 'start');
