@@ -20,7 +20,7 @@ window.drawCooling = function (R) {
 
   /* ---------- 设备 ---------- */
   s += S.tower(80, 120, 170, 80, C.wtr, '冷却塔', Cl.towerCount + '×' + Cl.towerCap + 'kW');
-  s += S.hx(90, 430, C.wtr, '板式换热器', '自然冷却');
+  s += S.hx(90, 430, C.wtr, '板换', '自然冷却');
   s += S.txt(120, 500, '湿球≤21℃ 启用 ' + Cl.freeCoolingRatio, 8, '#059669', 'middle');
   s += S.chiller(480, 120, 170, 70, C.wtr, '冷水机组', Cl.chillerCount + '台 COP≥5.5');
   s += S.pump(540, 300, C.wtr, '一次泵 VFD');

@@ -289,9 +289,7 @@ window.SYM = (function () {
     const c = color || C.wtr;
     const inner = `<path d="M${x + 8},${y + h} L${x + w - 8},${y + h} L${x + w - 26},${y + 12} L${x + 26},${y + 12} Z"
         fill="#f0fdfa" stroke="${c}" stroke-width="1.5"/>
-      <line x1="${x + 32}" y1="${y + h - 12}" x2="${x + 32}" y2="${y + 12}" stroke="${c}" stroke-width="0.9" opacity="0.6"/>
-      <line x1="${x + 46}" y1="${y + h - 12}" x2="${x + 46}" y2="${y + 12}" stroke="${c}" stroke-width="0.9" opacity="0.6"/>
-      <line x1="${x + 60}" y1="${y + h - 12}" x2="${x + 60}" y2="${y + 12}" stroke="${c}" stroke-width="0.9" opacity="0.6"/>
+      ${[0.32, 0.5, 0.68].map((f) => `<line x1="${x + w * f}" y1="${y + h - 12}" x2="${x + w * f}" y2="${y + 16}" stroke="${c}" stroke-width="0.9" opacity="0.6"/>`).join('')}
       <path d="M${x + w / 2 - 12},${y + 6} q6,-8 12,0 q6,8 12,0" fill="none" stroke="${c}" stroke-width="1"/>`;
     return `<rect x="${x}" y="${y}" width="${w}" height="${h}" fill="none" stroke="none"/>
       ${inner}
