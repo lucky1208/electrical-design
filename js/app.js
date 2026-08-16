@@ -246,6 +246,13 @@
     URL.revokeObjectURL(a.href);
   };
 
+  window.toggleAssetMode = function () {
+    if (!window.ASSET) return;
+    const m = window.ASSET.getMode() === 'image' ? 'vector' : 'image';
+    window.ASSET.setMode(m);
+    if (state.R) { $('d-thermal').innerHTML = window.drawThermal(state.R); }
+    showSubTab('thermal');
+  };
   window.downloadJson = function () {
     const blob = new Blob([JSON.stringify(state.R, null, 2)], { type: 'application/json' });
     const a = document.createElement('a');

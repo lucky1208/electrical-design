@@ -5,7 +5,7 @@
 window.drawThermal = function (R) {
   'use strict';
   const S = window.SYM, C = S.C;
-  const Cl = R.cooling, P = R.power, PIC = window.PIC;
+  const Cl = R.cooling, P = R.power, ASSET = window.ASSET;
   const W = 1500, H = 1000;
   const L1 = '#1d4ed8', L2 = '#7c3aed', L3 = '#ea580c', DC = '#15803d', AC = '#dc2626';
   let s = S.svgOpen(W, H, '液冷与热管理方案图 (形象版)', `${R.projName} | 供${Cl.supplyTemp}℃/回${Cl.returnTemp}℃ | 三级分色回路`,
@@ -39,7 +39,7 @@ window.drawThermal = function (R) {
   s += S.block(320, 180, 110, 40, '#0ea5e9', '功率分配', 'DC 分配单元', '#eff6ff');
   s += cabinet(460, 130, 80, 90, 'AC/DC 模块', '6×80kW', '#ea580c');
   s += cabinet(600, 130, 80, 90, 'DC/DC 模块', '24×80kW', '#ea580c');
-  if (PIC) { s += PIC.draw('acdc', 468, 138, 24, 24, '#ea580c'); s += PIC.draw('dcac', 608, 138, 24, 24, '#ea580c'); s += PIC.draw('ems', 328, 136, 24, 24, '#0ea5e9'); s += PIC.draw('transformer', 158, 138, 26, 26, '#334155'); }
+  if (ASSET) { s += ASSET.draw('acdc', 468, 138, 24, 24, '#ea580c'); s += ASSET.draw('pcs', 608, 138, 24, 24, '#ea580c'); s += ASSET.draw('ems', 328, 136, 24, 24, '#0ea5e9'); s += ASSET.draw('transformer', 158, 138, 26, 26, '#334155'); if (ASSET.getMode()==='image') { s += ASSET.draw('battery', 350, 312, 44, 44); s += ASSET.draw('battery', 660, 312, 44, 44); s += ASSET.draw('charging_pile', 955, 118, 44, 80); s += ASSET.draw('charging_pile', 1055, 118, 44, 80); } }
   s += S.wire(240, 170, 300, 170, AC, 2);
   s += S.wire(540, 170, 600, 170, DC, 2); s += S.txt(570, 162, 'DC母线 1000Vdc', 8.5, DC, 'middle');
   s += pile(960, 120, '液冷枪1', '1500A'); s += pile(1060, 120, '液冷枪2', '1500A');
@@ -100,7 +100,7 @@ window.drawThermal = function (R) {
     { color: C.ink, label: 'F 流量传感器' },
     { color: C.ink, label: '循环泵 / 调节阀' }
   ], 1180, 300, 300);
-  if (PIC) { [['battery','电池包'],['ups','UPS'],['breaker','断路器'],['transformer','变压器'],['meter','电表'],['pdu','PDU']].forEach((it,i)=>{ const x=1190+(i%3)*100, y=402+Math.floor(i/3)*30; s += PIC.draw(it[0], x, y, 20, 20, '#334155'); s += S.txt(x+26, y+15, it[1], 8.5, '#334155', 'start'); }); }
+  if (ASSET) { [['battery','电池包'],['ups','UPS'],['breaker','断路器'],['transformer','变压器'],['meter','电表'],['pdu','PDU']].forEach((it,i)=>{ const x=1190+(i%3)*100, y=402+Math.floor(i/3)*30; s += ASSET.draw(it[0], x, y, 20, 20, '#334155'); s += S.txt(x+26, y+15, it[1], 8.5, '#334155', 'start'); }); }
   s += `<rect x="1180" y="470" width="300" height="180" rx="8" fill="#fff" stroke="#1d4ed8" stroke-width="1.4"/>`;
   s += `<rect x="1240" y="458" width="180" height="22" rx="5" fill="#1d4ed8"/><text x="1330" y="473" text-anchor="middle" font-size="10.5" font-weight="bold" fill="#fff" font-family="${S.FONT}">监控与告警</text>`;
   ['温度监控', '压力监控', '流量监控', '液位监控', '泄漏监测 <5s', '故障告警/数据记录'].forEach((m, i) => {

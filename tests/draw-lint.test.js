@@ -6,7 +6,7 @@ const fs = require('fs'), path = require('path');
 const ROOT = path.join(__dirname, '..');
 function load(name, win) { (new Function('window', fs.readFileSync(path.join(ROOT, 'js', name), 'utf8')))(win); }
 const win = { SYM: null };
-load('symbols.js', win); load('vendors.js', win); load('engine.js', win); load('layout.js', win); load('pictograms.js', win);
+load('symbols.js', win); load('vendors.js', win); load('engine.js', win); load('layout.js', win); load('pictograms.js', win); load('assetlib.js', win);
 ['draw-arch.js','draw-wiring.js','draw-dual.js','draw-cooling.js','draw-thermal.js'].forEach(f => load(f, win));
 
 const R = win.AIDC_ENGINE.build({ projName:'T', region:'上海', tier:'tier3', gpuType:'h100',
