@@ -236,6 +236,41 @@
     });
   };
 
+  /* ---------- LLM 图纸核准 (交付前视觉复核, advisory) ---------- */
+  function svgToPng(svg) {
+    return new Promise((res, rej) => {
+      const vb = svg.match(/viewBox="0 0 (\d+) (\d+)"/) || [0, 1400, 900];
+      const w = +vb[1], h = +vb[2];
+      const img = new Image();
+      const url = URL.createObjectURL(new Blob([svg], { type: 'image/svg+xml' }));
+      img.onload = () => { const c = document.createElement('canvas'); c.width = w; c.height = h; const x = c.getContext('2d'); x.fillStyle = '#fff'; x.fillRect(0, 0, w, h); x.drawImage(img, 0, 0, w, h); URL.revokeObjectURL(url); res(c.toDataURL('image/png')); };
+      img.onerror = rej; img.src = url;
+    });
+  }
+  function showReview(txt) {
+    let el = $('review-box');
+    if (!el) { el = document.createElement('div'); el.id = 'review-box'; el.className = 'card'; el.style.margin = '12px 0'; $('result-area').appendChild(el); }
+    el.innerHTML = '<div class="panel-title" style="color:#58a6ff">🤖 AI 图纸核准 (advisory, 交付前复核)</div><div style="font-size:12px;line-height:1.7;white-space:pre-wrap;color:var(--text)">' + txt + '</div>';
+  }
+  window.aiReviewDiagram = async function () {
+    const model = $('f-model').value, key = $('f-apikey').value.trim();
+    if (model === 'local' || !key) { alert('请先选择 AI 模型并填写 API Key (核准需视觉模型)'); return; }
+    showReview('⏳ 正在渲染并送审...');
+    try {
+      const svg = $('d-' + state.subTab).innerHTML;
+      const dataUrl = await svgToPng(svg);
+      const ep = AI_ENDPOINTS[model];
+      const resp = await fetch(ep.url, { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + key },
+        body: JSON.stringify({ model: ep.model, max_tokens: 800, messages: [{ role: 'user', content: [
+          { type: 'image_url', image_url: { url: dataUrl } },
+          { type: 'text', text: '你是资深电气制图审核专家。审核这张工程图, 要点列出: 1)管路/连线是否闭合、有无悬空 2)文字是否重叠 3)布局留白/对齐 4)是否符合专业 P&ID/单线图规范。无问题则回复"可交付"。' }
+        ] }] }) });
+      if (!resp.ok) throw new Error('API ' + resp.status);
+      const d = await resp.json();
+      showReview(d.choices?.[0]?.message?.content || '无返回');
+    } catch (e) { showReview('核准失败: ' + e.message + ' (该模型可能不支持视觉, 可换 GLM-4V/Kimi 视觉模型)'); }
+  };
+
   window.downloadCurrentSvg = function () {
     const map = { arch: 'AIDC系统架构图', wiring: 'AIDC电气一次接线图', dual: 'AIDC双路供电拓扑图', cooling: 'AIDC液冷管路图', thermal: '液冷热管理方案图' };
     const svg = $('d-' + state.subTab).innerHTML;
