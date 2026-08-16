@@ -5,7 +5,7 @@
 (function () {
   'use strict';
   const $ = (id) => document.getElementById(id);
-  const state = { R: null, tab: 'drawings', subTab: 'arch' };
+  const state = { R: null, tab: 'drawings', subTab: 'arch', zoom: 1 };
 
   /* ---------- 表单读取 ---------- */
   function getParams() {
@@ -234,7 +234,21 @@
       $('d-' + k).style.display = k === id ? 'block' : 'none';
       $('sub-' + k).classList.toggle('active', k === id);
     });
+    applyZoom();
   };
+
+  /* ---------- 图纸缩放 (放大/缩小/重置) ---------- */
+  function applyZoom() {
+    const box = $('d-' + state.subTab); if (!box) return;
+    const svg = box.querySelector('svg'); if (!svg) return;
+    if (!svg.dataset.bw) { const vb = (svg.getAttribute('viewBox') || '0 0 1000 700').split(/\s+/); svg.dataset.bw = vb[2]; svg.dataset.bh = vb[3]; }
+    svg.style.width = (svg.dataset.bw * state.zoom) + 'px';
+    svg.style.height = (svg.dataset.bh * state.zoom) + 'px';
+    const zl = $('zoom-label'); if (zl) zl.textContent = Math.round(state.zoom * 100) + '%';
+  }
+  window.zoomIn = function () { state.zoom = Math.min(4, state.zoom * 1.2); applyZoom(); };
+  window.zoomOut = function () { state.zoom = Math.max(0.4, state.zoom / 1.2); applyZoom(); };
+  window.zoomReset = function () { state.zoom = 1; applyZoom(); };
 
   /* ---------- LLM 图纸核准 (交付前视觉复核, advisory) ---------- */
   function svgToPng(svg) {
