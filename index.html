@@ -168,10 +168,17 @@
     </div>
     <button class="btn-primary" onclick="generateSolution()">⚡ 生成 AIDC 方案</button>
     <div class="step-log" id="step-log"></div>
-    <div class="desc" style="margin-top:12px;margin-bottom:0">
-      💡 自然语言输入（可选）：<input type="text" class="form-input" id="f-nl" style="margin-top:6px"
-      placeholder="例：12MW IT负荷，Tier III，10kV双路，液冷，PUE&lt;1.25 — 按上方表单参数生成即可，自然语言解析将在后续版本接入 LLM" disabled>
+    <div class="form-group" style="margin-top:12px"><label class="form-label">💡 自然语言细化需求（可选）</label>
+      <textarea class="form-input" id="f-nl" rows="3" style="resize:vertical"
+        placeholder="例：12MW IT负荷，Tier III，10kV双路，液冷，PUE&lt;1.25，预算有限优先国产，沿海高盐雾需防腐"></textarea>
+      <div style="font-size:10px;color:var(--text2);margin-top:4px">不填则用上方表单；填写后优先解析文字。配置 API Key 用 LLM 解析，否则用本地规则解析。</div>
     </div>
+    <div class="form-group"><label class="form-label">选型偏好（多 vendor 性价比）</label>
+      <select class="form-input" id="f-pref">
+        <option value="balance" selected>均衡 (性价比)</option>
+        <option value="cost">成本优先</option>
+        <option value="reliability">可靠性优先</option>
+      </select></div>
   </div>
 
   <!-- ============ 右: 结果区 ============ -->
@@ -189,6 +196,7 @@
         <button class="tab-btn" id="tbtn-params" onclick="switchTab('params')">📊 参数</button>
         <button class="tab-btn" id="tbtn-bom" onclick="switchTab('bom')">📦 BOM 清单</button>
         <button class="tab-btn" id="tbtn-compliance" onclick="switchTab('compliance')">✅ 合规检查</button>
+        <button class="tab-btn" id="tbtn-selection" onclick="switchTab('selection')">⚖️ 选型比较</button>
       </div>
 
       <div id="tab-drawings">
@@ -214,6 +222,7 @@
       <div id="tab-params" style="display:none"><div class="param-grid" id="params"></div></div>
       <div id="tab-bom" style="display:none"><div id="bom"></div></div>
       <div id="tab-compliance" style="display:none"><div id="compliance"></div></div>
+      <div id="tab-selection" style="display:none"><div id="selection"></div></div>
     </div>
   </div>
 </div>
@@ -224,6 +233,7 @@
 </footer>
 
 <script src="js/symbols.js"></script>
+<script src="js/vendors.js"></script>
 <script src="js/engine.js"></script>
 <script src="js/layout.js"></script>
 <script src="js/draw-arch.js"></script>

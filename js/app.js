@@ -22,7 +22,8 @@
       pueTarget: parseFloat($('f-pue').value) || 1.25,
       rackPower: parseInt($('f-rack').value, 10) || 40,
       pricePeak: parseFloat($('f-peak').value) || 1.05,
-      priceValley: parseFloat($('f-valley').value) || 0.35
+      priceValley: parseFloat($('f-valley').value) || 0.35,
+      pref: $('f-pref').value
     };
   }
 
@@ -95,12 +96,81 @@
     if (ai.capacity_kwh) $('f-gpu-count').value = Math.round(ai.capacity_kwh / 15); // 粗略估算
     logStep('AI 解析完成：IT 负荷 ' + (ai.power_kw || '未知') + ' kW, 电压 ' + (ai.voltage_level || '未知'), 'ok');
   }
+
+  /* ---------- 本地规则 NL 解析 (无 LLM 兜底) ---------- */
+  function parseNLLocal(t) {
+    const o = {};
+    const num = (re) => { const m = t.match(re); return m ? parseFloat(m[1]) : null; };
+    const mw = num(/([\d.]+)\s*MW/i), kw = num(/([\d.]+)\s*(?:kW|千瓦)/i);
+    if (mw) o.itLoad = Math.round(mw * 1000); else if (kw) o.itLoad = Math.round(kw);
+    const kv = num(/([\d.]+)\s*kV/i); if (kv && [10, 35, 110].includes(kv)) o.voltage = String(kv);
+    if (/Tier\s*IV|Tier\s*4/i.test(t)) o.tier = 'tier4'; else if (/Tier\s*II|Tier\s*2/i.test(t)) o.tier = 'tier2'; else if (/Tier/i.test(t)) o.tier = 'tier3';
+    if (/2\s*\(?\s*N\s*\+?\s*1\s*\)?|2N\+1/.test(t)) o.red = '2n1'; else if (/2N/.test(t)) o.red = '2n'; else if (/N\+1/.test(t)) o.red = 'n1';
+    if (/风冷/.test(t)) o.cooling = 'air'; else if (/混合/.test(t)) o.cooling = 'hybrid'; else if (/液冷/.test(t)) o.cooling = 'liquid';
+    const pue = num(/PUE\s*[<≤]?\s*([\d.]+)/i); if (pue) o.pueTarget = pue;
+    if (/预算|成本|便宜|国产/.test(t)) o.pref = 'cost'; else if (/可靠|稳定|高可用/.test(t)) o.pref = 'reliability';
+    return o;
+  }
+  function applyLocal(o) {
+    if (o.itLoad) $('f-itload').value = o.itLoad; if (o.voltage) $('f-voltage').value = o.voltage;
+    if (o.tier) $('f-tier').value = o.tier; if (o.red) $('f-red').value = o.red;
+    if (o.cooling) $('f-cooling').value = o.cooling; if (o.pueTarget) $('f-pue').value = o.pueTarget;
+    if (o.pref) $('f-pref').value = o.pref;
+  }
+
+  /* ---------- LLM 自由文本建议 (选型顾问) ---------- */
+  async function callAIText(model, key, user) {
+    const ep = AI_ENDPOINTS[model]; if (!ep) throw new Error('未知模型');
+    const resp = await fetch(ep.url, { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + key },
+      body: JSON.stringify({ model: ep.model, messages: [{ role: 'system', content: '你是储能/数据中心电气选型顾问, 用2-3句中文给出选型理由与风险提示。' }, { role: 'user', content: user }], temperature: 0.4 }) });
+    if (!resp.ok) throw new Error('API ' + resp.status);
+    const d = await resp.json(); return d.choices?.[0]?.message?.content || '';
+  }
+
+  /* ---------- 选型比较渲染 ---------- */
+  function renderSelection() {
+    const R = state.R, el = $('selection'); if (!el) return;
+    if (!R.selection) { el.innerHTML = '<div class="bom-note">选型引擎未加载</div>'; return; }
+    const prefName = { cost: '成本优先', balance: '均衡(性价比)', reliability: '可靠性优先' }[R.pref] || R.pref;
+    let html = '<div class="bom-note">选型偏好: <b style="color:#58a6ff">' + prefName + '</b> · 评分=价格/效率/可靠/交期加权 (确定性, 可复现) · 绿色行为推荐</div>';
+    for (const key of Object.keys(R.selection)) {
+      const sel = R.selection[key]; if (!sel) continue;
+      html += '<div class="panel" style="margin-bottom:14px"><div class="panel-title" style="color:#58a6ff">' + sel.name +
+        ' <span style="color:#3fb950">→ 推荐: ' + sel.recommended.vendor + ' ' + sel.recommended.model + ' (评分' + sel.recommended.score + ')</span></div>' +
+        '<table class="bom-table"><tr><th>厂商</th><th>型号</th><th>单价</th><th>效率%</th><th>可靠</th><th>交期周</th><th>评分</th></tr>';
+      sel.options.forEach((o) => {
+        const rec = o.vendor === sel.recommended.vendor;
+        html += '<tr' + (rec ? ' style="background:#12301a"' : '') + '><td>' + o.vendor + '</td><td>' + o.model + '</td><td class="num">' + o.price + (o.per || '万') + '</td><td class="num">' + o.eff + '</td><td class="num">' + o.rel + '</td><td class="num">' + o.del + '</td><td class="num" style="color:#3fb950;font-weight:700">' + o.score + '</td></tr>';
+      });
+      html += '</table></div>';
+    }
+    html += '<div id="ai-advice" class="panel"></div>';
+    el.innerHTML = html;
+    advisor();
+  }
+  async function advisor() {
+    const box = $('ai-advice'); if (!box) return;
+    const model = $('f-model').value, key = $('f-apikey').value.trim();
+    if (model === 'local' || !key) { box.innerHTML = '<div class="panel-title">AI 选型建议</div><div style="font-size:11px;color:var(--text2)">配置 API Key 并选择模型后, LLM 将结合您的自然语言偏好给出定性选型理由 (不改变确定性计算)。</div>'; return; }
+    const R = state.R;
+    const prompt = '用户偏好: ' + ($('f-nl').value || $('f-pref').value) + '。各设备推荐: ' + Object.keys(R.selection).map((k) => R.selection[k].name + '=' + R.selection[k].recommended.vendor).join(', ') + '。请给出选型理由与风险提示。';
+    try { const txt = await callAIText(model, key, prompt); box.innerHTML = '<div class="panel-title">AI 选型建议</div><div style="font-size:11.5px;line-height:1.7;color:var(--text)">' + txt + '</div>'; }
+    catch (e) { box.innerHTML = '<div class="panel-title">AI 选型建议</div><div style="font-size:11px;color:#e3b341">' + e.message + '</div>'; }
+  }
   /* ---------- 生成方案 ---------- */
   window.generateSolution = async function () {
-    const P = getParams();
-    if (!P.gpuCount && !P.itLoad) { alert('请至少填写 GPU 数量或 IT 负荷'); return; }
     const log = $('step-log');
     log.innerHTML = ''; log.style.display = 'block';
+    const model = $('f-model').value, apiKey = $('f-apikey').value.trim();
+    const nl = $('f-nl').value.trim();
+    if (nl) {
+      if (model !== 'local' && apiKey) {
+        try { logStep('LLM 解析自然语言需求...', 'running'); const ai = await callAI(model, apiKey, nl); fillFormFromAI(ai); }
+        catch (e) { logStep('LLM 失败: ' + e.message + ', 用本地规则', 'warn'); applyLocal(parseNLLocal(nl)); }
+      } else { logStep('本地规则解析自然语言需求', 'running'); applyLocal(parseNLLocal(nl)); }
+    }
+    const P = getParams();
+    if (!P.gpuCount && !P.itLoad) { alert('请至少填写 GPU 数量或 IT 负荷'); return; }
     const steps = [
       '[1/7] 解析输入参数 — 等级/GPU/负荷/冗余/散热',
       '[2/7] 算力规划 — 服务器/机柜/互联拓扑',
@@ -122,6 +192,7 @@
     renderParams();
     renderBom();
     renderCompliance();
+    renderSelection();
     $('empty-hint').style.display = 'none';
     $('result-area').style.display = 'block';
     switchTab('drawings');
@@ -268,7 +339,7 @@
   /* ---------- 标签切换 ---------- */
   window.switchTab = function (id) {
     state.tab = id;
-    ['drawings', 'params', 'bom', 'compliance'].forEach(k => {
+    ['drawings', 'params', 'bom', 'compliance', 'selection'].forEach(k => {
       $('tab-' + k).style.display = k === id ? 'block' : 'none';
       $('tbtn-' + k).classList.toggle('active', k === id);
     });

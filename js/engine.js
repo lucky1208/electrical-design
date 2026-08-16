@@ -154,6 +154,22 @@ window.AIDC_ENGINE = (function () {
       cdu: 45, tower: 60, chiller: 75, crac: 30, pump: 12,
       dcim: 200, fire: 300
     };
+    /* ---------- 7.5 多 vendor 选型 (性价比评分, 确定性) ---------- */
+    const VEN = window.VENDORS;
+    const pref = P.pref || 'balance';
+    const selection = VEN ? {
+      ups: VEN.select('ups', pref),
+      transformer: VEN.select('transformer', pref),
+      battery: VEN.select('battery', pref),
+      cdu: VEN.select('cdu', pref),
+      pcs: VEN.select('pcs', pref)
+    } : null;
+    if (selection) {
+      price.upsUnit = selection.ups.recommended.price;
+      price.tx = selection.transformer.recommended.price;
+      price.bessPerKwh = selection.battery.recommended.price;
+      price.cdu = selection.cdu.recommended.price;
+    }
     const capexIT = Math.round(servers * spec.serverPrice);
     const capexPower = Math.round(totalLoad * 0.65);
     const capexCooling = isLiquid ? Math.round(itLoad * 0.9) : Math.round(itLoad * 0.45);
@@ -285,7 +301,7 @@ window.AIDC_ENGINE = (function () {
         bomTotal, opexAnnual, elecAnnual, tco10y, pueSavingAnnual: pueSaving,
         energyIntensity: (elecAnnual * 10000 / itLoad / 8760).toFixed(3) + ' 元/kWh'
       },
-      bom, bomTotal,
+      bom, bomTotal, selection, pref,
       protection,
       compliance,
       warnings
