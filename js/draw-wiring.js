@@ -43,7 +43,7 @@ window.drawWiring = function (R) {
     t += S.cb(x, y, C.lv, 'QF2-' + tag); y += S._cbH;
     t += S.wire(x, y, x, y + 6, C.lv, 1.8); y += 6;
     t += S.ct(x, y, C.ink, 'CT2-' + tag); y += S._ctH;
-    t += S.wire(x, y, x, busY, C.lv, 1.8);
+    t += S.wire(x, y, x, busY - 6, C.lv, 1.8);
     sched.push(
       { tag: 'QS1-' + tag, name: '隔离开关', spec: P.mvInA + 'A' },
       { tag: 'QF1-' + tag, name: '高压断路器', spec: P.voltage + ' ' + P.mvInA + 'A Icu=' + P.scKa + 'kA' },
@@ -78,8 +78,8 @@ window.drawWiring = function (R) {
   s += S.txt(cx, busY - 12, '0.4kV 双母线 (A 段 / B 段 分段运行)', 9.5, C.lv, 'middle', 'bold');
   s += S.wire(cx, busY, cx, busY + 6, C.lv, 1.6);
   s += S.ds(cx, busY + 6, C.lv, 'AT 母联 ' + P.lvMainA + 'A');
-  s += S.jdot(xA, busY, C.lv, 2.8);
-  s += S.jdot(xB, busY, C.lv, 2.8);
+  s += S.jumpV(xA, busY, C.lv, 6);
+  s += S.jumpV(xB, busY, C.lv, 6);
 
   /* ---------- 应急柴发 (接入 0.4kV 母线) ---------- */
   s += S.gen(30, 580, 130, 66, C.gen, '柴发 A', P.genCap.toLocaleString() + 'kW · 8h储油');
@@ -92,7 +92,7 @@ window.drawWiring = function (R) {
   s += S.jdot(830, busY, C.gen, 2.4);
   /* ============ UPS 支路 (母线下方) ============ */
   const upsBranch = (x, tag, batSide) => {
-    let t = '', y = busY;
+    let t = '', y = busY + 6;
     t += S.wire(x, y, x, y + 40, C.lv, 1.6); y += 40;
     t += S.cb(x, y, C.lv, 'QF3-' + tag); y += S._cbH;
     t += S.wire(x, y, x, y + 8, C.ups, 1.6); y += 8;

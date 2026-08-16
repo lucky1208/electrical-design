@@ -61,6 +61,11 @@ window.SYM = (function () {
     const c = color || C.ink, rr = r || 4;
     return `<path d="M${cx - rr},${cy} A${rr},${rr} 0 0,1 ${cx + rr},${cy}" fill="none" stroke="${c}" stroke-width="1.4"/>`;
   }
+  /* 竖直线跨过水平线的半圆跳线 (向右凸), 用于正交交叉不连接 */
+  function jumpV(cx, cy, color, r) {
+    const c = color || C.ink, rr = r || 6;
+    return `<path d="M${cx},${cy - rr} A${rr},${rr} 0 0,1 ${cx},${cy + rr}" fill="none" stroke="${c}" stroke-width="1.6"/>`;
+  }
   function jdot(x, y, color, r) {
     return `<circle cx="${x}" cy="${y}" r="${r || 2.6}" fill="${color || C.ink}"/>`;
   }
@@ -183,12 +188,12 @@ window.SYM = (function () {
   const _batH = 30;
   function bat(cx, y0, color, label, sub) {
     const c = color || C.bat, cy = y0 + 12;
-    return `<line x1="${cx}" y1="${y0}" x2="${cx}" y2="${cy - 6}" stroke="${c}" stroke-width="1.4"/>
-    <line x1="${cx - 13}" y1="${cy - 8}" x2="${cx - 13}" y2="${cy + 12}" stroke="${c}" stroke-width="1.4"/>
-    <line x1="${cx - 5}" y1="${cy - 2}" x2="${cx - 5}" y2="${cy + 6}" stroke="${c}" stroke-width="3.2"/>
-    <line x1="${cx + 3}" y1="${cy - 8}" x2="${cx + 3}" y2="${cy + 12}" stroke="${c}" stroke-width="1.4"/>
-    <line x1="${cx + 11}" y1="${cy - 2}" x2="${cx + 11}" y2="${cy + 6}" stroke="${c}" stroke-width="3.2"/>
-    <line x1="${cx}" y1="${cy + 12}" x2="${cx}" y2="${y0 + _batH}" stroke="${c}" stroke-width="1.4"/>
+    return `<line x1="${cx}" y1="${y0}" x2="${cx}" y2="${cy - 8}" stroke="${c}" stroke-width="1.4"/>
+    <line x1="${cx - 11}" y1="${cy - 5}" x2="${cx + 11}" y2="${cy - 5}" stroke="${c}" stroke-width="1.4"/>
+    <line x1="${cx - 4}" y1="${cy + 1}" x2="${cx + 4}" y2="${cy + 1}" stroke="${c}" stroke-width="3.2"/>
+    <line x1="${cx - 11}" y1="${cy + 7}" x2="${cx + 11}" y2="${cy + 7}" stroke="${c}" stroke-width="1.4"/>
+    <line x1="${cx - 4}" y1="${cy + 13}" x2="${cx + 4}" y2="${cy + 13}" stroke="${c}" stroke-width="3.2"/>
+    <line x1="${cx}" y1="${cy + 13}" x2="${cx}" y2="${y0 + _batH}" stroke="${c}" stroke-width="1.4"/>
     ${label ? txt(cx + 20, cy - 2, label, 9.5, c, 'start', 'bold', MONO) : ''}
     ${sub ? txt(cx + 20, cy + 13, sub, 8, C.ink, 'start', '', MONO) : ''}`;
   }
@@ -440,7 +445,7 @@ window.SYM = (function () {
 
   return {
     C, FONT, MONO,
-    txt, wire, pathPts, jdot, jump, block,
+    txt, wire, pathPts, jdot, jump, jumpV, block,
     pwr, _pwrH, cb, _cbH, ds, _dsH, fu, _fuH, ct, _ctH, pt, _ptH, tx, _txH,
     ups, _upsH, _upsW, bat, _batH, sts, _stsH, _stsW, pdu, rack, gen, pe, bus,
     pump, valve, chk, hx, tower, chiller, cdu, sensor, tank, manifold, flowArrow,
