@@ -71,7 +71,16 @@ window.AIDC_DXF = (function () {
       projectReference: metadata.projectReference || '',
       documentStatus: svg.getAttribute('data-document-status') || metadata.documentStatus || 'CONCEPT_DRAFT—PROFESSIONAL_REVIEW_REQUIRED',
       issuePurpose: metadata.issuePurpose || '方案级自动草图，待专业校核/签发',
-      verification: metadata.verification || 'NOT_VERIFIED'
+      verification: metadata.verification || 'NOT_VERIFIED',
+      drawingSkill: metadata.drawingSkill || {
+        id: svg.getAttribute('data-drawing-skill') || 'MISSING',
+        version: svg.getAttribute('data-drawing-skill-version') || '',
+        profile: svg.getAttribute('data-drawing-profile') || '',
+        selectedRuleIds: String(svg.getAttribute('data-selected-rules') || '').split(',').filter(Boolean),
+        evaluatedRuleIds: String(svg.getAttribute('data-evaluated-rules') || '').split(',').filter(Boolean),
+        appliedRuleIds: String(svg.getAttribute('data-applied-rules') || '').split(',').filter(Boolean)
+      },
+      drawingAuditStatus: svg.getAttribute('data-drawing-audit-status') || 'NOT_AUDITED'
     };
   }
 
@@ -176,6 +185,14 @@ window.AIDC_DXF = (function () {
     if (doc.querySelector('parsererror')) throw new Error('SVG 无法解析，未生成 DXF。');
     const svg = doc.documentElement;
     if (!svg || svg.nodeName.toLowerCase() !== 'svg') throw new Error('未找到 SVG 图纸。');
+    const skillId = svg.getAttribute('data-drawing-skill');
+    const skillVersion = svg.getAttribute('data-drawing-skill-version');
+    const profile = svg.getAttribute('data-drawing-profile');
+    const skillStatus = svg.getAttribute('data-drawing-skill-status');
+    const auditStatus = svg.getAttribute('data-drawing-audit-status');
+    if (!skillId || !skillVersion || !profile) throw new Error('DRAWING_SKILL_METADATA_REQUIRED：缺少受控绘图规则元数据。');
+    if (skillStatus !== 'ACTIVE') throw new Error('DRAWING_SKILL_BLOCKED：绘图规则状态未通过。');
+    if (auditStatus !== 'CHECKED') throw new Error('DRAWING_AUDIT_REQUIRED：图纸尚未通过渲染规则校验。');
     const viewBox = String(svg.getAttribute('viewBox') || '0 0 420 297').trim().split(/[ ,]+/).map(Number);
     const minX = number(viewBox[0], 0), minY = number(viewBox[1], 0), vbW = number(viewBox[2], 420), vbH = number(viewBox[3], 297);
     const paperW = number(String(svg.getAttribute('width') || '420').replace(/[a-z]+/ig, ''), 420);
@@ -251,7 +268,7 @@ window.AIDC_DXF = (function () {
     };
     const dxf = header + tables(manifest) + pairs(
       0, 'SECTION', 2, 'ENTITIES', 999, comment,
-      999, 'AIDC-DXF-MANIFEST: ' + cleanText(JSON.stringify({ drawingNo: documentControl.drawingNo, revision: documentControl.revision, status: documentControl.documentStatus, layerCount: manifest.length }))
+      999, 'AIDC-DXF-MANIFEST: ' + cleanText(JSON.stringify({ drawingNo: documentControl.drawingNo, revision: documentControl.revision, status: documentControl.documentStatus, drawingSkill: documentControl.drawingSkill && documentControl.drawingSkill.id, rulePackVersion: documentControl.drawingSkill && documentControl.drawingSkill.version, layerCount: manifest.length }))
     ) + entities.join('') + pairs(0, 'ENDSEC', 0, 'EOF');
     return { dxf, warnings: Array.from(new Set(warnings)), stats: { entities: entities.length, paperMm: [paperW, paperH], layerEntityCounts: entityCounts }, manifest: manifestData };
   }

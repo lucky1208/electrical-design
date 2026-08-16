@@ -12,7 +12,7 @@ function load(name) {
 }
 
 /* Keep load order identical to the browser dependency graph. */
-['symbols.js', 'design-model.js', 'vendors.js', 'engine.js', 'layout.js', 'pictograms.js', 'assetlib.js',
+['symbols.js', 'design-model.js', 'drawing-skill.js', 'vendors.js', 'engine.js', 'layout.js', 'pictograms.js', 'assetlib.js',
   'draw-arch.js', 'draw-wiring.js', 'draw-dual.js', 'draw-cooling.js', 'draw-thermal.js'].forEach(load);
 
 const sample = {
@@ -25,7 +25,10 @@ const sample = {
 const R1 = win.AIDC_ENGINE.build(sample);
 const R2 = win.AIDC_ENGINE.build(sample);
 assert.strictEqual(JSON.stringify(R1), JSON.stringify(R2), '相同输入必须生成完全一致的工程模型');
-assert.strictEqual(R1.engineVersion, '2.1.0');
+assert.strictEqual(R1.engineVersion, '2.2.0');
+assert.strictEqual(R1.design.schemaVersion, '2.2.0');
+assert.strictEqual(R1.drawingSkill.id, 'AIDC-SCH-LIB-DRAWING-SKILL');
+assert.strictEqual(R1.drawingSkill.graphValidation.blockingCount, 0, '正常模型必须通过端口/拓扑规则校验');
 assert.strictEqual(R1.documentStatus, 'CONCEPT_DRAFT—PROFESSIONAL_REVIEW_REQUIRED');
 assert.strictEqual(R1.readiness.level, 'CONCEPT_ONLY', '未声明核实的表单/接口输入只能产生概念方案');
 assert.strictEqual(R1.releaseGate.constructionDrawingAllowed, false, '自动引擎不得开放施工图发布');
@@ -61,6 +64,7 @@ for (const [fn, name] of Object.entries(drawings)) {
   const svg = win[fn](R1);
   assert.ok(typeof svg === 'string' && svg.startsWith('<svg') && svg.includes('</svg>'), name + ' 未返回完整 SVG');
   assert.ok(svg.includes('width="420mm"') && svg.includes('height="297mm"') && svg.includes('data-sheet-format="A3"'), name + ' 必须使用 A3 物理图幅元数据');
+  assert.ok(svg.includes('data-drawing-skill="AIDC-SCH-LIB-DRAWING-SKILL"'), name + ' 必须记录实际调用的绘图规则包');
   assert.ok(svg.includes('CONCEPT_DRAFT'), name + ' 必须标注方案级状态');
   assert.ok(!/undefined|null/.test(svg), name + ' 包含未解析字段');
 }

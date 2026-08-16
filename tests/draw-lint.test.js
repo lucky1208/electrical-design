@@ -2,11 +2,12 @@
  * 用法: node tests/draw-lint.test.js
  * 输出每张图的文字重叠对数, 作为"专业度"客观指标 (目标 0) */
 'use strict';
+const assert = require('assert');
 const fs = require('fs'), path = require('path');
 const ROOT = path.join(__dirname, '..');
 function load(name, win) { (new Function('window', fs.readFileSync(path.join(ROOT, 'js', name), 'utf8')))(win); }
 const win = { SYM: null };
-load('symbols.js', win); load('design-model.js', win); load('vendors.js', win); load('engine.js', win); load('layout.js', win); load('pictograms.js', win); load('assetlib.js', win);
+load('symbols.js', win); load('design-model.js', win); load('drawing-skill.js', win); load('vendors.js', win); load('engine.js', win); load('layout.js', win); load('pictograms.js', win); load('assetlib.js', win);
 ['draw-arch.js','draw-wiring.js','draw-dual.js','draw-cooling.js','draw-thermal.js'].forEach(f => load(f, win));
 
 const R = win.AIDC_ENGINE.build({ projName:'T', region:'上海', tier:'tier3', gpuType:'h100',
@@ -49,3 +50,4 @@ for (const [fn, name] of Object.entries(names)) {
   bad.slice(0, 12).forEach(p => console.log('   重叠: "' + p[0] + '" × "' + p[1] + '"'));
 }
 console.log('\n=== 总重叠数: ' + total + ' (专业目标: 0) ===');
+assert.strictEqual(total, 0, '图纸文字重叠必须为 0');

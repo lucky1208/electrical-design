@@ -5,10 +5,11 @@
   "description": "AIDC 数据中心方案级工程模型与图纸草案平台（须经专业复核）",
   "scripts": {
     "start": "npx serve .",
-    "test": "node tests/engine.test.js && node tests/regression-contract.test.js && node tests/draw-lint.test.js",
+    "test": "node tests/engine.test.js && node tests/drawing-skill.test.js && node tests/regression-contract.test.js && node tests/draw-lint.test.js",
     "test:engine": "node tests/engine.test.js",
+    "test:drawing-skill": "node tests/drawing-skill.test.js",
     "test:drawings": "node tests/draw-lint.test.js",
     "test:contracts": "node tests/regression-contract.test.js",
-    "check": "node --check js/engine.js && node --check js/design-model.js && node --check js/dxf-export.js && node --check js/app.js && node --check js/draw-arch.js && node --check js/draw-wiring.js && node --check js/draw-dual.js && node --check js/draw-cooling.js && node --check js/draw-thermal.js && node --check api/ai.js"
+    "check": "node --check js/engine.js && node --check js/design-model.js && node --check js/drawing-skill.js && node --check js/dxf-export.js && node --check js/app.js && node --check js/draw-arch.js && node --check js/draw-wiring.js && node --check js/draw-dual.js && node --check js/draw-cooling.js && node --check js/draw-thermal.js && node --check api/ai.js"
   }
 }

@@ -10,11 +10,15 @@
 
   const $ = (id) => document.getElementById(id);
   const AI_API = '/api/ai';
+  const DRAWING_SKILL_KEYS = Object.freeze({
+    arch: 'architecture', wiring: 'single-line', dual: 'dual-path', cooling: 'cooling-pid', thermal: 'thermal'
+  });
   const state = {
     R: null,
     tab: 'drawings',
     subTab: 'arch',
     zoom: 1,
+    zoomMode: 'fit-width',
     requirement: null,
     providerStatus: {},
     providerStatusLoaded: false,
@@ -400,7 +404,8 @@
         '建立输入、设计假设与可追溯工程模型',
         '计算 IT 负荷、供电路径与概念短路容量',
         '计算液冷热负荷、流量与设备数量',
-        '生成方案级图纸、概念 BOM 与待校核事项'
+        '调用 sch_lib 绘图 skill 校验设备端口、回路与 A/B 路径',
+        '生成并复核方案级图纸、概念 BOM 与待校核事项'
       ];
       for (let index = 0; index < steps.length; index += 1) {
         const line = logStep('[' + (index + 1) + '/' + steps.length + '] ' + steps[index], 'running');
@@ -409,9 +414,16 @@
       }
       state.R = window.AIDC_ENGINE.build(params);
       logStep('✅ 已生成确定性方案级工程草案；AI（如已使用）仅参与需求翻译。', 'ok');
+      if (state.R.drawingSkill) {
+        const graph = state.R.drawingSkill.graphValidation || {};
+        logStep('🧭 已调用 ' + state.R.drawingSkill.id + '@' + state.R.drawingSkill.version +
+          '；语义图阻断项 ' + Number(graph.blockingCount || 0) + '。', graph.blockingCount ? 'warn' : 'ok');
+      }
+      /* Render first: the rule skill must be able to tighten readiness before
+       * status, warnings and export controls are presented to the user. */
+      renderDrawings();
       renderSummary();
       renderDesignStatus();
-      renderDrawings();
       renderParams();
       renderBom();
       renderCompliance();
@@ -466,12 +478,14 @@
     const readiness = R.readiness || {};
     const release = readiness.release || R.releaseGate || {};
     const summary = readiness.summary || {};
+    const drawingSkill = R.drawingSkill || {};
     const tags = [
       '<span class="state-tag warn">文档：方案级自动草案</span>',
       '<span class="state-tag warn">发布等级：' + escapeHtml(readiness.level || 'CONCEPT_ONLY') + '</span>',
       '<span class="state-tag warn">施工图发布：' + escapeHtml(release.constructionStatus || 'BLOCKED') + '</span>',
       '<span class="state-tag">工程模型：' + escapeHtml(model.schemaVersion || '2.0.0') + '</span>',
       '<span class="state-tag calc">确定性引擎：' + escapeHtml(R.engineVersion || '—') + '</span>',
+      '<span class="state-tag ' + (drawingSkill.status === 'ACTIVE' ? 'calc' : 'warn') + '">绘图规则：' + escapeHtml((drawingSkill.id || 'MISSING') + '@' + (drawingSkill.version || '—')) + ' · ' + escapeHtml(drawingSkill.status || 'BLOCKED') + '</span>',
       '<span class="state-tag">需求来源：' + escapeHtml(req.source || 'FORM') + '</span>'
     ];
     if (Number.isFinite(Number(summary.completenessPct))) {
@@ -492,15 +506,57 @@
   }
 
   /* ---------- 图纸 ---------- */
+  function stampDrawingAudit(target, audit) {
+    const skill = window.AIDC_DRAWING_SKILL;
+    const svg = target && target.querySelector ? target.querySelector('svg') : null;
+    if (!skill || !svg || !audit || !state.R || !state.R.drawingSkill) return;
+    const report = state.R.drawingSkill;
+    const meta = typeof skill.metadata === 'function' ? skill.metadata(state.R, audit.drawingKey) : {};
+    svg.setAttribute('data-drawing-audit-status', audit.status || 'BLOCKED');
+    svg.setAttribute('data-drawing-audit-version', skill.VERSION || '');
+    svg.setAttribute('data-drawing-skill-status', report.status || 'BLOCKED');
+    svg.setAttribute('data-selected-rules', (meta.selectedRuleIds || []).join(','));
+    svg.setAttribute('data-evaluated-rules', (meta.evaluatedRuleIds || []).join(','));
+    svg.setAttribute('data-applied-rules', (meta.appliedRuleIds || []).join(','));
+    const metadataNode = svg.querySelector('metadata');
+    if (metadataNode) {
+      try {
+        const documentMeta = JSON.parse(metadataNode.textContent || '{}');
+        documentMeta.drawingSkill = Object.assign({}, documentMeta.drawingSkill || {}, meta, {
+          status: report.status || 'BLOCKED',
+          auditStatus: audit.status || 'BLOCKED',
+          auditVersion: skill.VERSION || ''
+        });
+        metadataNode.textContent = JSON.stringify(documentMeta);
+      } catch (_) { svg.setAttribute('data-metadata-sync-status', 'BLOCKED'); }
+    }
+  }
+
   function renderDrawing(id, renderer) {
     const target = $('d-' + id);
-    if (!target) return;
+    if (!target) return null;
     try {
-      target.innerHTML = typeof renderer === 'function'
+      const markup = typeof renderer === 'function'
         ? renderer(state.R)
         : '<div style="padding:16px;color:#8b9bb4">该图纸渲染器未加载。</div>';
+      target.innerHTML = markup;
+      const skill = window.AIDC_DRAWING_SKILL;
+      const drawingKey = DRAWING_SKILL_KEYS[id];
+      if (skill && drawingKey && typeof skill.auditMarkup === 'function') {
+        const audit = skill.auditMarkup(markup, drawingKey, state.R);
+        if (typeof skill.recordDrawingAudit === 'function') skill.recordDrawingAudit(state.R, drawingKey, audit);
+        target.dataset.drawingRuleStatus = audit.status;
+        stampDrawingAudit(target, audit);
+        return audit;
+      }
+      return null;
     } catch (error) {
       target.innerHTML = '<div style="padding:16px;color:#e3b341">图纸渲染失败：' + escapeHtml(humanError(error)) + '</div>';
+      const audit = { drawingKey: DRAWING_SKILL_KEYS[id], status: 'BLOCKED', blockingCount: 1, checks: [{ code: 'G000-RENDER-ERROR', ok: false, severity: 'ERROR', detail: humanError(error) }] };
+      const skill = window.AIDC_DRAWING_SKILL;
+      if (skill && audit.drawingKey && typeof skill.recordDrawingAudit === 'function') skill.recordDrawingAudit(state.R, audit.drawingKey, audit);
+      target.dataset.drawingRuleStatus = 'BLOCKED';
+      return audit;
     }
   }
   function renderDrawings() {
@@ -509,6 +565,13 @@
     renderDrawing('dual', window.drawDual);
     renderDrawing('cooling', window.drawCooling);
     renderDrawing('thermal', window.drawThermal);
+    const skill = window.AIDC_DRAWING_SKILL;
+    if (skill && typeof skill.finalizeDrawingAudits === 'function') skill.finalizeDrawingAudits(state.R);
+    Object.entries(DRAWING_SKILL_KEYS).forEach(([id, key]) => {
+      const target = $('d-' + id);
+      const audit = state.R && state.R.drawingSkill && state.R.drawingSkill.drawingAudits && state.R.drawingSkill.drawingAudits[key];
+      if (target && audit) stampDrawingAudit(target, audit);
+    });
     if (window.ASSET) $('d-assets').innerHTML = window.ASSET.preview();
     showSubTab(state.subTab);
   }
@@ -547,14 +610,27 @@
       svg.dataset.bw = Number(vb[2]) || 1000;
       svg.dataset.bh = Number(vb[3]) || 700;
     }
-    svg.style.width = (Number(svg.dataset.bw) * state.zoom) + 'px';
-    svg.style.height = (Number(svg.dataset.bh) * state.zoom) + 'px';
+    const baseWidth = Number(svg.dataset.bw), baseHeight = Number(svg.dataset.bh);
+    const host = svg.parentElement;
+    const availableWidth = Math.max(320, Number(host && host.clientWidth || baseWidth) - 18);
+    if (state.zoomMode === 'fit-width') {
+      state.zoom = Math.max(0.25, Math.min(1.5, availableWidth / baseWidth));
+    } else if (state.zoomMode === 'fit-sheet') {
+      const top = svg.getBoundingClientRect ? svg.getBoundingClientRect().top : 0;
+      const availableHeight = Math.max(360, Number(window.innerHeight || 800) - Math.max(0, top) - 24);
+      state.zoom = Math.max(0.25, Math.min(1.5, availableWidth / baseWidth, availableHeight / baseHeight));
+    }
+    svg.style.width = (baseWidth * state.zoom) + 'px';
+    svg.style.height = (baseHeight * state.zoom) + 'px';
     const label = $('zoom-label');
-    if (label) label.textContent = Math.round(state.zoom * 100) + '%';
+    if (label) label.textContent = state.zoomMode === 'fit-width' ? '适宽' : state.zoomMode === 'fit-sheet' ? '适页' : Math.round(state.zoom * 100) + '%';
   }
-  window.zoomIn = function () { state.zoom = Math.min(4, state.zoom * 1.2); applyZoom(); };
-  window.zoomOut = function () { state.zoom = Math.max(0.4, state.zoom / 1.2); applyZoom(); };
-  window.zoomReset = function () { state.zoom = 1; applyZoom(); };
+  window.zoomIn = function () { state.zoomMode = 'manual'; state.zoom = Math.min(4, state.zoom * 1.2); applyZoom(); };
+  window.zoomOut = function () { state.zoomMode = 'manual'; state.zoom = Math.max(0.25, state.zoom / 1.2); applyZoom(); };
+  window.zoomFitWidth = function () { state.zoomMode = 'fit-width'; applyZoom(); };
+  window.zoomFitSheet = function () { state.zoomMode = 'fit-sheet'; applyZoom(); };
+  window.zoomReset = window.zoomFitWidth;
+  window.addEventListener('resize', () => { if (/^fit-/.test(state.zoomMode)) applyZoom(); });
 
   /* ---------- 自动前置检查：不把图纸内容发送给第三方模型 ---------- */
   function showReview(text) {
@@ -574,6 +650,18 @@
     const markup = svg.outerHTML;
     const issues = [];
     const passes = [];
+    const skill = window.AIDC_DRAWING_SKILL;
+    const drawingKey = DRAWING_SKILL_KEYS[state.subTab];
+    if (skill && drawingKey && typeof skill.auditMarkup === 'function') {
+      const audit = skill.auditMarkup(markup, drawingKey, state.R);
+      audit.checks.forEach((check) => {
+        const message = check.code + '：' + check.detail;
+        if (check.ok) passes.push(message);
+        else issues.push(message + ' [' + check.severity + ']');
+      });
+    } else {
+      issues.push('AIDC_DRAWING_SKILL 未加载，无法执行 sch_lib 规则检查。');
+    }
     if (!svg.getAttribute('viewBox')) issues.push('缺少 viewBox，无法保证跨终端缩放。'); else passes.push('已检测到 viewBox。');
     if (!/width="420mm"/.test(markup) || !/height="297mm"/.test(markup)) issues.push('未检测到 A3 横向物理图幅声明。'); else passes.push('已检测到 A3 横向物理图幅声明。');
     if (!/documentStatus|方案级自动草案|CONCEPT_DRAFT/.test(markup)) issues.push('未检测到方案级文档状态标识。'); else passes.push('已检测到方案级文档状态。');
@@ -604,15 +692,27 @@
       cooling: 'AIDC液冷管路图', thermal: 'AIDC热管理方案图', assets: 'AIDC素材库'
     }[state.subTab] || 'AIDC图纸';
   }
+  function drawingExportAllowed(format) {
+    const skill = window.AIDC_DRAWING_SKILL;
+    const drawingKey = DRAWING_SKILL_KEYS[state.subTab];
+    if (!skill || !drawingKey || typeof skill.canExport !== 'function') {
+      return { allowed: false, reason: '绘图 skill 或图纸 profile 未加载，禁止导出。' };
+    }
+    return skill.canExport(state.R, drawingKey, format);
+  }
   window.downloadCurrentSvg = function () {
     const svg = getCurrentSvg();
     if (!svg) { alert('当前标签没有可下载的 SVG 图纸。'); return; }
+    const gate = drawingExportAllowed('SVG');
+    if (!gate.allowed) { alert('SVG 导出已被绘图规则阻止：' + gate.reason); return; }
     const markup = exportSvgMarkup(svg);
     downloadBlob(new Blob([markup], { type: 'image/svg+xml;charset=utf-8' }), drawingName() + '.svg');
   };
   window.downloadCurrentDxf = function () {
     const svg = getCurrentSvg();
     if (!svg) { alert('当前标签没有可导出的图纸。'); return; }
+    const gate = drawingExportAllowed('DXF');
+    if (!gate.allowed) { alert('DXF 导出已被绘图规则阻止：' + gate.reason); return; }
     const exporter = window.AIDC_DXF;
     if (!exporter) {
       alert('DXF 导出模块尚未加载。请刷新页面，或确认 js/dxf-export.js 已部署。');
@@ -645,7 +745,19 @@
     if (!window.ASSET) return;
     const mode = window.ASSET.getMode() === 'image' ? 'vector' : 'image';
     window.ASSET.setMode(mode);
-    if (state.R) renderDrawing('thermal', window.drawThermal);
+    if (state.R) {
+      renderDrawing('thermal', window.drawThermal);
+      const skill = window.AIDC_DRAWING_SKILL;
+      if (skill && typeof skill.finalizeDrawingAudits === 'function') skill.finalizeDrawingAudits(state.R);
+      Object.entries(DRAWING_SKILL_KEYS).forEach(([id, key]) => {
+        const target = $('d-' + id);
+        const audit = state.R.drawingSkill && state.R.drawingSkill.drawingAudits && state.R.drawingSkill.drawingAudits[key];
+        if (target && audit) stampDrawingAudit(target, audit);
+      });
+      renderDesignStatus();
+      renderCompliance();
+      renderReadiness();
+    }
     showSubTab('thermal');
   };
   window.downloadJson = function () {
@@ -811,6 +923,7 @@
     const readiness = R.readiness || {};
     const summary = readiness.summary || {};
     const release = readiness.release || R.releaseGate || {};
+    const drawingSkill = R.drawingSkill || {};
     const labels = {
       DECLARED_CONFIRMED: ['已声明核实', '#3fb950'],
       DECLARED_COMPLETE: ['已声明资料齐套', '#3fb950'],
@@ -828,6 +941,17 @@
       '<div class="release-lock-meta">当前等级：<b>' + escapeHtml(readiness.level || 'CONCEPT_ONLY') + '</b><br>资料完整度：<b>' + escapeHtml(Number.isFinite(Number(summary.completenessPct)) ? summary.completenessPct + '%' : '—') + '</b></div></div>' +
       '<div class="state-box"><b>发布检查说明</b><br>' + escapeHtml(readiness.detail || '默认值和未核实输入会作为工程假设处理。') +
       '<br><span style="color:var(--text2)">“已声明”仅表示提交人勾选确认；平台不读取、不验证原始计算书、图纸、厂家文件或签章。</span></div>';
+    const graph = drawingSkill.graphValidation || {};
+    const audits = Object.values(drawingSkill.drawingAudits || {});
+    html += '<div class="state-box"><b>🧭 sch_lib 绘图规则 skill</b><br>' +
+      '规则包：' + escapeHtml((drawingSkill.id || 'MISSING') + '@' + (drawingSkill.version || '—')) +
+      '；状态：' + escapeHtml(drawingSkill.status || 'BLOCKED') +
+      '；当前图型选中：' + escapeHtml((drawingSkill.selectedRuleIds || []).length) + ' 条' +
+      '；机器已执行：' + escapeHtml((drawingSkill.evaluatedRuleIds || []).length) + ' 条' +
+      '；指导/人工复核：' + escapeHtml((drawingSkill.skippedRuleIds || []).length) + ' 条' +
+      '；语义图阻断项：' + escapeHtml(Number(graph.blockingCount || 0)) +
+      '；已检查图纸：' + escapeHtml(audits.length) + '/5。' +
+      '<br><span style="color:var(--text2)">来源图仅作为企业图形习惯与候选规则证据，不等于 IEC/GB/UL 合规样本；具体额定值和型号不会从样本复制。</span></div>';
     if (readiness.level === 'REVIEW_READY') {
       html += '<div class="bom-note" style="color:#3fb950">资料声明已齐套，可提交专业方案评审；这不是施工图状态，也不解除施工图发布禁令。</div>';
     } else {

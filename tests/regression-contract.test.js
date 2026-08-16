@@ -21,7 +21,7 @@ function load(name) {
 }
 
 [
-  'symbols.js', 'design-model.js', 'vendors.js', 'engine.js', 'layout.js',
+  'symbols.js', 'design-model.js', 'drawing-skill.js', 'vendors.js', 'engine.js', 'layout.js',
   'pictograms.js', 'assetlib.js', 'draw-arch.js', 'draw-wiring.js',
   'draw-dual.js', 'draw-cooling.js', 'draw-thermal.js'
 ].forEach(load);

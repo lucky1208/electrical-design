@@ -9,7 +9,7 @@
 window.AIDC_ENGINE = (function () {
   'use strict';
 
-  const ENGINE_VERSION = '2.1.0';
+  const ENGINE_VERSION = '2.2.0';
   const READINESS_VERSION = '1.0.0';
   const GPU_SPECS = {
     h100: { name: 'NVIDIA H100 SXM', tdp: 700, fp16: 990, mem: '80GB HBM3', interconnect: 'NVLink 900GB/s', rackPower: 10.2, serverPriceWan: 200, pulse: { spikeRatio: 1.5, spikeMs: 50, freqPerSec: 8 }, ips: { enabled: false, peakReduction: 0 } },
@@ -496,10 +496,10 @@ window.AIDC_ENGINE = (function () {
     };
 
     const design = window.AIDC_DESIGN ? window.AIDC_DESIGN.create({
-      params: P, power, cooling, compute, topology: { paths }, assumptions
-    }) : { schemaVersion: '2.0.0', project: { name: P.projName }, equipment: [], circuits: [], topology: { powerPaths: [] }, assumptions };
+      params: P, power, cooling, compute, topology: { paths }, assumptions, engineVersion: ENGINE_VERSION
+    }) : { schemaVersion: '2.2.0', project: { name: P.projName }, equipment: [], circuits: [], topology: { powerPaths: [] }, assumptions };
 
-    return {
+    const baseResult = {
       ok: true, engineVersion: ENGINE_VERSION, documentStatus: 'CONCEPT_DRAFT—PROFESSIONAL_REVIEW_REQUIRED',
       projName: P.projName, region: P.region, tier: P.tier, red: topology, mainsCount, gpuType: P.gpuType, cooling: P.cooling, pref: P.pref,
       inputs: P, compute, pulse, storage, power, cooling, pue: {
@@ -513,6 +513,28 @@ window.AIDC_ENGINE = (function () {
         thermal: { liquidHeatKw, heatRejectionKw, flowLpm, deltaT, status: 'PRELIMINARY' }
       }
     };
+    const drawingSkill = window.AIDC_DRAWING_SKILL;
+    if (drawingSkill && typeof drawingSkill.apply === 'function') return drawingSkill.apply(baseResult);
+
+    /* Fail closed for professional review when the runtime rule pack is not
+     * loaded.  Preview remains available so the deployment can diagnose a
+     * stale cache, but the result cannot be treated as review-ready. */
+    baseResult.drawingSkill = {
+      id: 'AIDC-DRAWING-SKILL-MISSING', version: null, status: 'BLOCKED',
+      appliedRuleIds: [], graphValidation: { status: 'NOT_RUN', blockingCount: 1, checks: [], violations: [] }
+    };
+    baseResult.validation.push({
+      id: 'DRAW-SKILL-001', result: 'WARN', rule: '绘图规则包加载状态', ref: 'AIDC_DRAWING_SKILL',
+      detail: '绘图规则包未加载；只能预览概念草案，已阻止专业方案评审包发布。', evidence: []
+    });
+    baseResult.compliance = baseResult.validation;
+    baseResult.readiness.level = 'CONCEPT_ONLY';
+    baseResult.readiness.label = '仅限概念方案，绘图规则包未加载';
+    baseResult.readiness.blockingItems.push({ id: 'DRAW-SKILL-MISSING', title: '绘图规则包未加载', status: 'BLOCKED', detail: '检查 js/drawing-skill.js 的部署和加载顺序。' });
+    baseResult.readiness.release.reviewPackageAllowed = false;
+    baseResult.readiness.release.drawingRuleStatus = 'BLOCKED—SKILL_NOT_LOADED';
+    baseResult.releaseGate = baseResult.readiness.release;
+    return baseResult;
   }
 
   return { build, GPU_SPECS, ENGINE_VERSION };

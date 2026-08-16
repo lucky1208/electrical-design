@@ -9,7 +9,7 @@
 (function () {
   'use strict';
 
-  const SCHEMA_VERSION = '2.1.0';
+  const SCHEMA_VERSION = '2.2.0';
   const DOCUMENT_STATUS = 'CONCEPT_DRAFT—PROFESSIONAL_REVIEW_REQUIRED';
 
   /*
@@ -42,6 +42,29 @@
     { key: 'cooling-pid', drawingNo: 'AIDC-CONCEPT-104', title: 'AIDC 液冷管路图（P&ID 概念草图）', discipline: 'MECHANICAL', sheet: 'A3', orientation: 'LANDSCAPE', scale: 'NTS' },
     { key: 'thermal', drawingNo: 'AIDC-CONCEPT-105', title: 'AIDC 液冷与热管理方案图', discipline: 'MECHANICAL', sheet: 'A3', orientation: 'LANDSCAPE', scale: 'NTS' }
   ];
+
+  /* Named ports are the contract between the engineering graph and every
+   * renderer.  The sch_lib review showed that professional schematics attach
+   * conductors/pipes to explicit terminals or nozzles, never to box centres. */
+  const PORT_TEMPLATES = {
+    'utility-incomer': [{ id: 'out', netClass: 'POWER_MV', direction: 'out', required: true }],
+    'mv-switchgear': [{ id: 'in', netClass: 'POWER_MV', direction: 'in', required: true }, { id: 'out', netClass: 'POWER_MV', direction: 'out', required: true }],
+    'transformer-bank': [{ id: 'hv', netClass: 'POWER_MV', direction: 'in', required: true }, { id: 'lv', netClass: 'POWER_LV', direction: 'out', required: true }],
+    'lv-main-switchgear': [{ id: 'in', netClass: 'POWER_LV', direction: 'in', required: true }, { id: 'out', netClass: 'POWER_LV', direction: 'out', required: true }],
+    'ups-bank': [{ id: 'in', netClass: 'POWER_LV', direction: 'in', required: true }, { id: 'out', netClass: 'POWER_UPS', direction: 'out', required: true }, { id: 'battery', netClass: 'POWER_DC', direction: 'bidirectional', required: false }],
+    'pdu-bank': [{ id: 'in', netClass: 'POWER_UPS', direction: 'in', required: true }, { id: 'out', netClass: 'POWER_UPS', direction: 'out', required: true }],
+    'gpu-rack-bank': [{ id: 'power-in', netClass: 'POWER_UPS', direction: 'in', required: true }, { id: 'cooling-in', netClass: 'PROCESS_SECONDARY', direction: 'in', required: false }, { id: 'cooling-out', netClass: 'PROCESS_SECONDARY', direction: 'out', required: false }],
+    'static-transfer-switch': [{ id: 'in-a', netClass: 'POWER_LV', direction: 'in', required: false }, { id: 'in-b', netClass: 'POWER_LV', direction: 'in', required: false }, { id: 'out', netClass: 'POWER_LV', direction: 'out', required: false }],
+    'cdu-bank': [{ id: 'primary-in', netClass: 'PROCESS_PRIMARY', direction: 'in', required: true }, { id: 'primary-out', netClass: 'PROCESS_PRIMARY', direction: 'out', required: true }, { id: 'secondary-supply', netClass: 'PROCESS_SECONDARY', direction: 'out', required: true }, { id: 'secondary-return', netClass: 'PROCESS_SECONDARY', direction: 'in', required: true }],
+    'chiller-bank': [{ id: 'chw-supply', netClass: 'PROCESS_PRIMARY', direction: 'out', required: true }, { id: 'chw-return', netClass: 'PROCESS_PRIMARY', direction: 'in', required: true }, { id: 'condenser-in', netClass: 'PROCESS_CONDENSER', direction: 'in', required: true }, { id: 'condenser-out', netClass: 'PROCESS_CONDENSER', direction: 'out', required: true }],
+    'cooling-tower-bank': [{ id: 'condenser-supply', netClass: 'PROCESS_CONDENSER', direction: 'out', required: true }, { id: 'condenser-return', netClass: 'PROCESS_CONDENSER', direction: 'in', required: true }],
+    'pump-bank': [{ id: 'in', netClass: 'PROCESS_COOLING', direction: 'in', required: true }, { id: 'out', netClass: 'PROCESS_COOLING', direction: 'out', required: true }]
+  };
+
+  function portsFor(kind) {
+    return (PORT_TEMPLATES[kind] || [{ id: 'in', netClass: 'UNCLASSIFIED', direction: 'in', required: false }, { id: 'out', netClass: 'UNCLASSIFIED', direction: 'out', required: false }])
+      .map((port) => Object.assign({}, port));
+  }
 
   function idPart(value) {
     const raw = String(value || '').trim();
@@ -130,17 +153,22 @@
         kind: data.kind,
         quantity: 1,
         source: 'AIDC_ENGINE',
-        status: 'CONCEPT'
+        status: 'CONCEPT',
+        ports: portsFor(data.kind)
       }, data);
       equipment.push(item);
       return item.id;
     };
     const addCircuit = (data) => {
+      const kind = data.kind || 'electrical';
       const item = Object.assign({
         id: data.id,
         ref: data.ref || data.id,
         referenceDesignation: data.referenceDesignation || data.ref || data.id,
-        kind: 'electrical', status: 'CONCEPT'
+        kind,
+        netClass: kind === 'pipe' ? 'PROCESS_COOLING' : 'POWER_AC',
+        direction: 'from-to',
+        status: 'CONCEPT'
       }, data);
       circuits.push(item);
       return item.id;
@@ -188,11 +216,11 @@
         quantity: power.pduPerPath, supplies: suffix
       });
 
-      addCircuit({ id: 'CCT-' + suffix + '-01', ref: 'AIDC-PWR-' + suffix + '-CCT01', from: grid, to: mv, voltageKv: power.voltageKv });
-      addCircuit({ id: 'CCT-' + suffix + '-02', ref: 'AIDC-PWR-' + suffix + '-CCT02', from: mv, to: tx, voltageKv: power.voltageKv });
-      addCircuit({ id: 'CCT-' + suffix + '-03', ref: 'AIDC-PWR-' + suffix + '-CCT03', from: tx, to: lv, voltageKv: 0.4 });
-      addCircuit({ id: 'CCT-' + suffix + '-04', ref: 'AIDC-PWR-' + suffix + '-CCT04', from: lv, to: ups, voltageKv: 0.4 });
-      addCircuit({ id: 'CCT-' + suffix + '-05', ref: 'AIDC-PWR-' + suffix + '-CCT05', from: ups, to: pdu, voltageKv: 0.4 });
+      addCircuit({ id: 'CCT-' + suffix + '-01', ref: 'AIDC-PWR-' + suffix + '-CCT01', from: grid, fromPort: 'out', to: mv, toPort: 'in', voltageKv: power.voltageKv, netClass: 'POWER_MV' });
+      addCircuit({ id: 'CCT-' + suffix + '-02', ref: 'AIDC-PWR-' + suffix + '-CCT02', from: mv, fromPort: 'out', to: tx, toPort: 'hv', voltageKv: power.voltageKv, netClass: 'POWER_MV' });
+      addCircuit({ id: 'CCT-' + suffix + '-03', ref: 'AIDC-PWR-' + suffix + '-CCT03', from: tx, fromPort: 'lv', to: lv, toPort: 'in', voltageKv: 0.4, netClass: 'POWER_LV' });
+      addCircuit({ id: 'CCT-' + suffix + '-04', ref: 'AIDC-PWR-' + suffix + '-CCT04', from: lv, fromPort: 'out', to: ups, toPort: 'in', voltageKv: 0.4, netClass: 'POWER_LV' });
+      addCircuit({ id: 'CCT-' + suffix + '-05', ref: 'AIDC-PWR-' + suffix + '-CCT05', from: ups, fromPort: 'out', to: pdu, toPort: 'in', voltageKv: 0.4, netClass: 'POWER_UPS' });
       paths.push({ id: 'PATH-' + suffix, name: suffix + ' 路关键供电路径', equipment: [grid, mv, tx, lv, ups, pdu] });
     });
 
@@ -206,7 +234,7 @@
     }) : null;
     paths.forEach((path) => {
       const pdu = path.equipment[path.equipment.length - 1];
-      addCircuit({ id: 'CCT-' + path.name.charAt(0) + '-IT', ref: 'AIDC-IT-' + path.name.charAt(0) + '-CCT01', from: pdu, to: path.name.charAt(0) === 'A' ? rackA : (rackB || rackA), voltageKv: 0.4, loadType: 'dual-cord-it' });
+      addCircuit({ id: 'CCT-' + path.name.charAt(0) + '-IT', ref: 'AIDC-IT-' + path.name.charAt(0) + '-CCT01', from: pdu, fromPort: 'out', to: path.name.charAt(0) === 'A' ? rackA : (rackB || rackA), toPort: 'power-in', voltageKv: 0.4, netClass: 'POWER_UPS', loadType: 'dual-cord-it' });
     });
 
     const auxSts = addEquipment({
@@ -233,13 +261,22 @@
         activeQuantity: cooling.towerActiveCount, redundancyQuantity: cooling.towerRedundancyCount,
         unitKw: cooling.towerCap, dutyKw: cooling.heatRejectionKw
       });
-      addCooling('EQ-PUMP-01', 'AIDC-CLG-P101', 'pump-bank', '循环泵组', cooling.pumpCount, { dutyFlowLpm: cooling.flowLpm });
-      circuits.push(
-        { id: 'PIPE-SEC-SUP', ref: 'AIDC-CLG-L101-S', kind: 'pipe', medium: 'secondary-supply', from: cdu, to: rackA, dn: cooling.dn, flowLpm: cooling.flowLpm },
-        { id: 'PIPE-SEC-RET', ref: 'AIDC-CLG-L101-R', kind: 'pipe', medium: 'secondary-return', from: rackA, to: cdu, dn: cooling.dn, flowLpm: cooling.flowLpm },
-        { id: 'PIPE-PRI', ref: 'AIDC-CLG-L201', kind: 'pipe', medium: 'primary-chilled-water', from: chiller, to: cdu, dn: cooling.primaryDn, flowLpm: cooling.primaryFlowLpm },
-        { id: 'PIPE-CW', ref: 'AIDC-CLG-L301', kind: 'pipe', medium: 'condenser-water', from: chiller, to: tower, dn: cooling.condenserDn, flowLpm: cooling.condenserFlowLpm }
-      );
+      const primaryPump = addCooling('EQ-PUMP-PRI', 'AIDC-CLG-P101', 'pump-bank', '一次侧循环泵组', cooling.pumpCount, {
+        dutyFlowLpm: cooling.primaryFlowLpm, note: '数量与扬程待水力计算确认',
+        ports: [{ id: 'in', netClass: 'PROCESS_PRIMARY', direction: 'in', required: true }, { id: 'out', netClass: 'PROCESS_PRIMARY', direction: 'out', required: true }]
+      });
+      const condenserPump = addCooling('EQ-PUMP-CW', 'AIDC-CLG-P201', 'pump-bank', '冷却水循环泵组', cooling.pumpCount, {
+        dutyFlowLpm: cooling.condenserFlowLpm, note: '数量与扬程待水力计算确认',
+        ports: [{ id: 'in', netClass: 'PROCESS_CONDENSER', direction: 'in', required: true }, { id: 'out', netClass: 'PROCESS_CONDENSER', direction: 'out', required: true }]
+      });
+      addCircuit({ id: 'PIPE-SEC-SUP', ref: 'AIDC-CLG-L101-S', kind: 'pipe', medium: 'secondary-supply', netClass: 'PROCESS_SECONDARY', from: cdu, fromPort: 'secondary-supply', to: rackA, toPort: 'cooling-in', dn: cooling.dn, flowLpm: cooling.flowLpm });
+      addCircuit({ id: 'PIPE-SEC-RET', ref: 'AIDC-CLG-L101-R', kind: 'pipe', medium: 'secondary-return', netClass: 'PROCESS_SECONDARY', from: rackA, fromPort: 'cooling-out', to: cdu, toPort: 'secondary-return', dn: cooling.dn, flowLpm: cooling.flowLpm });
+      addCircuit({ id: 'PIPE-PRI-SUP-01', ref: 'AIDC-CLG-L201-S1', kind: 'pipe', medium: 'primary-supply', netClass: 'PROCESS_PRIMARY', from: chiller, fromPort: 'chw-supply', to: primaryPump, toPort: 'in', dn: cooling.primaryDn, flowLpm: cooling.primaryFlowLpm });
+      addCircuit({ id: 'PIPE-PRI-SUP-02', ref: 'AIDC-CLG-L201-S2', kind: 'pipe', medium: 'primary-supply', netClass: 'PROCESS_PRIMARY', from: primaryPump, fromPort: 'out', to: cdu, toPort: 'primary-in', dn: cooling.primaryDn, flowLpm: cooling.primaryFlowLpm });
+      addCircuit({ id: 'PIPE-PRI-RET', ref: 'AIDC-CLG-L201-R', kind: 'pipe', medium: 'primary-return', netClass: 'PROCESS_PRIMARY', from: cdu, fromPort: 'primary-out', to: chiller, toPort: 'chw-return', dn: cooling.primaryDn, flowLpm: cooling.primaryFlowLpm });
+      addCircuit({ id: 'PIPE-CW-SUP-01', ref: 'AIDC-CLG-L301-S1', kind: 'pipe', medium: 'condenser-supply', netClass: 'PROCESS_CONDENSER', from: tower, fromPort: 'condenser-supply', to: condenserPump, toPort: 'in', dn: cooling.condenserDn, flowLpm: cooling.condenserFlowLpm });
+      addCircuit({ id: 'PIPE-CW-SUP-02', ref: 'AIDC-CLG-L301-S2', kind: 'pipe', medium: 'condenser-supply', netClass: 'PROCESS_CONDENSER', from: condenserPump, fromPort: 'out', to: chiller, toPort: 'condenser-in', dn: cooling.condenserDn, flowLpm: cooling.condenserFlowLpm });
+      addCircuit({ id: 'PIPE-CW-RET', ref: 'AIDC-CLG-L301-R', kind: 'pipe', medium: 'condenser-return', netClass: 'PROCESS_CONDENSER', from: chiller, fromPort: 'condenser-out', to: tower, toPort: 'condenser-return', dn: cooling.condenserDn, flowLpm: cooling.condenserFlowLpm });
     }
 
     return {

@@ -285,7 +285,7 @@ window.SYM = (function () {
     const c = color || C.wtr, cx = x + 20, cy = y + 20;
     return `<circle cx="${cx}" cy="${cy}" r="14" fill="#fff" stroke="${c}" stroke-width="1.5"/>
     <path d="M${cx},${cy - 9} L${cx + 9},${cy} L${cx},${cy + 9} Z" fill="${c}" opacity="0.9"/>
-    ${label ? txt(x, y + 48, label, 9, c, 'middle', 'bold') : ''}`;
+    ${label ? txt(cx, y + 48, label, 9, c, 'middle', 'bold') : ''}`;
   }
 
   /* 电动调节阀 (两通), 高24 */
@@ -330,21 +330,30 @@ window.SYM = (function () {
 
   /* 冷水机, 96x56 */
   function chiller(x, y, w, h, color, label, sub) {
-    const c = color || C.wtr, cx = x + w / 2;
-    const inner = `<circle cx="${cx - 14}" cy="${y + h / 2}" r="11" fill="#fff" stroke="${c}" stroke-width="1.4"/>
-      <path d="M${cx - 19},${y + h / 2} q5,-7 10,0 q5,7 10,0" fill="none" stroke="${c}" stroke-width="1"/>
-      <line x1="${cx + 4}" y1="${y + h / 2}" x2="${cx + 16}" y2="${y + h / 2}" stroke="${c}" stroke-width="1.4"/>`;
-    return block(x, y, w, h, c, label, sub, '#f0fdfa', inner);
+    const c = color || C.wtr, cy = y + h / 2;
+    const iconX = x + Math.min(38, w * 0.24), splitX = x + Math.min(72, w * 0.42);
+    const textX = (splitX + x + w) / 2;
+    return `<rect x="${x}" y="${y}" width="${w}" height="${h}" fill="#f0fdfa" stroke="${c}" stroke-width="1.5" rx="3"/>
+      <circle cx="${iconX}" cy="${cy}" r="12" fill="#fff" stroke="${c}" stroke-width="1.4"/>
+      <path d="M${iconX - 7},${cy} q5,-8 10,0 q5,8 10,0" fill="none" stroke="${c}" stroke-width="1"/>
+      <line x1="${splitX}" y1="${y + 12}" x2="${splitX}" y2="${y + h - 12}" stroke="${c}" stroke-width="1.1"/>
+      ${label ? txt(textX, y + h / 2 - 3, label, 9.5, c, 'middle', 'bold') : ''}
+      ${sub ? txt(textX, y + h / 2 + 14, sub, 7.5, C.ink, 'middle') : ''}`;
   }
 
   /* CDU 冷量分配单元, 96x60 */
   function cdu(x, y, w, h, color, label, sub) {
-    const c = color || C.sup, cx = x + w / 2;
-    const inner = `<circle cx="${cx - 16}" cy="${y + 22}" r="9" fill="#fff" stroke="${c}" stroke-width="1.3"/>
-      <path d="M${cx - 16},${y + 15} L${cx - 8},${y + 22} L${cx - 16},${y + 29} Z" fill="${c}" opacity="0.85"/>
-      <line x1="${cx - 2}" y1="${y + 10}" x2="${cx - 2}" y2="${y + 34}" stroke="${c}" stroke-width="1.6"/>
-      <line x1="${cx + 12}" y1="${y + 10}" x2="${cx + 12}" y2="${y + 34}" stroke="${c}" stroke-width="1.6"/>`;
-    return block(x, y, w, h, c, label, sub, '#f0f9ff', inner);
+    const c = color || C.sup, cy = y + h / 2;
+    const iconX = x + Math.min(34, w * 0.22), splitX = x + Math.min(76, w * 0.43);
+    const textX = (splitX + x + w) / 2;
+    return `<rect x="${x}" y="${y}" width="${w}" height="${h}" fill="#f0f9ff" stroke="${c}" stroke-width="1.5" rx="3"/>
+      <circle cx="${iconX}" cy="${cy}" r="10" fill="#fff" stroke="${c}" stroke-width="1.3"/>
+      <path d="M${iconX},${cy - 7} L${iconX + 8},${cy} L${iconX},${cy + 7} Z" fill="${c}" opacity="0.85"/>
+      <line x1="${iconX + 16}" y1="${cy - 15}" x2="${iconX + 16}" y2="${cy + 15}" stroke="${c}" stroke-width="1.6"/>
+      <line x1="${iconX + 28}" y1="${cy - 15}" x2="${iconX + 28}" y2="${cy + 15}" stroke="${c}" stroke-width="1.6"/>
+      <line x1="${splitX}" y1="${y + 12}" x2="${splitX}" y2="${y + h - 12}" stroke="${c}" stroke-width="1.1"/>
+      ${label ? txt(textX, y + h / 2 - 3, label, 9.5, c, 'middle', 'bold') : ''}
+      ${sub ? txt(textX, y + h / 2 + 14, sub, 7.5, C.ink, 'middle') : ''}`;
   }
 
   /* 仪表传感器圆 (TT/FT/PT), 高22 */
@@ -422,6 +431,9 @@ window.SYM = (function () {
     const baseline = Array.isArray(control.referenceBaseline) ? control.referenceBaseline : [];
     const baselineLabel = baseline.slice(0, 3).map((item) => item.title).join(' · ') || '项目适用标准待确认';
     const defaultSheet = { format: 'A3', widthMm: 420, heightMm: 297, orientation: 'LANDSCAPE' };
+    const skillMeta = window.AIDC_DRAWING_SKILL && typeof window.AIDC_DRAWING_SKILL.metadata === 'function'
+      ? window.AIDC_DRAWING_SKILL.metadata(R, drawingKey)
+      : { id: 'AIDC-DRAWING-SKILL-MISSING', version: '', profile: 'unvalidated', selectedRuleIds: [], evaluatedRuleIds: [], appliedRuleIds: [], status: 'BLOCKED' };
     return Object.assign({
       drawingKey: drawingKey || 'unregistered',
       drawingNo: drawing.drawingNo || 'AIDC-CONCEPT-000',
@@ -443,7 +455,8 @@ window.SYM = (function () {
       scale: drawing.scale || 'NTS',
       sheet: Object.assign({}, defaultSheet, drawing.sheet ? { format: drawing.sheet } : {}, drawing.orientation ? { orientation: drawing.orientation } : {}),
       standard: baselineLabel + '（仅参考，适用性待确认）',
-      cadLayerManifest: Array.isArray(control.cadLayerManifest) && control.cadLayerManifest.length ? control.cadLayerManifest : DEFAULT_CAD_LAYER_MANIFEST
+      cadLayerManifest: Array.isArray(control.cadLayerManifest) && control.cadLayerManifest.length ? control.cadLayerManifest : DEFAULT_CAD_LAYER_MANIFEST,
+      drawingSkill: skillMeta
     }, overrides || {});
   }
 
@@ -478,15 +491,17 @@ window.SYM = (function () {
     const splitA = tbX + tbW * 0.53, splitB = tbX + tbW * 0.77;
     const stdShort = st.split('·').slice(0, 3).join('·').trim();
     const layers = Array.isArray(m.cadLayerManifest) && m.cadLayerManifest.length ? m.cadLayerManifest : DEFAULT_CAD_LAYER_MANIFEST;
+    const skill = m.drawingSkill || { id: 'AIDC-DRAWING-SKILL-MISSING', version: '', profile: 'unvalidated', selectedRuleIds: [], evaluatedRuleIds: [], appliedRuleIds: [], status: 'BLOCKED' };
     const metadata = esc(JSON.stringify({
       documentStatus: status, issuePurpose: purpose, verification: m.verification || 'NOT_VERIFIED',
       documentSetId: m.documentSetId || '', projectReference: m.projectRef || '',
       drawingKey: m.drawingKey || '', drawingNo: no, drawingRef: m.drawingRef || '', revision: rev,
       sheet: sheet.format + ' ' + sheet.orientation, units: 'mm', engine: 'AIDC',
-      cadLayerManifest: layers
+      cadLayerManifest: layers,
+      drawingSkill: skill
     }));
     const layerManifest = esc(JSON.stringify(layers));
-    return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" width="${sheet.widthMm}mm" height="${sheet.heightMm}mm" preserveAspectRatio="xMidYMid meet" data-sheet-format="${sheet.format}" data-sheet-orientation="${sheet.orientation}" data-units="mm" data-document-key="${esc(m.drawingKey || '')}" data-document-status="${esc(status)}" data-document-control="CONCEPTUAL_SCHEME" data-cad-layer-manifest="${layerManifest}">
+    return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" width="${sheet.widthMm}mm" height="${sheet.heightMm}mm" preserveAspectRatio="xMidYMid meet" data-sheet-format="${sheet.format}" data-sheet-orientation="${sheet.orientation}" data-units="mm" data-document-key="${esc(m.drawingKey || '')}" data-document-status="${esc(status)}" data-document-control="CONCEPTUAL_SCHEME" data-drawing-skill="${esc(skill.id || '')}" data-drawing-skill-version="${esc(skill.version || '')}" data-drawing-skill-status="${esc(skill.status || 'BLOCKED')}" data-drawing-profile="${esc(skill.profile || '')}" data-selected-rules="${esc((skill.selectedRuleIds || []).join(','))}" data-evaluated-rules="${esc((skill.evaluatedRuleIds || []).join(','))}" data-applied-rules="${esc((skill.appliedRuleIds || []).join(','))}" data-cad-layer-manifest="${layerManifest}">
     <title>${esc(title)}</title><desc>${esc(status)}</desc><metadata>${metadata}</metadata>
     <rect width="${W}" height="${H}" fill="#ffffff"/>
     <g id="AIDC-FRAME" data-layer="AIDC-FRAME">
