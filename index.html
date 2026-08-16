@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta http-equiv="cache-control" content="no-store, no-cache, must-revalidate">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>AIDC 电气方案设计平台 — 一键生成 IEC 标准图纸</title>
+<title>AIDC 电气方案设计平台 — 可追溯方案级工程草案</title>
 <style>
   :root{
     --bg:#0b1220; --panel:#111a2e; --panel2:#0d1626; --line:#1f2c48;
@@ -74,6 +74,20 @@
   .comp-rule{font-size:12.5px;font-weight:600}
   .comp-detail{font-size:11px;color:var(--text2);margin-top:2px}
   .comp-ref{margin-left:auto;font-size:10px;color:#58a6ff;white-space:nowrap;padding-top:3px}
+  .state-box{background:#0d1a2d;border:1px solid #29466f;border-radius:9px;padding:10px 12px;font-size:11px;
+    line-height:1.65;margin-bottom:12px}
+  .state-box b{color:#7fb8e8}.state-tags{display:flex;gap:6px;flex-wrap:wrap;margin-top:7px}
+  .state-tag{padding:2px 7px;border-radius:999px;font-size:10px;border:1px solid #34527c;color:#b7d5f4}
+  .state-tag.warn{border-color:#8a6a20;color:#e3b341}.state-tag.calc{border-color:#2f7d56;color:#78d8a4}
+  details.engine-inputs{margin:12px 0;border:1px solid var(--line);border-radius:8px;padding:8px 10px;background:var(--panel2)}
+  details.engine-inputs summary{cursor:pointer;color:#b7d5f4;font-size:11px;font-weight:600}
+  .field-help{font-size:10px;color:var(--text2);line-height:1.55;margin-top:4px}
+  .check-list{display:grid;gap:6px;margin-top:9px}
+  .check-row{display:flex;gap:7px;align-items:flex-start;font-size:10.5px;color:var(--text2);line-height:1.45;cursor:pointer}
+  .check-row input{margin-top:2px;accent-color:#58a6ff}
+  .release-lock{display:flex;gap:16px;justify-content:space-between;align-items:flex-start;background:#35191d;border:1px solid #8f3039;
+    border-radius:9px;padding:11px 13px;font-size:11px;line-height:1.6;margin-bottom:12px;color:#ffd7d9}
+  .release-lock b{color:#ff9fa6}.release-lock-meta{min-width:150px;color:#f2c2c5;text-align:right}
   footer{margin:24px;padding:12px;border-top:1px solid var(--line);font-size:11px;color:var(--text2);text-align:center;line-height:1.8}
   @media (max-width:1100px){.wrap{grid-template-columns:1fr}.kpi-grid{grid-template-columns:repeat(3,1fr)}.param-grid{grid-template-columns:1fr}}
 </style>
@@ -82,14 +96,14 @@
 <header>
   <div class="logo">⚡</div>
   <h1><span>AIDC</span> 电气方案设计平台 · 方案设计 Agent</h1>
-  <div class="std">GB 50174 · GB 50052 · GB/T 4728 · IEC 60617 · TIA-942 · ASHRAE TC9.9</div>
+  <div class="std">方案级自动草案 · IEC 61082 / IEC 60617 基线待项目确认 · 专业审核必需</div>
 </header>
 
 <div class="wrap">
   <!-- ============ 左: 配置表单 ============ -->
   <div class="card">
     <h2>📋 AIDC 方案设计</h2>
-    <div class="desc">傻瓜式填写数据中心基本参数，点击「生成 AIDC 方案」，自动输出 4 张符合 IEC/CAD 标准的图纸（系统架构图 · 电气一次接线图 · 双路供电拓扑图 · 液冷管路图）+ BOM + 合规检查。同一配置永远生成同一套图纸（确定性引擎，无 LLM 依赖）。</div>
+    <div class="desc">填写数据中心基本参数后生成可追溯的方案级工程草案：系统架构、电气一次、双路拓扑、液冷管路与热管理图，以及概念计算、BOM 和校核边界。确定性引擎负责计算与出图；AI 仅用于需求翻译和文字建议，不能替代专业校核。</div>
 
     <div class="form-group"><label class="form-label">项目名称</label>
       <input type="text" class="form-input" id="f-proj" value="上海张江AI算力中心"></div>
@@ -102,7 +116,7 @@
       <div class="form-group"><label class="form-label">数据中心等级</label>
         <select class="form-input" id="f-tier">
           <option value="tier3" selected>Tier III (N+1)</option>
-          <option value="tier4">Tier IV (2N 无单点故障)</option>
+          <option value="tier4">Tier IV (2N 概念目标，待第三方审查)</option>
           <option value="tier2">Tier II (单路+N+1)</option>
         </select></div>
     </div>
@@ -156,21 +170,68 @@
       <div class="form-group"><label class="form-label">谷电价 (元/kWh)</label>
         <input type="number" class="form-input" id="f-valley" value="0.35" step="0.01"></div>
     </div>
-    <div class="form-group"><label class="form-label">AI 模型 (可选，用于自然语言解析)</label>
+    <details class="engine-inputs">
+      <summary>工程输入与设计假设（建议项目阶段补齐）</summary>
+      <div class="field-help">未填项目资料时，引擎会采用明确标注的概念假设；这些输入不能替代短路、保护配合、水力或年度能效计算书。</div>
+      <div class="form-row" style="margin-top:9px">
+        <div class="form-group"><label class="form-label">上级电网短路容量 (MVA)</label>
+          <input type="number" class="form-input" id="f-grid-sc" value="500" min="1" step="10"></div>
+        <div class="form-group"><label class="form-label">变压器阻抗 Uk (%)</label>
+          <input type="number" class="form-input" id="f-tx-uk" value="6" min="1" max="20" step="0.1"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">UPS 后备时间 (min)</label>
+          <input type="number" class="form-input" id="f-ups-backup" value="15" min="1" max="120" step="1"></div>
+        <div class="form-group"><label class="form-label">功率因数（概念值）</label>
+          <input type="number" class="form-input" id="f-pf" value="0.92" min="0.7" max="1" step="0.01"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">单台 CDU 标称能力 (kW)</label>
+          <input type="number" class="form-input" id="f-cdu-cap" value="500" min="50" step="50"></div>
+        <div class="form-group"><label class="form-label">设计湿球温度 (℃)</label>
+          <input type="number" class="form-input" id="f-wetbulb" value="28" min="-20" max="45" step="0.5"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">液冷供水温度 (℃)</label>
+          <input type="number" class="form-input" id="f-supply-temp" value="35" min="10" max="50" step="1"></div>
+        <div class="form-group"><label class="form-label">液冷回水温度 (℃)</label>
+          <input type="number" class="form-input" id="f-return-temp" value="45" min="15" max="60" step="1"></div>
+      </div>
+    </details>
+    <details class="engine-inputs" open>
+      <summary>发布检查与资料确认（默认值/未核实输入 = 工程假设）</summary>
+      <div class="field-help">仅当下列设计依据已经由项目方或相应专业复核后再勾选。勾选表示提交人声明，平台不会读取、验证原始文件；即使全部勾选，也只能进入专业方案评审，绝不生成或发布施工图。</div>
+      <div class="check-list">
+        <label class="check-row"><input type="checkbox" id="f-confirm-load">IT 负荷、机柜功率和服务器装载清单已由项目方确认</label>
+        <label class="check-row"><input type="checkbox" id="f-confirm-reliability">可靠性目标、维护策略、故障域与冗余拓扑已由设计基准确认</label>
+        <label class="check-row"><input type="checkbox" id="f-confirm-grid">接入电压、供电批复、电网短路容量和运行方式已核实</label>
+        <label class="check-row"><input type="checkbox" id="f-confirm-equipment">变压器/UPS 数据表、功率因数与后备时间依据已核实</label>
+        <label class="check-row"><input type="checkbox" id="f-confirm-thermal">IT 液冷接口、气象工况、冷源数据和供回水条件已核实</label>
+        <label class="check-row"><input type="checkbox" id="f-confirm-energy">PUE 目标、电价边界及运行时段假设已由项目经济/能效口径确认</label>
+      </div>
+      <div class="field-help" style="margin-top:10px"><b>专项资料与协调成果（用于“可提交专业方案评审”的声明）：</b></div>
+      <div class="check-list">
+        <label class="check-row"><input type="checkbox" id="f-evidence-sc">已具备经电气专业复核的短路计算书和电网运行方式</label>
+        <label class="check-row"><input type="checkbox" id="f-evidence-protection">已具备保护配合、接地/弧光风险研究和相关设备曲线</label>
+        <label class="check-row"><input type="checkbox" id="f-evidence-hydraulic">已具备液冷水力、泵扬程、NPSH、漏液与联锁故障工况计算书</label>
+        <label class="check-row"><input type="checkbox" id="f-evidence-civil">已完成平面、路由、消防、结构、维护空间和物理隔离协调</label>
+        <label class="check-row"><input type="checkbox" id="f-evidence-vendor">已具备设备数据表、型式文件、供货边界和 RFQ/技术澄清资料</label>
+        <label class="check-row"><input type="checkbox" id="f-evidence-cad">已纳入项目 CAD/BIM 图层、图号、修订、校审和文控流程</label>
+      </div>
+    </details>
+    <div class="form-group"><label class="form-label">AI 需求翻译（可选）</label>
       <select class="form-input" id="f-model">
-        <option value="local" selected>本地确定性引擎 (无需 API Key)</option>
-        <option value="kimi">Kimi (Moonshot)</option>
-        <option value="deepseek">DeepSeek</option>
-        <option value="glm">GLM (智谱)</option>
-      </select></div>
-    <div id="api-key-box" style="display:none">
-      <div class="form-group"><label class="form-label">API Key</label>
-        <input type="password" class="form-input" id="f-apikey" placeholder="输入对应模型的 API Key"></div>
+        <option value="local" selected>本地规则解析（不发送文本）</option>
+        <option value="kimi">Kimi（服务端代理）</option>
+        <option value="deepseek">DeepSeek（服务端代理）</option>
+        <option value="glm">GLM（服务端代理）</option>
+      </select>
+      <div class="field-help" id="ai-provider-status">正在检查服务端 AI 可用性…</div>
     </div>
     <div class="form-group" style="margin-top:12px"><label class="form-label">💡 自然语言细化需求（可选）</label>
       <textarea class="form-input" id="f-nl" rows="3" style="resize:vertical"
         placeholder="例：12MW IT负荷，Tier III，10kV双路，液冷，PUE&lt;1.25，预算有限优先国产，沿海高盐雾需防腐"></textarea>
-      <div style="font-size:10px;color:var(--text2);margin-top:4px">不填则用上方表单；填写后优先解析文字。配置 API Key 用 LLM 解析，否则用本地规则解析。</div>
+      <div class="field-help">不填则使用表单。选择服务端 AI 时，仅发送此处的需求文本用于参数翻译；请勿填写密码、密钥、客户身份信息或其他敏感数据。服务端未配置对应模型时，系统自动退回本地规则解析。</div>
     </div>
     <div class="form-group"><label class="form-label">选型偏好（多 vendor 性价比）</label>
       <select class="form-input" id="f-pref">
@@ -187,16 +248,18 @@
     <div id="empty-hint" style="padding:80px 20px;text-align:center;color:var(--text2)">
       <div style="font-size:44px;margin-bottom:12px">🗺️</div>
       <div style="font-size:15px;font-weight:600;color:var(--text);margin-bottom:8px">请先在左侧填写参数</div>
-      <div style="font-size:12px">点击「生成 AIDC 方案」后，此处展示系统架构图 / 电气一次接线图 / 双路供电拓扑图 / 液冷管路图</div>
+      <div style="font-size:12px">点击「生成 AIDC 方案」后，此处展示方案级图纸、概念计算、受控目录估算与待校核事项</div>
     </div>
     <div id="result-area" style="display:none">
       <div class="kpi-grid" id="summary-cards"></div>
       <div id="warn-box"></div>
+      <div id="design-status"></div>
       <div class="tabs">
         <button class="tab-btn active" id="tbtn-drawings" onclick="switchTab('drawings')">📐 图纸</button>
         <button class="tab-btn" id="tbtn-params" onclick="switchTab('params')">📊 参数</button>
         <button class="tab-btn" id="tbtn-bom" onclick="switchTab('bom')">📦 BOM 清单</button>
-        <button class="tab-btn" id="tbtn-compliance" onclick="switchTab('compliance')">✅ 合规检查</button>
+        <button class="tab-btn" id="tbtn-compliance" onclick="switchTab('compliance')">🔎 校核与资料状态</button>
+        <button class="tab-btn" id="tbtn-readiness" onclick="switchTab('readiness')">🧭 发布检查</button>
         <button class="tab-btn" id="tbtn-selection" onclick="switchTab('selection')">⚖️ 选型比较</button>
       </div>
 
@@ -211,15 +274,16 @@
         </div>
         <div class="diagram-actions">
           <button class="mini-btn" onclick="downloadCurrentSvg()">⬇ 下载 SVG</button>
+          <button class="mini-btn" onclick="downloadCurrentDxf()">⬇ 下载 DXF 草图</button>
           <button class="mini-btn" onclick="downloadJson()">⬇ 下载方案 JSON</button>
           <button class="mini-btn" onclick="toggleAssetMode()">🖼 切换: 矢量/真实图</button>
-          <button class="mini-btn" onclick="aiReviewDiagram()">🤖 AI 核准</button>
+          <button class="mini-btn" onclick="aiReviewDiagram()">🧪 图纸前置检查</button>
           <span style="width:1px;height:16px;background:var(--line)"></span>
           <button class="mini-btn" onclick="zoomOut()">➖</button>
           <span id="zoom-label" style="font-size:11px;color:var(--text2);min-width:42px;text-align:center">100%</span>
           <button class="mini-btn" onclick="zoomIn()">➕</button>
           <button class="mini-btn" onclick="zoomReset()">⤾ 重置</button>
-          <span style="font-size:11px;color:var(--text2)">图纸为 A3 幅面 CAD 图框, 含标题栏/图例/标准依据, 可缩放查看</span>
+          <span style="font-size:11px;color:var(--text2)">A3 方案级图框 · DXF 为可编辑概念草图 · 施工图须由专业人员校核、深化并签发</span>
         </div>
         <div class="diagram-box" id="d-arch"></div>
         <div class="diagram-box" id="d-wiring" style="display:none"></div>
@@ -232,17 +296,19 @@
       <div id="tab-params" style="display:none"><div class="param-grid" id="params"></div></div>
       <div id="tab-bom" style="display:none"><div id="bom"></div></div>
       <div id="tab-compliance" style="display:none"><div id="compliance"></div></div>
+      <div id="tab-readiness" style="display:none"><div id="readiness"></div></div>
       <div id="tab-selection" style="display:none"><div id="selection"></div></div>
     </div>
   </div>
 </div>
 
 <footer>
-  确定性工程设计引擎 · 图纸遵循 GB/T 4728 / IEC 60617 图形符号与 CAD 出图规范 · 同一配置输出同一套图纸<br>
-  本平台输出为方案级设计文件, 施工图需由注册电气工程师按项目实际情况校核 · AIDC Electrical Design Platform
+  确定性工程概念引擎 · 图纸采用 IEC 61082 / IEC 60617 的项目化基线表达，具体适用标准、符号库与图框应由项目确认<br>
+  本平台输出为方案级自动草案，不构成规范符合性证明、保护整定书、设备报价或施工图；施工图须由具备相应资格的专业人员校核、深化与签发 · AIDC Electrical Design Platform
 </footer>
 
 <script src="js/symbols.js?v=20260816"></script>
+<script src="js/design-model.js?v=20260816"></script>
 <script src="js/vendors.js?v=20260816"></script>
 <script src="js/engine.js?v=20260816"></script>
 <script src="js/layout.js?v=20260816"></script>
@@ -253,6 +319,7 @@
 <script src="js/pictograms.js?v=20260816"></script>
 <script src="js/assetlib.js?v=20260816"></script>
 <script src="js/draw-thermal.js?v=20260816"></script>
+<script src="js/dxf-export.js?v=20260816"></script>
 <script src="js/app.js?v=20260816"></script>
 </body>
 </html>

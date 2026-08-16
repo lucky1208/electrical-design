@@ -1,17 +1,16 @@
 /* ============================================================
  * 图纸 2: AIDC 电气一次接线图 (双列单线图)
- * 依据: GB/T 4728 / IEC 60617 / GB 50052 / GB 50174
- * SLD 审图 Skill: 母线>=3倍线宽 · 连接点实心圆 · 电压等级标注 ·
- *                 高低压分区虚线 · 图例/标题栏完整
+ * 方案级单线图。符号、额定值和保护逻辑均须由项目 CAD 模板与专业计算书复核。
  * ============================================================ */
 window.drawWiring = function (R) {
   'use strict';
   const S = window.SYM, C = S.C, L = window.LAYOUT;
-  const W = 1280, H = 1180;
+  const W = 1680, H = 1188;
   const P = R.power, Cx = R.compute;
   const tierTxt = R.tier === 'tier4' ? 'IV' : R.tier === 'tier2' ? 'II' : 'III';
-  let s = S.svgOpen(W, H, 'AIDC 电气一次接线图', `${R.projName} | ${P.voltage} 双路进线 | Tier ${tierTxt} | ${R.red} | 0.4kV TN-S`,
-    { drawingNo: 'DWG-AIDC-102', scale: 'NTS', rev: 'Rev.A', designer: 'AI 确定性引擎', projName: R.projName, standard: 'GB/T 4728 · IEC 60617 · GB 50052 · GB 50174' });
+  const dualPath = P.mainsCount > 1;
+  const doc = S.documentMeta(R, 'single-line');
+  let s = S.svgOpen(W, H, 'AIDC 电气一次接线图', `${R.projName} | ${P.voltage} ${dualPath ? '双路' : '单路径'}进线 | Tier ${tierTxt} | ${R.red} | 0.4kV TN-S`, doc);
 
   // 馈线列锚点由布局引擎等距分布 + 网格对齐 (替代手工坐标)
   const [xA, xB] = L.distribute(2, 260, 720);
@@ -46,18 +45,22 @@ window.drawWiring = function (R) {
     t += S.wire(x, y, x, busY - 6, C.lv, 1.8);
     sched.push(
       { tag: 'QS1-' + tag, name: '隔离开关', spec: P.mvInA + 'A' },
-      { tag: 'QF1-' + tag, name: '高压断路器', spec: P.voltage + ' ' + P.mvInA + 'A Icu=' + P.scKa + 'kA' },
+      { tag: 'QF1-' + tag, name: '高压断路器', spec: P.voltage + ' ' + P.mvInA + 'A；额定短路开断≥' + P.mvBreakingKa + 'kA（概念）' },
       { tag: 'CT1-' + tag, name: '电流互感器', spec: Math.round(P.mvInA / 10) * 5 + '/5A 0.5S' },
-      { tag: 'T-' + tag, name: '干式变压器', spec: P.txName + ' ' + P.txVector + ' Uk=' + P.txUk },
-      { tag: 'QF2-' + tag, name: '低压总开关', spec: 'ACB 0.4kV ' + P.lvMainA + 'A' },
+      { tag: 'T-' + tag, name: '干式变压器组', spec: P.txInstalledPerPath + '台（' + P.txActivePerPath + '用+' + P.txRedundancyPerPath + '备）×' + P.txUnit + 'kVA；Uk=' + P.txUk },
+      { tag: 'QF2-' + tag, name: '低压总开关', spec: 'ACB 0.4kV ' + P.lvMainA + 'A；Icu≥' + P.lvBreakingKa + 'kA（概念）' },
       { tag: 'CT2-' + tag, name: '电流互感器', spec: P.lvMainA + '/5A' }
     );
     return t;
   };
   s += `<text x="${xA}" y="88" text-anchor="middle" font-size="10.5" font-weight="bold" fill="${C.mv}" font-family="${S.FONT}">───── A 路电源回路 ─────</text>`;
   s += chain(xA, 'A');
-  s += `<text x="${xB}" y="88" text-anchor="middle" font-size="10.5" font-weight="bold" fill="${C.mv}" font-family="${S.FONT}">───── B 路电源回路 ─────</text>`;
-  s += chain(xB, 'B');
+  if (dualPath) {
+    s += `<text x="${xB}" y="88" text-anchor="middle" font-size="10.5" font-weight="bold" fill="${C.mv}" font-family="${S.FONT}">───── B 路电源回路 ─────</text>`;
+    s += chain(xB, 'B');
+  } else {
+    s += S.block(xB - 115, 210, 230, 90, '#b45309', 'B 路未配置', '当前输入为单路径 N+1；不可声称 A/B 双路供电', '#fffbeb');
+  }
 
   /* ---------- PT / 避雷器 / 计量分支 (A/B 对称) ---------- */
   const ptBranch = (x, tag) => {
@@ -71,25 +74,29 @@ window.drawWiring = function (R) {
     return t;
   };
   s += ptBranch(xA, 'A');
-  s += ptBranch(xB, 'B');
+  if (dualPath) s += ptBranch(xB, 'B');
 
   /* ---------- 0.4kV 双母线 + 母联 ---------- */
-  s += S.bus(150, busY, 680, C.lv, '');
-  s += S.txt(cx, busY - 12, '0.4kV 双母线 (A 段 / B 段 分段运行)', 9.5, C.lv, 'middle', 'bold');
-  s += S.wire(cx, busY, cx, busY + 6, C.lv, 1.6);
-  s += S.ds(cx, busY + 6, C.lv, 'AT 母联 ' + P.lvMainA + 'A');
+  s += S.bus(150, busY, dualPath ? 680 : 220, C.lv, '');
+  s += S.txt(cx, busY - 12, dualPath ? '0.4kV 双母线（A 段 / B 段分段运行）' : '0.4kV 单母线（单路径 N+1 概念）', 9.5, C.lv, 'middle', 'bold');
+  if (dualPath) {
+    s += S.wire(cx, busY, cx, busY + 6, C.lv, 1.6);
+    s += S.ds(cx, busY + 6, C.lv, 'AT 母联 ' + P.lvMainA + 'A');
+  }
   s += S.jumpV(xA, busY, C.lv, 6);
-  s += S.jumpV(xB, busY, C.lv, 6);
+  if (dualPath) s += S.jumpV(xB, busY, C.lv, 6);
 
   /* ---------- 应急柴发 (接入 0.4kV 母线) ---------- */
-  s += S.gen(30, 580, 130, 66, C.gen, '柴发 A', P.genCap.toLocaleString() + 'kW · 8h储油');
+  s += S.gen(30, 580, 130, 66, C.gen, '柴发 A', P.genActivePerPath + '用+' + P.genRedundancyPerPath + '备 ×' + P.genCap.toLocaleString() + 'kW');
   s += S.wire(95, 580, 95, busY, C.gen, 1.4, '6,3');
   s += S.wire(95, busY, 150, busY, C.gen, 1.4, '6,3');
-  s += S.gen(820, 580, 130, 66, C.gen, '柴发 B', P.genCap.toLocaleString() + 'kW · 8h储油');
-  s += S.wire(885, 580, 885, busY, C.gen, 1.4, '6,3');
-  s += S.wire(830, busY, 885, busY, C.gen, 1.4, '6,3');
+  if (dualPath) {
+    s += S.gen(820, 580, 130, 66, C.gen, '柴发 B', P.genActivePerPath + '用+' + P.genRedundancyPerPath + '备 ×' + P.genCap.toLocaleString() + 'kW');
+    s += S.wire(885, 580, 885, busY, C.gen, 1.4, '6,3');
+    s += S.wire(830, busY, 885, busY, C.gen, 1.4, '6,3');
+  }
   s += S.jdot(150, busY, C.gen, 2.4);
-  s += S.jdot(830, busY, C.gen, 2.4);
+  if (dualPath) s += S.jdot(830, busY, C.gen, 2.4);
   /* ============ UPS 支路 (母线下方) ============ */
   const upsBranch = (x, tag, batSide) => {
     let t = '', y = busY + 6;
@@ -100,47 +107,59 @@ window.drawWiring = function (R) {
     t += S.wire(x, y, x, y + 12, C.bat, 1.3, '5,3'); y += 12;
     t += S.bat(x, y, C.bat, 'BATT-' + tag, ''); y += S._batH;
     sched.push(
-      { tag: 'QF3-' + tag, name: 'UPS 进线开关', spec: P.upsPerSide + '×' + P.upsUnit + 'kVA' },
-      { tag: 'UPS-' + tag, name: '在线双变换 UPS', spec: P.upsPerSide + '×' + P.upsUnit + 'kVA 效率96%' },
-      { tag: 'BATT-' + tag, name: '蓄电池组', spec: P.upsBackupMin + 'min ' + Math.round(P.batTotalKwh / 2) + 'kWh' }
+      { tag: 'QF3-' + tag, name: 'UPS 进线开关', spec: P.upsInstalledPerPath + '台（' + P.upsActivePerPath + '用+' + P.upsRedundancyPerPath + '备）×' + P.upsUnit + 'kVA' },
+      { tag: 'UPS-' + tag, name: '在线双变换 UPS 组', spec: P.upsInstalledPerPath + '台（' + P.upsActivePerPath + '用+' + P.upsRedundancyPerPath + '备）×' + P.upsUnit + 'kVA；效率待厂家曲线' },
+      { tag: 'BATT-' + tag, name: '蓄电池组', spec: P.upsBackupMin + 'min ' + Math.round(P.batTotalKwh / P.mainsCount) + 'kWh' }
     );
     t += S.wire(x, y, x, 802, C.ups, 1.4);
     t += S.txt(batSide, 760, '蓄电池室', 8.5, '#475569', 'start');
     return t;
   };
   s += upsBranch(xA, 'A', 320);
-  s += upsBranch(xB, 'B', 745);
+  if (dualPath) s += upsBranch(xB, 'B', 745);
 
-  /* ============ STS → PDU → 机柜 → 接地 ============ */
-  s += S.sts(410, 780, 160, 44, '#e11d48', 'STS 静态切换', '<10ms 双路失压检测');
-  s += S.wire(xA, 802, 410, 802, C.ups, 1.4);
-  s += S.wire(xB, 802, 570, 802, C.ups, 1.4);
-  s += S.jdot(xA, 802, C.ups, 2.4);
-  s += S.jdot(xB, 802, C.ups, 2.4);
-  s += S.wire(cx, 824, cx, 850, C.ups, 1.5);
-  s += S.pdu(430, 850, 120, 46, C.ups, '列头柜 PDU', 'A/B 双路 · ' + P.pduCount + ' 台');
-  s += S.wire(cx, 896, cx, 920, C.ups, 1.5);
-  s += S.rack(400, 920, 180, 80, C.ink, 'GPU 机柜 ×' + Cx.gpuRacks, Cx.itLoadKw.toLocaleString() + ' kW · ' + Cx.rackPower + 'kW/柜');
-  s += S.wire(cx, 1000, cx, 1012, C.lv, 1.6);
-  s += S.pe(cx, 1012, C.lv);
-  s += S.txt(cx + 20, 1024, 'PE 保护接地 (TN-S 系统, 等电位联结)', 9, C.lv, 'start');
+  /* ============ A/B 独立 PDU → 双输入机柜 → 接地 ============
+   * STS 仅服务单电源辅助负荷，绝不串入双电源 GPU 机柜主供电路径。
+   */
+  s += S.wire(xA, 802, xA, 850, C.ups, 1.5);
+  s += S.pdu(xA - 60, 850, 120, 46, C.ups, dualPath ? 'PDU-A' : 'PDU-A（单路径）', 'A 路独立 · ' + P.pduPerPath + ' 台/路径');
+  if (dualPath) {
+    s += S.wire(xB, 802, xB, 850, C.ups, 1.5);
+    s += S.pdu(xB - 60, 850, 120, 46, C.ups, 'PDU-B', 'B 路独立 · ' + P.pduPerPath + ' 台/路径');
+    s += S.rack(cx - 100, 930, 200, 70, C.ink, 'GPU 双输入机柜 ×' + Cx.gpuRacks, Cx.itLoadKw.toLocaleString() + ' kW · ' + Cx.rackPower + 'kW/柜');
+    s += S.wire(xA, 896, cx - 70, 930, C.ups, 1.5);
+    s += S.wire(xB, 896, cx + 70, 930, C.ups, 1.5);
+    s += S.txt(cx - 78, 918, 'A 输入', 8.5, C.ups, 'middle', 'bold');
+    s += S.txt(cx + 78, 918, 'B 输入', 8.5, C.ups, 'middle', 'bold');
+  } else {
+    s += S.rack(xA - 100, 930, 200, 70, C.ink, 'GPU 单路径输入机柜 ×' + Cx.gpuRacks, Cx.itLoadKw.toLocaleString() + ' kW · 单路径 N+1 概念');
+    s += S.wire(xA, 896, xA, 930, C.ups, 1.5);
+    s += S.txt(xA, 918, 'A 输入（未建立 B 路）', 8.5, '#b45309', 'middle', 'bold');
+  }
+  const rackCx = dualPath ? cx : xA;
+  s += S.wire(rackCx, 1000, rackCx, 1012, C.lv, 1.6);
+  s += S.pe(rackCx, 1012, C.lv);
+  s += S.txt(rackCx + 20, 1024, 'PE 保护接地（TN-S 系统、等电位联结均待专项确认）', 9, C.lv, 'start');
+  s += S.sts(710, 785, '#e11d48', '辅助负荷 STS', '仅单电源辅助负荷 · 切换指标待设备确认');
+  s += S.wire(710, 807, 670, 807, '#e11d48', 1.1, '4,3');
+  s += S.wire(890, 807, 930, 807, '#e11d48', 1.1, '4,3');
 
   /* ---------- 设备明细表 (型号规格集中) ---------- */
   sched.push(
-    { tag: 'AT', name: '母联开关', spec: '0.4kV ' + P.lvMainA + 'A' },
-    { tag: 'STS', name: '静态切换开关', spec: '<10ms 双路失压' },
-    { tag: 'PDU', name: '列头柜', spec: 'A/B 双路 ' + P.pduCount + ' 台' },
-    { tag: 'G', name: '柴油发电机', spec: P.genCount + '×' + P.genCap + 'kW 8h' }
+    { tag: dualPath ? 'AT' : '—', name: dualPath ? '母联开关' : '单路径母线', spec: dualPath ? '0.4kV ' + P.lvMainA + 'A；常开/闭策略待保护配合研究' : '当前输入未配置母联与 B 路' },
+    { tag: dualPath ? 'PDU-A/B' : 'PDU-A', name: '列头柜', spec: dualPath ? 'A/B 物理独立，合计 ' + P.pduCount + ' 台；每路径 ' + P.pduPerPath + ' 台' : '单路径，' + P.pduCount + ' 台；不能声明双输入供电' },
+    { tag: 'STS-AUX', name: '辅助负荷静态切换', spec: P.auxStsCount + ' 台；不得作为 GPU 双输入主路径' },
+    { tag: 'G', name: '柴油发电机', spec: P.genCount + '台，储油/并机/启动策略待专项设计' }
   );
   s += S.schedule(sched, 1000, 120, 260);
 
   /* ---------- 电缆/母线标注 ---------- */
-  s += S.txt(408, 508, P.voltage + 'kV 电缆 3×240', 8, '#475569', 'start');
-  s += S.txt(560, 605, '母线槽 ' + P.lvMainA + 'A', 8, '#475569', 'start');
+  s += S.txt(408, 508, P.voltage + ' 电缆截面、敷设及耐火等级待电缆计算书确定', 8, '#475569', 'start');
+  s += S.txt(560, 605, '母线额定电流 ' + P.lvMainA + 'A；温升、短路耐受待型式试验/校核', 8, '#475569', 'start');
 
   /* ---------- 图例 ---------- */
   s += S.legend([
-    { color: C.mv, label: P.voltage + 'kV 中压线路' },
+    { color: C.mv, label: P.voltage + ' 中压线路' },
     { color: C.lv, thick: 2, label: '0.4kV 低压线路' },
     { color: C.gen, dash: '6,3', label: '应急柴发回路 (虚线)' },
     { color: C.bat, dash: '5,3', label: '蓄电池直流回路' },
@@ -148,7 +167,7 @@ window.drawWiring = function (R) {
     { color: '#9333ea', label: 'PT/避雷器' }
   ], 60, 940, 210);
 
-  s += S.txt(cx, 1088, '注: 本图为方案级一次接线图, 施工图需补充二次回路/端子排/电缆清册 (GB/T 4728)', 8.5, '#64748b', 'middle');
+  s += S.txt(cx, 1088, '注：本图为方案级一次接线草案；施工设计须补充保护配合、二次原理、端子排、电缆清册、接地与试验文件。', 8.5, '#64748b', 'middle');
   s += '</svg>';
   return s;
 };

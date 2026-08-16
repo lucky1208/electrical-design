@@ -1,13 +1,14 @@
 /* ============================================================
- * IEC 60617 / GB-T 4728 电气图形符号库 + CAD 图框组件  v1.0
+ * 项目概念符号库 + CAD 图框组件  v1.0
  * ------------------------------------------------------------
- * 约束依据 (skills):
- *  - GB/T 4728.1~13 / IEC 60617 图形符号
+ * 参考基线（须由项目专业人员复核适用性）：
+ *  - IEC 60617 / GB/T 4728 图形符号参考
  *  - SLD 审图 Skill: 图框/标题栏/图例完整; 母线线宽>=3倍普通线宽;
  *    能量流=实线, 信息流=虚线; 导线连接点=实心圆; 电压等级全图标注
  *  - 热管理 Skill: 液冷 P&ID 符号 (泵/阀/换热器/传感器)
  * ------------------------------------------------------------
- * 全部符号为纯函数, 返回 SVG 字符串, 可直接拼装。
+ * 全部符号为纯函数，返回 SVG 字符串，可直接拼装。它们是方案级
+ * 占位表达，不能单独作为 IEC/GB 符号合规、施工图或审图结论。
  * ============================================================ */
 window.SYM = (function () {
   'use strict';
@@ -30,12 +31,32 @@ window.SYM = (function () {
 
   const FONT = "'Segoe UI','Microsoft YaHei',sans-serif";
   const MONO = "Consolas,'Courier New',monospace";
+  /* The exporter consumes the same manifest.  Names are project CAD layers,
+   * not proof that a client CAD manual or any IEC/ISO document is satisfied. */
+  const DEFAULT_CAD_LAYER_MANIFEST = [
+    { name: 'AIDC-FRAME', color: 7, linetype: 'CONTINUOUS', lineweightMm: 0.50, purpose: '图框、标题栏、修订栏' },
+    { name: 'AIDC-TEXT', color: 7, linetype: 'CONTINUOUS', lineweightMm: 0.18, purpose: '标题、说明、位号' },
+    { name: 'AIDC-ANNO', color: 8, linetype: 'CONTINUOUS', lineweightMm: 0.18, purpose: '待核说明、参考注释' },
+    { name: 'AIDC-EQPT', color: 7, linetype: 'CONTINUOUS', lineweightMm: 0.25, purpose: '通用设备外形与符号' },
+    { name: 'AIDC-MV', color: 5, linetype: 'CONTINUOUS', lineweightMm: 0.35, purpose: '中压回路' },
+    { name: 'AIDC-LV', color: 3, linetype: 'CONTINUOUS', lineweightMm: 0.35, purpose: '低压回路' },
+    { name: 'AIDC-UPS', color: 6, linetype: 'CONTINUOUS', lineweightMm: 0.35, purpose: 'UPS/PDU 关键负荷回路' },
+    { name: 'AIDC-GEN', color: 214, linetype: 'DASHED', lineweightMm: 0.25, purpose: '应急发电概念回路' },
+    { name: 'AIDC-BAT', color: 30, linetype: 'DASHED', lineweightMm: 0.25, purpose: '蓄电池直流概念回路' },
+    { name: 'AIDC-CTL', color: 8, linetype: 'DASHED', lineweightMm: 0.18, purpose: '监控、联锁和信息流' },
+    { name: 'AIDC-COOL-SUP', color: 4, linetype: 'CONTINUOUS', lineweightMm: 0.35, purpose: '冷冻水/二次侧供水' },
+    { name: 'AIDC-COOL-RET', color: 1, linetype: 'CONTINUOUS', lineweightMm: 0.35, purpose: '二次侧回水' },
+    { name: 'AIDC-COOL-COND', color: 94, linetype: 'CONTINUOUS', lineweightMm: 0.35, purpose: '冷却水/冷凝水回路' }
+  ];
+  const esc = (value) => String(value == null ? '' : value)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&apos;');
 
   /* ---------- 基础元件 ---------- */
   function txt(x, y, s, size, color, anchor, weight, font) {
     return `<text x="${x}" y="${y}" font-size="${size || 10}" fill="${color || C.ink}"
       font-family="${font || FONT}" ${anchor ? 'text-anchor="' + anchor + '"' : ''}
-      ${weight ? 'font-weight="' + weight + '"' : ''}>${s}</text>`;
+      ${weight ? 'font-weight="' + weight + '"' : ''}>${esc(s)}</text>`;
   }
 
   /* 正交布线 (无斜线): 先竖后横 */
@@ -180,8 +201,8 @@ window.SYM = (function () {
     <line x1="${x + 36}" y1="${y + 12}" x2="${x + 36}" y2="${y + 48}" stroke="${c}" stroke-width="1"/>
     <line x1="${x + 44}" y1="${y + 20}" x2="${x + 58}" y2="${y + 20}" stroke="${c}" stroke-width="1.6"/>
     <line x1="${x + 44}" y1="${y + 34}" x2="${x + 58}" y2="${y + 34}" stroke="${c}" stroke-width="1.6"/>
-    <text x="${x + 64}" y="${y + 26}" font-size="10" font-weight="bold" fill="${c}" font-family="${FONT}">${label || ''}</text>
-    ${sub ? `<text x="${x + 64}" y="${y + 42}" font-size="7" fill="${C.ink}" font-family="${FONT}">${sub}</text>` : ''}`;
+    <text x="${x + 64}" y="${y + 26}" font-size="10" font-weight="bold" fill="${c}" font-family="${FONT}">${esc(label || '')}</text>
+    ${sub ? `<text x="${x + 64}" y="${y + 42}" font-size="7" fill="${C.ink}" font-family="${FONT}">${esc(sub)}</text>` : ''}`;
   }
 
   /* 蓄电池组: 极板组 (长-短交替), 高30 */
@@ -215,8 +236,8 @@ window.SYM = (function () {
     return `<rect x="${x}" y="${y}" width="${w}" height="${h}" fill="#f5f3ff" stroke="${c}" stroke-width="1.5" rx="3"/>
     <line x1="${x + 10}" y1="${y + 12}" x2="${x + w - 10}" y2="${y + 12}" stroke="${c}" stroke-width="2.2"/>
     <line x1="${x + w / 2}" y1="${y + 12}" x2="${x + w / 2}" y2="${y + 20}" stroke="${c}" stroke-width="1.4"/>
-    <text x="${x + w / 2}" y="${y + h / 2 + 9}" text-anchor="middle" font-size="10" font-weight="bold" fill="${c}" font-family="${FONT}">${label || ''}</text>
-    ${sub ? `<text x="${x + w / 2}" y="${y + h - 6}" text-anchor="middle" font-size="7.5" fill="${C.ink}" font-family="${FONT}">${sub}</text>` : ''}`;
+    <text x="${x + w / 2}" y="${y + h / 2 + 9}" text-anchor="middle" font-size="10" font-weight="bold" fill="${c}" font-family="${FONT}">${esc(label || '')}</text>
+    ${sub ? `<text x="${x + w / 2}" y="${y + h - 6}" text-anchor="middle" font-size="7.5" fill="${C.ink}" font-family="${FONT}">${esc(sub)}</text>` : ''}`;
   }
 
   /* 服务器机柜, 高70 */
@@ -227,7 +248,7 @@ window.SYM = (function () {
       g += `<line x1="${x + 10}" y1="${y + 10 + i * 11}" x2="${x + w - 10}" y2="${y + 10 + i * 11}" stroke="${c}" stroke-width="0.8" opacity="0.45"/>`;
     return `<rect x="${x}" y="${y}" width="${w}" height="${h}" fill="#f8fafc" stroke="${c}" stroke-width="1.5" rx="3"/>
       ${g}
-      <text x="${x + w / 2}" y="${y + 16}" text-anchor="middle" font-size="10.5" font-weight="bold" fill="${c}" font-family="${FONT}">${label || ''}</text>
+      <text x="${x + w / 2}" y="${y + 16}" text-anchor="middle" font-size="10.5" font-weight="bold" fill="${c}" font-family="${FONT}">${esc(label || '')}</text>
       ${sub ? txt(x + w / 2, y + h - 10, sub, 8, C.ink, 'middle') : ''}`;
   }
 
@@ -237,8 +258,8 @@ window.SYM = (function () {
     return `<rect x="${x}" y="${y}" width="${w}" height="${h}" fill="#faf5ff" stroke="${c}" stroke-width="1.5" rx="3"/>
     <circle cx="${x + 18}" cy="${y + h / 2}" r="11" fill="#fff" stroke="${c}" stroke-width="1.5"/>
     <text x="${x + 18}" y="${y + h / 2 + 4}" text-anchor="middle" font-size="10" fill="${c}" font-family="${MONO}">G</text>
-    <text x="${x + 36}" y="${y + h / 2 - 1}" font-size="10" font-weight="bold" fill="${c}" font-family="${FONT}">${label || ''}</text>
-    ${sub ? `<text x="${x + 36}" y="${y + h / 2 + 13}" font-size="8" fill="${C.ink}" font-family="${FONT}">${sub}</text>` : ''}`;
+    <text x="${x + 36}" y="${y + h / 2 - 1}" font-size="10" font-weight="bold" fill="${c}" font-family="${FONT}">${esc(label || '')}</text>
+    ${sub ? `<text x="${x + 36}" y="${y + h / 2 + 13}" font-size="8" fill="${C.ink}" font-family="${FONT}">${esc(sub)}</text>` : ''}`;
   }
 
   /* 保护接地 PE (IEC 60617-2), 高16 */
@@ -303,7 +324,7 @@ window.SYM = (function () {
       <path d="M${x + w / 2 - 12},${y + 6} q6,-8 12,0 q6,8 12,0" fill="none" stroke="${c}" stroke-width="1"/>`;
     return `<rect x="${x}" y="${y}" width="${w}" height="${h}" fill="none" stroke="none"/>
       ${inner}
-      <text x="${x + w / 2}" y="${y + h + 14}" text-anchor="middle" font-size="9.5" font-weight="bold" fill="${c}">${label || ''}</text>
+      <text x="${x + w / 2}" y="${y + h + 14}" text-anchor="middle" font-size="9.5" font-weight="bold" fill="${c}">${esc(label || '')}</text>
       ${sub ? txt(x + w / 2, y + h + 27, sub, 8, C.ink, 'middle') : ''}`;
   }
 
@@ -330,7 +351,7 @@ window.SYM = (function () {
   function sensor(cx, y0, color, kind, label) {
     const c = color || C.ink;
     return `<circle cx="${cx}" cy="${y0 + 9}" r="9" fill="#fff" stroke="${c}" stroke-width="1.3"/>
-    <text x="${cx}" y="${y0 + 13}" text-anchor="middle" font-size="8.5" fill="${c}" font-family="${MONO}">${kind || 'TT'}</text>
+    <text x="${cx}" y="${y0 + 13}" text-anchor="middle" font-size="8.5" fill="${c}" font-family="${MONO}">${esc(kind || 'TT')}</text>
     <line x1="${cx}" y1="${y0 + 18}" x2="${cx}" y2="${y0 + 22}" stroke="${c}" stroke-width="1.2"/>
     ${label ? txt(cx + 13, y0 + 11, label, 8.5, c, 'start', '', MONO) : ''}`;
   }
@@ -343,7 +364,7 @@ window.SYM = (function () {
         fill="#f0fdfa" stroke="${c}" stroke-width="1.3"/>
       <line x1="${x + 4}" y1="${y + 20}" x2="${x + 56}" y2="${y + 20}" stroke="${c}" stroke-width="0.8" stroke-dasharray="3,2"/>`;
     return `<g>${inner}
-      <text x="${x + 30}" y="${y + 62}" text-anchor="middle" font-size="9.5" font-weight="bold" fill="${c}">${label || ''}</text>
+      <text x="${x + 30}" y="${y + 62}" text-anchor="middle" font-size="9.5" font-weight="bold" fill="${c}">${esc(label || '')}</text>
       ${sub ? txt(x + 30, y + 75, sub, 8, C.ink, 'middle') : ''}</g>`;
   }
 
@@ -389,43 +410,111 @@ window.SYM = (function () {
     return s;
   }
 
-  /* ---------- CAD 图框 + 标题栏 + 图例 ---------- */
+  /* Resolve a sheet from ADEM's drawing register.  Renderers pass the
+   * generated result R, so the document ID is stable even if the title text
+   * or screen language is changed later. */
+  function documentMeta(R, drawingKey, overrides) {
+    const design = R && R.design ? R.design : {};
+    const control = design.documentControl || {};
+    const register = Array.isArray(control.drawingRegister) ? control.drawingRegister : [];
+    const drawing = register.find((item) => item.key === drawingKey) || {};
+    const project = design.project || {};
+    const baseline = Array.isArray(control.referenceBaseline) ? control.referenceBaseline : [];
+    const baselineLabel = baseline.slice(0, 3).map((item) => item.title).join(' · ') || '项目适用标准待确认';
+    const defaultSheet = { format: 'A3', widthMm: 420, heightMm: 297, orientation: 'LANDSCAPE' };
+    return Object.assign({
+      drawingKey: drawingKey || 'unregistered',
+      drawingNo: drawing.drawingNo || 'AIDC-CONCEPT-000',
+      drawingRef: drawing.drawingRef || '',
+      revision: drawing.revision || control.revision || 'P01',
+      rev: drawing.revision || control.revision || 'P01',
+      discipline: drawing.discipline || 'GENERAL',
+      issuePurpose: drawing.issuePurpose || control.issuePurpose || '方案级自动草图，待专业校核/签发',
+      status: drawing.status || control.status || 'CONCEPT_DRAFT—PROFESSIONAL_REVIEW_REQUIRED',
+      verification: drawing.verification || 'NOT_VERIFIED',
+      documentSetId: control.documentSetId || '',
+      projectRef: control.projectReference || project.referenceDesignation || '',
+      projName: (R && R.projName) || project.name || '',
+      designer: '自动生成（待校核）',
+      checker: '未委派',
+      approver: '未委派',
+      issueDate: '待签发',
+      page: control.page || { current: 1, total: 1 },
+      scale: drawing.scale || 'NTS',
+      sheet: Object.assign({}, defaultSheet, drawing.sheet ? { format: drawing.sheet } : {}, drawing.orientation ? { orientation: drawing.orientation } : {}),
+      standard: baselineLabel + '（仅参考，适用性待确认）',
+      cadLayerManifest: Array.isArray(control.cadLayerManifest) && control.cadLayerManifest.length ? control.cadLayerManifest : DEFAULT_CAD_LAYER_MANIFEST
+    }, overrides || {});
+  }
 
-  /* 开图: A3 幅面 420x297 按比例放大, 双线图框, 右下标题栏 */
+  /* ---------- CAD-style drawing frame + title block ---------- */
+
+  /*
+   * SVG is the preview/publish surface, not a DWG replacement.  The
+   * root now has an actual A3 paper size in millimetres and receives a
+   * matching 1.414:1 virtual canvas from each renderer.
+   */
   function svgOpen(W, H, title, sub, meta) {
     const m = meta || {};
-    const st = m.standard || 'GB/T 4728 · IEC 60617';
-    const date = m.date || new Date().toISOString().slice(0, 10);
-    const rev = m.rev || 'Rev.A';
+    const st = m.standard || '标准基线待项目确认';
+    /* Do not use the browser clock: generated diagrams must remain
+     * deterministic.  Signing/export dates belong in the export package. */
+    const date = m.issueDate || m.date || '待签发';
+    const rev = m.revision || m.rev || 'P01';
     const scale = m.scale || 'NTS';
-    const no = m.drawingNo || 'DWG-AIDC-000';
-    const designer = m.designer || 'AI Engine';
+    const no = m.drawingNo || 'AIDC-CONCEPT-000';
+    const designer = m.designer || '自动化方案草案';
     const proj = m.projName || '';
-    const tbH = 64, tbY = H - tbH - 10;
-    const tbW = 430, tbX = W - tbW - 10;
-    const stdShort = st.split('·').slice(0, 2).join('·').trim();
-    return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}">
+    const status = m.status || 'CONCEPT_DRAFT—PROFESSIONAL_REVIEW_REQUIRED';
+    const statusLabel = /CONCEPT_DRAFT/.test(status) ? '方案级草图 · 待专业校核/签发' : status;
+    const discipline = m.discipline || 'GENERAL';
+    const purpose = m.issuePurpose || '方案级自动草图，待专业校核/签发';
+    const checker = m.checker || '未委派';
+    const approver = m.approver || '未委派';
+    const page = m.page || { current: 1, total: 1 };
+    const sheet = m.sheet || { format: 'A3', widthMm: 420, heightMm: 297, orientation: 'LANDSCAPE' };
+    const tbH = 84, tbY = H - tbH - 10;
+    const tbW = Math.min(560, W * 0.38), tbX = W - tbW - 10;
+    const splitA = tbX + tbW * 0.53, splitB = tbX + tbW * 0.77;
+    const stdShort = st.split('·').slice(0, 3).join('·').trim();
+    const layers = Array.isArray(m.cadLayerManifest) && m.cadLayerManifest.length ? m.cadLayerManifest : DEFAULT_CAD_LAYER_MANIFEST;
+    const metadata = esc(JSON.stringify({
+      documentStatus: status, issuePurpose: purpose, verification: m.verification || 'NOT_VERIFIED',
+      documentSetId: m.documentSetId || '', projectReference: m.projectRef || '',
+      drawingKey: m.drawingKey || '', drawingNo: no, drawingRef: m.drawingRef || '', revision: rev,
+      sheet: sheet.format + ' ' + sheet.orientation, units: 'mm', engine: 'AIDC',
+      cadLayerManifest: layers
+    }));
+    const layerManifest = esc(JSON.stringify(layers));
+    return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" width="${sheet.widthMm}mm" height="${sheet.heightMm}mm" preserveAspectRatio="xMidYMid meet" data-sheet-format="${sheet.format}" data-sheet-orientation="${sheet.orientation}" data-units="mm" data-document-key="${esc(m.drawingKey || '')}" data-document-status="${esc(status)}" data-document-control="CONCEPTUAL_SCHEME" data-cad-layer-manifest="${layerManifest}">
+    <title>${esc(title)}</title><desc>${esc(status)}</desc><metadata>${metadata}</metadata>
     <rect width="${W}" height="${H}" fill="#ffffff"/>
-    <!-- 外框 -->
-    <rect x="8" y="8" width="${W - 16}" height="${H - 16}" fill="none" stroke="${C.ink}" stroke-width="2"/>
-    <rect x="14" y="14" width="${W - 28}" height="${H - 28}" fill="none" stroke="${C.ink}" stroke-width="0.8"/>
-    <!-- 标题栏 -->
-    <rect x="${tbX}" y="${tbY}" width="${tbW}" height="${tbH}" fill="#fff" stroke="${C.ink}" stroke-width="1.5"/>
-    <line x1="${tbX}" y1="${tbY + 20}" x2="${tbX + tbW}" y2="${tbY + 20}" stroke="${C.ink}" stroke-width="0.9"/>
-    <line x1="${tbX}" y1="${tbY + 42}" x2="${tbX + tbW}" y2="${tbY + 42}" stroke="${C.ink}" stroke-width="0.9"/>
-    <line x1="${tbX + 240}" y1="${tbY}" x2="${tbX + 240}" y2="${tbY + tbH}" stroke="${C.ink}" stroke-width="0.9"/>
-    <line x1="${tbX + 345}" y1="${tbY}" x2="${tbX + 345}" y2="${tbY + 42}" stroke="${C.ink}" stroke-width="0.9"/>
-    <text x="${tbX + 6}" y="${tbY + 13}" font-size="8.5" fill="${C.ink}" font-family="${FONT}">项目: ${proj}</text>
-    <text x="${tbX + 6}" y="${tbY + 35}" font-size="10.5" font-weight="bold" fill="${C.ink}" font-family="${FONT}">${title}</text>
-    <text x="${tbX + 6}" y="${tbY + 57}" font-size="7.5" fill="${C.ink}" font-family="${FONT}">标准: ${stdShort}</text>
-    <text x="${tbX + 246}" y="${tbY + 13}" font-size="8" fill="${C.ink}" font-family="${FONT}">图号: ${no}</text>
-    <text x="${tbX + 246}" y="${tbY + 35}" font-size="8" fill="${C.ink}" font-family="${FONT}">版本: ${rev}</text>
-    <text x="${tbX + 246}" y="${tbY + 57}" font-size="8" fill="${C.ink}" font-family="${FONT}">设计: ${designer}</text>
-    <text x="${tbX + 351}" y="${tbY + 13}" font-size="8" fill="${C.ink}" font-family="${FONT}">比例: ${scale}</text>
-    <text x="${tbX + 351}" y="${tbY + 35}" font-size="8" fill="${C.ink}" font-family="${FONT}">日期: ${date}</text>
-    <!-- 图名抬头 -->
-    <text x="${W / 2}" y="30" text-anchor="middle" font-size="15" font-weight="bold" fill="${C.ink}" font-family="${FONT}">${title}</text>
-    <text x="${W / 2}" y="46" text-anchor="middle" font-size="9.5" fill="#334155" font-family="${FONT}">${sub || ''}</text>`;
+    <g id="AIDC-FRAME" data-layer="AIDC-FRAME">
+      <rect x="8" y="8" width="${W - 16}" height="${H - 16}" fill="none" stroke="${C.ink}" stroke-width="2"/>
+      <rect x="14" y="14" width="${W - 28}" height="${H - 28}" fill="none" stroke="${C.ink}" stroke-width="0.8"/>
+      <rect x="${tbX}" y="${tbY}" width="${tbW}" height="${tbH}" fill="#fff" stroke="${C.ink}" stroke-width="1.5"/>
+      <line x1="${tbX}" y1="${tbY + 20}" x2="${tbX + tbW}" y2="${tbY + 20}" stroke="${C.ink}" stroke-width="0.9"/>
+      <line x1="${tbX}" y1="${tbY + 42}" x2="${tbX + tbW}" y2="${tbY + 42}" stroke="${C.ink}" stroke-width="0.9"/>
+      <line x1="${tbX}" y1="${tbY + 63}" x2="${tbX + tbW}" y2="${tbY + 63}" stroke="${C.ink}" stroke-width="0.9"/>
+      <line x1="${splitA}" y1="${tbY}" x2="${splitA}" y2="${tbY + tbH}" stroke="${C.ink}" stroke-width="0.9"/>
+      <line x1="${splitB}" y1="${tbY}" x2="${splitB}" y2="${tbY + 63}" stroke="${C.ink}" stroke-width="0.9"/>
+      <text x="${tbX + 6}" y="${tbY + 13}" font-size="7.5" fill="${C.ink}" font-family="${FONT}">项目: ${esc(proj)}</text>
+      <text x="${tbX + 6}" y="${tbY + 35}" font-size="9.4" font-weight="bold" fill="${C.ink}" font-family="${FONT}">${esc(title)}</text>
+      <text x="${tbX + 6}" y="${tbY + 57}" font-size="6.8" fill="${C.ink}" font-family="${FONT}">文件集: ${esc(m.documentSetId || '待分配')} · 参考: ${esc(m.projectRef || '待确认')}</text>
+      <text x="${tbX + 6}" y="${tbY + 78}" font-size="6.8" fill="#b45309" font-weight="bold" font-family="${FONT}">状态: ${esc(statusLabel)}</text>
+      <text x="${splitA + 5}" y="${tbY + 12}" font-size="7.2" fill="${C.ink}" font-family="${FONT}">图号: ${esc(no)}</text>
+      <text x="${splitA + 5}" y="${tbY + 31}" font-size="7.2" fill="${C.ink}" font-family="${FONT}">修订: ${esc(rev)} · ${esc(discipline)}</text>
+      <text x="${splitA + 5}" y="${tbY + 51}" font-size="6.7" fill="${C.ink}" font-family="${FONT}">编制: ${esc(designer)}</text>
+      <text x="${splitA + 5}" y="${tbY + 70}" font-size="6.7" fill="${C.ink}" font-family="${FONT}">校核: ${esc(checker)} · 批准: ${esc(approver)}</text>
+      <text x="${splitB + 5}" y="${tbY + 12}" font-size="7.1" fill="${C.ink}" font-family="${FONT}">图幅: ${esc(sheet.format)} ${esc(sheet.orientation)}</text>
+      <text x="${splitB + 5}" y="${tbY + 31}" font-size="7.1" fill="${C.ink}" font-family="${FONT}">比例: ${esc(scale)} · 页: ${esc(page.current)}/${esc(page.total)}</text>
+      <text x="${splitB + 5}" y="${tbY + 51}" font-size="6.7" fill="${C.ink}" font-family="${FONT}">阶段: 方案级草图</text>
+      <text x="${splitB + 5}" y="${tbY + 70}" font-size="6.7" fill="${C.ink}" font-family="${FONT}">签发: ${esc(date)}</text>
+    </g>
+    <g id="AIDC-TITLE" data-layer="AIDC-TEXT">
+      <text x="${W / 2}" y="30" text-anchor="middle" font-size="15" font-weight="bold" fill="${C.ink}" font-family="${FONT}">${esc(title)}</text>
+      <text x="${W / 2}" y="46" text-anchor="middle" font-size="9.5" fill="#334155" font-family="${FONT}">${esc(sub || '')}</text>
+    </g>`;
   }
 
   /* 图例 */
@@ -438,17 +527,17 @@ window.SYM = (function () {
       const yy = y + 30 + i * 18;
       s += `<line x1="${x + 10}" y1="${yy}" x2="${x + 46}" y2="${yy}" stroke="${it.color}"
         stroke-width="${it.thick || 1.6}" ${it.dash ? `stroke-dasharray="${it.dash}"` : ''}/>`;
-      s += `<text x="${x + 52}" y="${yy + 3.5}" font-size="9" fill="#334155" font-family="${FONT}">${it.label}</text>`;
+      s += txt(x + 52, yy + 3.5, it.label, 9, '#334155', 'start');
     });
     return s;
   }
 
   return {
-    C, FONT, MONO,
+    C, FONT, MONO, CAD_LAYER_MANIFEST: DEFAULT_CAD_LAYER_MANIFEST,
     txt, wire, pathPts, jdot, jump, jumpV, block,
     pwr, _pwrH, cb, _cbH, ds, _dsH, fu, _fuH, ct, _ctH, pt, _ptH, tx, _txH,
     ups, _upsH, _upsW, bat, _batH, sts, _stsH, _stsW, pdu, rack, gen, pe, bus,
     pump, valve, chk, hx, tower, chiller, cdu, sensor, tank, manifold, flowArrow,
-    svgOpen, legend, schedule
+    svgOpen, legend, schedule, documentMeta
   };
 })();
