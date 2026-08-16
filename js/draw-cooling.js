@@ -42,7 +42,8 @@ window.drawCooling = function (R) {
 
   /* ---------- 环3 二次侧 蓝供·红回 CDU↔冷板 ---------- */
   s += S.wire(1050, 160, 1180, 160, C.sup, PW);
-  s += S.wire(1180, 160, 1180, 545, C.sup, PW);
+  s += S.wire(1180, 160, 1180, 600, C.sup, PW);
+  s += S.jump(1180, 600, C.sup, 5);
   rackY.forEach((y) => { s += S.wire(1180, y + 35, 1120, y + 35, C.sup, PW); s += S.jdot(1180, y + 35, C.sup, 2.4); });
   s += S.flowArrow(1180, 200, 1180, 240, C.sup, '供' + Cl.supplyTemp + '℃');
   s += S.wire(1330, 285, 1290, 285, C.ret, PW); s += S.wire(1330, 415, 1290, 415, C.ret, PW); s += S.wire(1330, 545, 1290, 545, C.ret, PW);

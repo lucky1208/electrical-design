@@ -183,12 +183,12 @@ window.SYM = (function () {
   const _batH = 30;
   function bat(cx, y0, color, label, sub) {
     const c = color || C.bat, cy = y0 + 12;
-    return `<line x1="${cx}" y1="${y0}" x2="${cx}" y2="${cy - 8}" stroke="${c}" stroke-width="1.4"/>
-    <line x1="${cx - 14}" y1="${cy}" x2="${cx - 14}" y2="${cy + 16}" stroke="${c}" stroke-width="2.4"/>
-    <line x1="${cx - 6}" y1="${cy - 6}" x2="${cx - 6}" y2="${cy + 10}" stroke="${c}" stroke-width="1.4"/>
-    <line x1="${cx + 2}" y1="${cy}" x2="${cx + 2}" y2="${cy + 16}" stroke="${c}" stroke-width="2.4"/>
-    <line x1="${cx + 10}" y1="${cy - 6}" x2="${cx + 10}" y2="${cy + 10}" stroke="${c}" stroke-width="1.4"/>
-    <line x1="${cx}" y1="${cy + 16}" x2="${cx}" y2="${y0 + _batH}" stroke="${c}" stroke-width="1.4"/>
+    return `<line x1="${cx}" y1="${y0}" x2="${cx}" y2="${cy - 6}" stroke="${c}" stroke-width="1.4"/>
+    <line x1="${cx - 13}" y1="${cy - 8}" x2="${cx - 13}" y2="${cy + 12}" stroke="${c}" stroke-width="1.4"/>
+    <line x1="${cx - 5}" y1="${cy - 2}" x2="${cx - 5}" y2="${cy + 6}" stroke="${c}" stroke-width="3.2"/>
+    <line x1="${cx + 3}" y1="${cy - 8}" x2="${cx + 3}" y2="${cy + 12}" stroke="${c}" stroke-width="1.4"/>
+    <line x1="${cx + 11}" y1="${cy - 2}" x2="${cx + 11}" y2="${cy + 6}" stroke="${c}" stroke-width="3.2"/>
+    <line x1="${cx}" y1="${cy + 12}" x2="${cx}" y2="${y0 + _batH}" stroke="${c}" stroke-width="1.4"/>
     ${label ? txt(cx + 20, cy - 2, label, 9.5, c, 'start', 'bold', MONO) : ''}
     ${sub ? txt(cx + 20, cy + 13, sub, 8, C.ink, 'start', '', MONO) : ''}`;
   }
