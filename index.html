@@ -166,8 +166,6 @@
       <div class="form-group"><label class="form-label">API Key</label>
         <input type="password" class="form-input" id="f-apikey" placeholder="输入对应模型的 API Key"></div>
     </div>
-    <button class="btn-primary" onclick="generateSolution()">⚡ 生成 AIDC 方案</button>
-    <div class="step-log" id="step-log"></div>
     <div class="form-group" style="margin-top:12px"><label class="form-label">💡 自然语言细化需求（可选）</label>
       <textarea class="form-input" id="f-nl" rows="3" style="resize:vertical"
         placeholder="例：12MW IT负荷，Tier III，10kV双路，液冷，PUE&lt;1.25，预算有限优先国产，沿海高盐雾需防腐"></textarea>
@@ -179,6 +177,8 @@
         <option value="cost">成本优先</option>
         <option value="reliability">可靠性优先</option>
       </select></div>
+    <button class="btn-primary" onclick="generateSolution()">⚡ 生成 AIDC 方案</button>
+    <div class="step-log" id="step-log"></div>
   </div>
 
   <!-- ============ 右: 结果区 ============ -->

@@ -223,6 +223,7 @@
     $('d-wiring').innerHTML = window.drawWiring(R);
     $('d-dual').innerHTML = window.drawDual(R);
     $('d-cooling').innerHTML = window.drawCooling(R);
+    $('d-thermal').innerHTML = window.drawThermal(R);
     showSubTab(state.subTab);
   }
 
