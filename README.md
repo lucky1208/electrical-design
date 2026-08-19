@@ -26,7 +26,7 @@ npm run check      # 语法自检
 | ⑤ 渲染 | `engine/draw-pile.js` `symbols.js` `color-scheme.js` | 消费 ①②③④ 输出 SVG；交叉半圆统一后处理 | 不再手摆坐标（字面量已从 60+ 降到 7） |
 | ⑥ 闸门 | `engine/drawing-skill.js` | 阻断式规则包：图纸不合格就**不许导出** | 不修图 |
 
-`engine/` 是唯一真源，`web/js/` 是浏览器侧副本，用 `npm run sync:web` 同步（CI 会校验两者一致）。
+`engine/` 是唯一真源，根目录 `js/` 是浏览器侧副本，用 `npm run sync:web` 同步（CI 会校验两者一致）。前端就在站点根目录（`index.html` + `js/`），任何静态托管直接开域名即可，不存在子路径相对路径问题。
 
 ## 二、闸门做了什么
 
@@ -67,7 +67,8 @@ npm run check      # 语法自检
 
 ```
 engine/     选型 / 模型 / 布局 / 布线 / 渲染 / 闸门（唯一真源）
-web/        浏览器界面 + engine 的副本 web/js/
+index.html  平台前端（站点根目录）
+js/         engine 的浏览器副本，npm run sync:web 同步
 scripts/    generate.js —— 无浏览器批量出图
 tests/      6 组回归 + sweep-matrix.sh（216 组）
 sch_lib/    参考原理图：国标 60kW、欧标储能充电桩

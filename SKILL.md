@@ -24,9 +24,9 @@ created_at: 2026-08-18
 
 - **模式 A 对话出图**（Agent 默认）：按下面“使用流程”执行。
 - **模式 B Web 表单**（与平台同款下拉表单体验）：
-  1. 起静态服务：`python -m http.server 8080 --directory <skill目录>\web`（或 `npx serve <skill目录>\web`）；
+  1. 起静态服务：`python -m http.server 8080 --directory <skill目录>`（或 `npx serve <skill目录>`）；
   2. 浏览器打开 http://127.0.0.1:8080/ ，下拉选择标准/功率/枪数/储能等参数，点“生成”即出图，可导出 SVG/DXF/JSON；
-  3. 表单的 AI 需求翻译缺省为“本地规则解析”，不向外发送文本；如需服务端 AI 翻译，将 `web/` 部署到 Vercel 并配置密钥（见原平台 README）。
+  3. 表单的 AI 需求翻译缺省为“本地规则解析”，不向外发送文本；如需服务端 AI 翻译，将本仓库部署到 Vercel 并配置密钥（见原平台 README）。
 
 两种模式共用同一确定性引擎与绘图规则闸门，输出完全一致。
 
@@ -94,7 +94,7 @@ engine/                   确定性引擎（分层：选型 → 工程模型 →
   component-library.js    国标/欧标 PDF + sch_lib 四源提取的关键元器件库与约束
 references/parameters.md  输入参数契约与自然语言翻译规则
 references/sch-lib-drawing-rules.md  sch_lib 参考图提炼的绘图规则包说明
-web/                      可选 Web 表单前端（index.html + js/，模式 B）
+index.html + js/          可选 Web 表单前端（站点根目录，模式 B）
 ```
 
 

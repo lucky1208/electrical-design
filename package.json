@@ -12,7 +12,7 @@
     "test:lint": "node tests/draw-lint.test.js",
     "test:matrix": "bash tests/sweep-matrix.sh .",
     "check": "for f in engine/*.js scripts/*.js; do node --check \"$f\" || exit 1; done; echo OK",
-    "sync:web": "cp engine/*.js web/js/ && echo \"web/js synced\"",
+    "sync:web": "cp engine/*.js js/ && echo \"js synced\"",
     "test:router": "node tests/router.test.js",
     "test:netlist": "node tests/netlist-consistency.test.js"
   }
