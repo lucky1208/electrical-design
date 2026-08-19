@@ -1,15 +1,19 @@
 {
-  "name": "aidc-electrical-design",
-  "version": "1.0.0",
+  "name": "evse-schematic-design",
+  "version": "1.1.0",
   "private": true,
-  "description": "AIDC 数据中心方案级工程模型与图纸草案平台（须经专业复核）",
+  "description": "充电桩电气原理图自动生成（确定性引擎 + sch_lib 绘图规则闸门）",
   "scripts": {
     "start": "npx serve .",
-    "test": "node tests/engine.test.js && node tests/drawing-skill.test.js && node tests/regression-contract.test.js && node tests/draw-lint.test.js",
+    "test": "node tests/engine.test.js && node tests/geometry.test.js && node tests/router.test.js && node tests/netlist-consistency.test.js && node tests/drawing-skill.test.js && node tests/draw-lint.test.js",
     "test:engine": "node tests/engine.test.js",
-    "test:drawing-skill": "node tests/drawing-skill.test.js",
-    "test:drawings": "node tests/draw-lint.test.js",
-    "test:contracts": "node tests/regression-contract.test.js",
-    "check": "node --check js/engine.js && node --check js/design-model.js && node --check js/drawing-skill.js && node --check js/dxf-export.js && node --check js/app.js && node --check js/draw-arch.js && node --check js/draw-wiring.js && node --check js/draw-dual.js && node --check js/draw-cooling.js && node --check js/draw-thermal.js && node --check api/ai.js"
+    "test:geometry": "node tests/geometry.test.js",
+    "test:skill": "node tests/drawing-skill.test.js",
+    "test:lint": "node tests/draw-lint.test.js",
+    "test:matrix": "bash tests/sweep-matrix.sh .",
+    "check": "for f in engine/*.js scripts/*.js; do node --check \"$f\" || exit 1; done; echo OK",
+    "sync:web": "cp engine/*.js web/js/ && echo \"web/js synced\"",
+    "test:router": "node tests/router.test.js",
+    "test:netlist": "node tests/netlist-consistency.test.js"
   }
 }

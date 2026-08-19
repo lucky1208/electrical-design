@@ -1,115 +1,46 @@
-/* AIDC concept-engine regression suite: node tests/engine.test.js */
+/* 引擎回归: node tests/engine.test.js */
 'use strict';
 const assert = require('assert');
-const fs = require('fs');
-const path = require('path');
-const ROOT = path.join(__dirname, '..');
-const win = {};
+const { load, build, BASE } = require('./_load.js');
+const win = load();
 
-function load(name) {
-  const source = fs.readFileSync(path.join(ROOT, 'js', name), 'utf8');
-  (new Function('window', 'document', source))(win, {});
-}
+const A = build(win), B = build(win);
+assert.strictEqual(JSON.stringify(A), JSON.stringify(B), '相同输入必须完全一致（确定性）');
+assert.strictEqual(A.drawingSkill.graphValidation.blockingCount, 0, '正常模型语义图不得有阻断项');
+assert.strictEqual(A.releaseGate.constructionDrawingAllowed, false, '不得开放生产图发布');
 
-/* Keep load order identical to the browser dependency graph. */
-['symbols.js', 'design-model.js', 'drawing-skill.js', 'vendors.js', 'engine.js', 'layout.js', 'pictograms.js', 'assetlib.js',
-  'draw-arch.js', 'draw-wiring.js', 'draw-dual.js', 'draw-cooling.js', 'draw-thermal.js'].forEach(load);
+/* 选型裕度 */
+assert.ok(A.ac.breakerA >= A.ac.inputA * 1.25, '进线断路器须留 25% 裕度');
+assert.ok(A.dc.mainFuseA >= A.dc.mainCurrentA * 1.25, '直流总快熔须留裕度');
+A.guns.forEach((g) => {
+  assert.ok(g.fuseA >= g.currentA * 1.25 && g.contactorA >= g.currentA * 1.25, '枪回路器件须留裕度');
+});
+assert.ok(A.ac.inputKva > A.dc.installedKw / 0.95 / 0.99, '进线容量必须计入辅助与热管理负荷');
 
-const sample = {
-  projName: '测试智算中心', region: '上海', tier: 'tier3', gpuType: 'h100', gpuCount: 800,
-  itLoad: 12000, voltage: '10', redundancy: '2n1', cooling: 'liquid', pueTarget: 1.25,
-  rackPower: 40, gridScMva: 500, txUkPct: 6, upsBackupMin: 15,
-  cduUnitKw: 500, supplyTemp: 35, returnTemp: 45, pricePeak: 1.05, priceValley: 0.35
-};
+/* 位号唯一 */
+const tags = A.schedule.map((r) => r.tag);
+assert.strictEqual(tags.length, new Set(tags).size, '设备明细表位号必须唯一');
 
-const R1 = win.AIDC_ENGINE.build(sample);
-const R2 = win.AIDC_ENGINE.build(sample);
-assert.strictEqual(JSON.stringify(R1), JSON.stringify(R2), '相同输入必须生成完全一致的工程模型');
-assert.strictEqual(R1.engineVersion, '2.2.0');
-assert.strictEqual(R1.design.schemaVersion, '2.2.0');
-assert.strictEqual(R1.drawingSkill.id, 'AIDC-SCH-LIB-DRAWING-SKILL');
-assert.strictEqual(R1.drawingSkill.graphValidation.blockingCount, 0, '正常模型必须通过端口/拓扑规则校验');
-assert.strictEqual(R1.documentStatus, 'CONCEPT_DRAFT—PROFESSIONAL_REVIEW_REQUIRED');
-assert.strictEqual(R1.readiness.level, 'CONCEPT_ONLY', '未声明核实的表单/接口输入只能产生概念方案');
-assert.strictEqual(R1.releaseGate.constructionDrawingAllowed, false, '自动引擎不得开放施工图发布');
-assert.strictEqual(R1.releaseGate.constructionStatus, 'BLOCKED—EXTERNAL_PROFESSIONAL_SIGNOFF_REQUIRED');
-assert.ok(R1.readiness.summary.assumptionCount > 0, '默认或未核实的输入必须记为假设');
-assert.ok(R1.readiness.blockingItems.some((item) => item.id === 'BASIS-GRID-001'));
+/* 储能：优先最少簇数 */
+assert.strictEqual(A.ess.clusterCount, 1, '200kWh 应由 1 簇满足');
+assert.ok(A.ess.installedKwh >= A.ess.requestedKwh, '装机容量不得低于目标');
 
-/* Regression for the former fatal error: IT thermal duty cannot be derived from PUE delta. */
-assert.strictEqual(R1.compute.facilityDemandKw, 15000, 'PUE 目标只用于设施输入概念预算');
-assert.strictEqual(R1.compute.coolingElectricalBudgetKw, 3000);
-assert.strictEqual(R1.cooling.liquidHeatKw, 12600, '液冷热负荷必须基于 IT 热负荷并含设计裕量');
-assert.strictEqual(R1.cooling.cduActiveCount, 28);
-assert.strictEqual(R1.cooling.cduCount, 29, 'CDU 应为 28 用 + 1 备');
-assert.strictEqual(R1.cooling.flowLpm, 18060);
-assert.strictEqual(R1.power.txTotal, 16);
-assert.strictEqual(R1.power.upsTotal, 30);
-assert.strictEqual(R1.pue.annual, null, '概念引擎不能伪造年度 PUE 结果');
-assert.ok(R1.compliance.every((item) => item.result !== 'PASS'), '合规表不得把概念检查伪装为 PASS');
+/* 无储能时不得残留储能对象 */
+const N = build(win, { essEnabled: false });
+assert.strictEqual(N.design.equipment.filter((e) => /^(battery|ess)-/.test(e.kind)).length, 0, '无储能时不得残留储能设备');
+assert.strictEqual(N.drawingSkill.graphValidation.blockingCount, 0);
 
-/* Canonical model must preserve two independent rack feeds and keep STS off that path. */
-const criticalFeeds = R1.design.circuits.filter((item) => item.loadType === 'dual-cord-it');
-assert.strictEqual(criticalFeeds.length, 2);
-assert.deepStrictEqual(criticalFeeds.map((item) => item.from).sort(), ['EQ-PDU-A', 'EQ-PDU-B']);
-assert.ok(R1.design.topology.auxiliarySts && R1.design.topology.auxiliarySts === 'EQ-STS-AUX');
-assert.ok(R1.design.equipment.find((item) => item.id === 'EQ-STS-AUX').note.includes('不作为 GPU'));
-assert.ok(R1.bom.every((item) => item.status === 'RFQ_REQUIRED'));
+/* 三标准 */
+['gb', 'eu', 'us'].forEach((id) => {
+  const R = build(win, { standard: id, acVoltage: null });
+  assert.strictEqual(R.drawingSkill.graphValidation.blockingCount, 0, id + ' 语义图必须无阻断');
+  assert.strictEqual(R.ac.lineVoltage, win.EV_STD.standard(id).acLineVoltage, id + ' 缺省进线电压');
+});
 
-const drawings = {
-  drawArch: '系统架构图', drawWiring: '电气一次接线图', drawDual: '双路供电拓扑图',
-  drawCooling: '液冷管路图', drawThermal: '热管理方案图'
-};
-for (const [fn, name] of Object.entries(drawings)) {
-  const svg = win[fn](R1);
-  assert.ok(typeof svg === 'string' && svg.startsWith('<svg') && svg.includes('</svg>'), name + ' 未返回完整 SVG');
-  assert.ok(svg.includes('width="420mm"') && svg.includes('height="297mm"') && svg.includes('data-sheet-format="A3"'), name + ' 必须使用 A3 物理图幅元数据');
-  assert.ok(svg.includes('data-drawing-skill="AIDC-SCH-LIB-DRAWING-SKILL"'), name + ' 必须记录实际调用的绘图规则包');
-  assert.ok(svg.includes('CONCEPT_DRAFT'), name + ' 必须标注方案级状态');
-  assert.ok(!/undefined|null/.test(svg), name + ' 包含未解析字段');
-}
-const wiring = win.drawWiring(R1), dual = win.drawDual(R1);
-assert.ok(wiring.includes('PDU-A') && wiring.includes('PDU-B') && wiring.includes('辅助负荷 STS'));
-assert.ok(dual.includes('PDU-A') && dual.includes('PDU-B') && dual.includes('不经 STS'));
+/* 校核清单不得伪装成合规结论 */
+const txt = JSON.stringify(A.validation);
+assert.ok(!/\b(?:PASS|COMPLIANT|CERTIFIED|APPROVED)\b/i.test(txt), '不得输出合规/签发结论');
+assert.ok(A.validation.some((v) => v.result === 'NOT_CHECKED'), '必须保留未校核项');
+assert.ok(A.bom.every((b) => b.status === 'RFQ_REQUIRED'), '目录条目必须标 RFQ_REQUIRED');
 
-const air = win.AIDC_ENGINE.build(Object.assign({}, sample, { cooling: 'air' }));
-assert.ok(win.drawCooling(air).includes('未启用液冷回路'));
-assert.ok(win.drawThermal(air).includes('未启用液冷热管理链路'));
-
-const singlePath = win.AIDC_ENGINE.build(Object.assign({}, sample, { tier: 'tier2', redundancy: 'n1', cooling: 'air' }));
-const singlePathWiring = win.drawWiring(singlePath);
-assert.strictEqual(singlePath.power.mainsCount, 1);
-assert.ok(singlePathWiring.includes('B 路未配置') && !singlePathWiring.includes('PDU-B'), '单路径方案不得伪装成 A/B 双路图');
-assert.ok(win.drawArch(singlePath).includes('未建立 B 路') && !win.drawArch(singlePath).includes('PDU-B'));
-
-const noCatalogueMatch = win.AIDC_ENGINE.build(Object.assign({}, sample, { voltage: '35' }));
-assert.strictEqual(noCatalogueMatch.selection.transformer.recommended, null, '无容量匹配时不得虚构目录推荐');
-assert.strictEqual(noCatalogueMatch.selection.transformer.status, 'NO_CAPACITY_MATCH—RFQ_REQUIRED');
-assert.ok(noCatalogueMatch.warnings.some((message) => message.includes('无满足容量')));
-assert.ok(noCatalogueMatch.bom.some((item) => item.name === '干式变压器组' && item.status === 'NO_CAPACITY_MATCH—RFQ_REQUIRED' && item.model.includes('无目录容量匹配')));
-
-/* A complete declaration may unlock professional review, but never construction issue. */
-const confirmedInputMeta = {};
-[
-  'itLoad', 'gpuCount', 'gpuType', 'rackPower', 'tier', 'redundancy', 'voltage', 'gridScMva', 'txUkPct', 'powerFactor',
-  'upsBackupMin', 'cooling', 'region', 'designWetBulb', 'cduUnitKw', 'supplyTemp', 'returnTemp', 'pueTarget', 'pricePeak', 'priceValley'
-].forEach((key) => { confirmedInputMeta[key] = { provided: true, verified: true, source: 'PROJECT_DOCUMENT' }; });
-const reviewReady = win.AIDC_ENGINE.build(Object.assign({}, sample, {
-  powerFactor: 0.92,
-  inputMeta: confirmedInputMeta,
-  releaseEvidence: {
-    shortCircuitStudy: { complete: true, source: 'PROJECT_DOCUMENT' },
-    protectionStudy: { complete: true, source: 'PROJECT_DOCUMENT' },
-    hydraulicStudy: { complete: true, source: 'PROJECT_DOCUMENT' },
-    fireCivilCoordination: { complete: true, source: 'PROJECT_DOCUMENT' },
-    vendorData: { complete: true, source: 'PROJECT_DOCUMENT' },
-    cadDocumentControl: { complete: true, source: 'PROJECT_DOCUMENT' }
-  }
-}));
-assert.strictEqual(reviewReady.readiness.level, 'REVIEW_READY');
-assert.strictEqual(reviewReady.readiness.summary.declaredPct, 100);
-assert.strictEqual(reviewReady.readiness.release.reviewPackageAllowed, true);
-assert.strictEqual(reviewReady.readiness.release.constructionDrawingAllowed, false, '即使资料声明齐套，平台也不能出具施工图');
-assert.ok(reviewReady.validation.some((item) => item.id === 'DOC-READINESS-001' && item.result === 'ASSUMPTION'));
-
-console.log('AIDC concept-engine regression checks completed successfully.');
+console.log('引擎回归通过：确定性、选型裕度、位号唯一、储能簇配置、三标准、校核边界。');
