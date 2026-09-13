@@ -1,0 +1,21 @@
+{
+  "name": "evse-schematic-design",
+  "version": "2.7.0",
+  "private": true,
+  "description": "Deterministic EVSE terminal-netlist and schematic compiler",
+  "scripts": {
+    "start": "npx serve web",
+    "build": "node scripts/sync-web.js",
+    "sync:web": "node scripts/sync-web.js",
+    "test": "node --test",
+    "verify": "npm run sync:web && npm test",
+    "test:matrix": "node --test tests/geometry-matrix.test.js",
+    "test:p3": "npm test --prefix component-workbench",
+    "test:requirements": "node --test tests/requirement-spec.test.js",
+    "test:sync": "node --test tests/source-sync.test.js",
+    "knowledge:watch": "node scripts/knowledge-watch.js"
+  },
+  "engines": {
+    "node": "24.x"
+  }
+}

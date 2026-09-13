@@ -1,0 +1,9 @@
+# 本目录强制按字节保真存储，禁止任何行尾转换。
+#
+# 原因：本平台有两组字节级契约，一旦换行被改写就会破坏：
+#   1. tests/source-sync.test.js 要求 engine/*.js 与 web/js/*.js 逐字节一致；
+#   2. 同一测试还要求 web/js/engine-bundle.js 的内容哈希与 web/index.html 中
+#      的 ?v=sha256-… 缓存键完全匹配。
+# 若在 core.autocrlf=true 的环境下提交/检出时改写行尾，上述断言会失效，
+# 且失效原因与业务逻辑无关、极难排查。故整个目录按二进制处理。
+* -text
