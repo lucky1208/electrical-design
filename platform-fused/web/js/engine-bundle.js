@@ -15296,6 +15296,18 @@ window.LAYOUT = (function () {
         let packedIndex = 0;
         group.items.forEach((item) => {
           let preferredRow;
+          /* 说明：曾两次尝试把 POWER_FLOW 的无 branch 器件从"全部压入第 0 行"改为
+           * 纵向堆叠（v2.7.1-FIX-L1 直接堆叠；L1b 追加"续接符锚定第 0 行"）。
+           * 两种实现都不稳定：
+           *   · 直接堆叠 → eu/us × ess-mobile 出现跨页走线共线重叠
+           *     （ILLEGAL_COLLINEAR_OVERLAP + DIFFERENT_NET_CONTACT）
+           *   · 续接符锚定后 → 20 组合只剩 6 个 PASS，另有多组 REVIEW_REQUIRED
+           * 根因：跨页续接符的端口槽位决定跨页走线的 y 坐标，而行内堆叠会改变
+           * 列内器件顺序与端口槽位，进而扰动跨页走线，与现有 sheet 投影/路由
+           * 契约冲突。修复它需要重做"跨页走线 + 端口槽位"的耦合，属高风险核心
+           * 改动，故此处保持原行为。
+           * 版面改善改由「统一器件高度」承担（见 schematic-sheet-rendering.js 的
+           * minimumDeviceHeight，实测器件高度比由 3.45 降到 2.17）。 */
           if (definitionValue.id === 'POWER_FLOW' && item.branch != null) preferredRow = item.branch;
           else if (definitionValue.id === 'CONTROL_COMM' || definitionValue.id === 'AUXILIARY' ||
               definitionValue.id === 'PROTECTIVE_EARTH') {
@@ -19757,7 +19769,11 @@ window.drawPile = function drawPile(result) {
       /* Cross-sheet PIN labels retain the exact remote endpoint.  Permit the
          existing page-quality ceiling so those labels stay inside their IEC
          connector bank instead of protruding into an adjacent routing lane. */
-      deviceWidth: 118, maximumDeviceWidth: 240, minimumDeviceHeight: 58,
+      deviceWidth: 118, maximumDeviceWidth: 240,
+      /* v2.7.1-FIX-L2: 统一器件高度下限。实测 minHeight=58 时同图器件高度在
+       * 58~200 之间浮动（比值 3.45），主回路区器件被行距压得很小、其他分区又被
+       * 撑得很大，视觉上明显不一致。提到 92 后比值降到 2.17，行高仅增约 5%。 */
+      minimumDeviceHeight: 92,
       portPitch: 12, lanePitch: 8, channelInset: 14,
       minimumHorizontalGap: 70, minimumVerticalGap: 74, zoneStackLimit: 5,
       essFoldColumnLimit: 12,

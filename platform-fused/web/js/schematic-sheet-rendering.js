@@ -831,7 +831,11 @@
       /* Cross-sheet PIN labels retain the exact remote endpoint.  Permit the
          existing page-quality ceiling so those labels stay inside their IEC
          connector bank instead of protruding into an adjacent routing lane. */
-      deviceWidth: 118, maximumDeviceWidth: 240, minimumDeviceHeight: 58,
+      deviceWidth: 118, maximumDeviceWidth: 240,
+      /* v2.7.1-FIX-L2: 统一器件高度下限。实测 minHeight=58 时同图器件高度在
+       * 58~200 之间浮动（比值 3.45），主回路区器件被行距压得很小、其他分区又被
+       * 撑得很大，视觉上明显不一致。提到 92 后比值降到 2.17，行高仅增约 5%。 */
+      minimumDeviceHeight: 92,
       portPitch: 12, lanePitch: 8, channelInset: 14,
       minimumHorizontalGap: 70, minimumVerticalGap: 74, zoneStackLimit: 5,
       essFoldColumnLimit: 12,
