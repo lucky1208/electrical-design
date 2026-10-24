@@ -1,12 +1,18 @@
 {
-  "name": "deploy",
-  "version": "1.0.0",
-  "description": "自托管部署包。**纯静态、零依赖、零构建、可离线运行** —— 没有 npm、没有打包器、没有 CDN、没有后端。",
-  "main": "evse-ai.js",
+  "name": "evse-bess-source-to-design",
+  "version": "2.0.0",
+  "description": "源数据驱动的充电储能系统电气设计生成、可信校核与全寿命优化平台。纯静态、零依赖、零构建、可离线运行。",
+  "main": "evse-calc.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "node --test tests/source.test.js tests/calc.test.js"
   },
-  "keywords": [],
+  "keywords": [
+    "evse",
+    "bess",
+    "electrical-design",
+    "source-grounded",
+    "verification"
+  ],
   "author": "",
   "license": "ISC",
   "type": "commonjs"

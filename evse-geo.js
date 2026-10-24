@@ -99,6 +99,7 @@ window.EVSE_GEO = (function () {
     const has = (id) => !!M[id];
     const put = (id, x, y) => { if (M[id]) { M[id].x = x; M[id].y = y; } };
     const p = design.params, guns = p.guns, mod = design.modShown;
+    if (!M['M1']) throw new Error('参数异常：未生成充电模块（请检查额定功率与模块功率）');
 
     /* ---------------- 页 1 ---------------- */
     put('WB1', 170, 940);

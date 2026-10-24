@@ -84,7 +84,7 @@ window.EVSE_AI = (function () {
     '只输出 JSON，不要任何解释文字。字段与取值范围：',
     '{',
     '  "name": 字符串, 项目名称，若客户没说就根据描述起一个简洁的中文名,',
-    '  "std": "gb" 表示国标 GB/T | "ccs2" 表示欧标 CCS2,',
+    '  "std": "gb" 国标 GB/T | "ccs2" 欧标 | "ccs1" 美标 CCS1 | "nacs" 美标 NACS | "chademo" 日标,',
     '  "kw": 数字, 整桩额定输出功率 kW,',
     '  "guns": 整数 1-6, 充电枪数量,',
     '  "gunA": 数字, 单枪额定电流 A（客户未说时：液冷超充按 500-600，常规按 250）,',
@@ -99,7 +99,7 @@ window.EVSE_AI = (function () {
     '· "超充"/"液冷"/"600A" → gunA 取 500-600，moduleKw 取 60 或 80。',
     '· "光储充"/"储能"/"削峰填谷" → ess=true；未说容量时按整桩功率的 0.8-1.0 倍(kWh)估，并写入 assumptions。',
     '· 只说"双枪 240kW" → kw=240, guns=2。',
-    '· 欧洲/CCS2/CE → std="ccs2"；国内/国标/GB → std="gb"。',
+    '· 欧洲/CCS2/CE → std="ccs2"；国内/国标/GB → std="gb"；美标 CCS1 → std="ccs1"；NACS/J3400/特斯拉 → std="nacs"；日标/CHAdeMO → std="chademo"。',
     '· 客户没提的一律给合理默认值，并在 assumptions 里写明你假设了什么。'
   ].join('\n');
 
@@ -109,14 +109,31 @@ window.EVSE_AI = (function () {
       { role: 'user', content: String(text || '').slice(0, 4000) }
     ], { json: true, temp: 0.1, max: 1200 });
     const j = grabJSON(out);
+    const asBool = function (v) {
+      if (typeof v === 'boolean') return v;
+      if (typeof v === 'number') return v !== 0;
+      const s = String(v == null ? '' : v).trim().toLowerCase();
+      return s === '1' || s === 'true' || s === 'yes' || s === '是' || s === '有' || s === '需要';
+    };
+    const STD = { gb: 'gb', ccs2: 'ccs2', ccs1: 'ccs1', nacs: 'nacs', chademo: 'chademo',
+      '国标': 'gb', '欧标': 'ccs2', '美标': 'ccs1', '日标': 'chademo', 'j3400': 'nacs', '特斯拉': 'nacs' };
+    const stdKey = String(j.std == null ? '' : j.std).trim().toLowerCase();
+    let stdVal = STD[stdKey];
+    if (!stdVal) {
+      if (/nacs|j3400|特斯拉/.test(stdKey)) stdVal = 'nacs';
+      else if (/ccs2|欧标|欧洲|ce/.test(stdKey)) stdVal = 'ccs2';
+      else if (/ccs1|美标|美国/.test(stdKey)) stdVal = 'ccs1';
+      else if (/chademo|日标|日本/.test(stdKey)) stdVal = 'chademo';
+      else stdVal = 'gb';
+    }
     const p = {
       name: String(j.name || '未命名项目').slice(0, 60),
-      std: j.std === 'ccs2' ? 'ccs2' : 'gb',
+      std: stdVal,
       kw: Math.max(7, Math.min(2000, +j.kw || 120)),
       guns: Math.max(1, Math.min(6, Math.round(+j.guns || 1))),
       gunA: Math.max(32, Math.min(800, +j.gunA || 250)),
       moduleKw: [20, 30, 40, 60, 80].indexOf(+j.moduleKw) >= 0 ? +j.moduleKw : 40,
-      ess: !!j.ess,
+      ess: asBool(j.ess),
       essKwh: Math.max(0, Math.min(5000, +j.essKwh || 0)),
       essClusters: Math.max(1, Math.min(4, Math.round(+j.essClusters || 1))),
       coupling: j.coupling === 'ac' ? 'ac' : 'dc'

@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>充电储能系统原理图 · 自动生成与在线编辑平台</title>
+<title>源数据驱动的充电储能系统电气设计生成、可信校核与全寿命优化平台</title>
 <style>
   html,body{margin:0;padding:0;height:100%;background:#0f1318;color:#e6eaf0;
     font-family:"Helvetica Neue",Helvetica,"Microsoft YaHei","PingFang SC",sans-serif;-webkit-font-smoothing:antialiased}
@@ -36,6 +36,8 @@
   label.f span{display:block;font-size:11px;color:#8c96a3;margin-bottom:4px}
   label.f input,label.f select{width:100%;background:#0f1318;border:1px solid #2b333d;color:#e6eaf0;
     border-radius:5px;padding:6px 8px;font-size:12px;font-family:inherit}
+  label.f.off{opacity:.45}
+  label.f.off input,label.f.off select{cursor:not-allowed}
   .gen{width:100%;margin:6px 0 16px;background:#0e7c86;border:1px solid #12a0ad;color:#fff;
     border-radius:6px;padding:9px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit}
   .gen.loading{display:flex;align-items:center;justify-content:center;gap:8px;cursor:progress;opacity:.85}
@@ -65,6 +67,7 @@
   .whit{cursor:move}
   .status{height:28px;flex:0 0 28px;display:flex;align-items:center;gap:16px;padding:0 14px;
     background:#151a20;border-top:1px solid #232b34;font-size:11px;color:#7c8794}
+  #msg{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:58vw;flex:0 1 auto}
   .sec{padding:14px;border-bottom:1px solid #232b34}
   .kv{display:flex;gap:8px;padding:2px 0}
   .kv b{flex:0 0 84px;color:#6f7a87;font-size:11px;font-weight:400}
@@ -161,6 +164,49 @@
   #paneInsp{display:flex;gap:6px;align-items:flex-start;flex-wrap:wrap}
   #paneInsp>.sec{flex:1 1 300px;min-width:270px;border-bottom:none;padding:4px 8px}
   #paneInsp>div:last-child{flex:1.4 1 340px}
+  .calcbar{display:flex;align-items:center;gap:7px;flex-wrap:wrap;margin-bottom:10px}
+  .calcbar .lbl{margin:0}
+  .calcbar .btn{padding:4px 9px;font-size:11px}
+  .calcmain{display:flex;gap:16px;align-items:flex-start}
+  .calcside{flex:0 0 370px;min-width:0}
+  .calccards{flex:1;min-width:0}
+  .calcopts{display:flex;flex-wrap:wrap;gap:2px 10px;background:#11161c;border:1px solid #232b34;border-radius:8px;padding:9px 10px}
+  .calcopts label.f{flex:0 0 168px;margin:0 0 5px}
+  .calcopts label.f span{font-size:10px;margin-bottom:2px}
+  .calcopts label.f input{font-size:11px;padding:4px 6px}
+  .calcopts summary{cursor:pointer;font-size:10.5px;color:#8c96a3;margin:2px 0 7px;letter-spacing:.04em}
+  .calctip{font-size:10px;color:#6f7a87;line-height:1.55;margin:2px 0 7px}
+  .calcsum{display:flex;gap:7px;flex-wrap:wrap;margin-bottom:9px}
+  .calccard{flex:1 1 88px;min-width:84px;background:#11161c;border:1px solid #232b34;border-radius:8px;padding:7px 9px}
+  .calccard b{display:block;font-size:19px;line-height:1.15;font-weight:800}
+  .calccard span{font-size:9.5px;color:#6f7a87;letter-spacing:.05em}
+  .calcgroup{margin-bottom:9px}
+  .calcgroup>.lbl{margin:0 0 2px}
+  .calccheck{display:flex;gap:8px;align-items:flex-start;padding:5px 3px;border-bottom:1px solid #1a2027;font-size:11px;line-height:1.5}
+  .calccheck .dot{width:8px;height:8px;border-radius:50%;flex:0 0 8px;margin-top:4px;background:#64748b}
+  .calccheck.pass .dot{background:#22c55e}.calccheck.warn .dot{background:#e0a83a}
+  .calccheck.fail .dot{background:#ef4444}.calccheck.unknown .dot{background:#64748b}
+  .calccheck.na .dot{background:#334155}
+  .calccheck .ct{flex:1;min-width:0}
+  .calccheck .ct b{font-weight:600;color:#dbe3ec}
+  .calccheck .statusword{font-size:9px;letter-spacing:.08em;color:#6f7a87;margin-left:4px}
+  .calccheck .detail{display:block;color:#7c8794;font-size:10.3px;margin-top:2px}
+  .calccheck .srcs{display:flex;gap:4px;flex-wrap:wrap;margin-top:3px}
+  .calccheck .cv{flex:0 0 auto;font-size:10.5px;color:#9aa5b1;text-align:right;max-width:170px}
+  .srctag{font-size:8.5px;border:1px solid #2b3644;border-radius:3px;padding:0 4px;color:#7c8794;white-space:nowrap}
+  .srctag.pending{border-color:#3a4552;color:#6f7a87}
+  .srctag.assumption{border-color:#6d4c1f;color:#c9a35a}
+  .srctag.verified{border-color:#1f6b46;color:#7bdca8}
+  .calcsrcbar{display:flex;gap:8px;align-items:center;margin:7px 0 3px;font-size:10px;color:#7c8794}
+  .calcprog{flex:1;height:5px;background:#1c232b;border-radius:3px;overflow:hidden}
+  .calcprog i{display:block;height:100%;background:linear-gradient(90deg,#2f6fdc,#22d3ee)}
+  .calcsrclist{display:flex;flex-wrap:wrap;gap:4px;margin-top:4px}
+  .reqrow{display:flex;gap:6px;align-items:baseline;font-size:10.3px;color:#9aa5b1;padding:2px 0;border-bottom:1px solid #1a2027}
+  .reqrow b{font-weight:400;color:#c3ccd7;flex:1;min-width:0}
+  .reqrow em{font-style:normal;font-size:9px;color:#6f7a87}
+  .calcempty{padding:18px 10px;border:1px dashed #2b3644;border-radius:8px;color:#7c8794;font-size:11px;line-height:1.7}
+  .calcfoot{font-size:10px;color:#6f7a87;line-height:1.55;margin-top:8px}
+  @media (max-width:1100px){.calcmain{flex-direction:column}.calcside{flex:1 1 auto;width:100%}}
   @media (max-width:1280px){
     .bar{gap:10px}
     .sub{display:none}
@@ -186,8 +232,8 @@
     <div class="brand">
       <span class="logo" aria-hidden="true">EV</span>
       <span class="brandtxt">
-        <span class="ttl">充电储能系统原理图</span>
-        <span class="sub">自动生成 · 在线可编辑平台</span>
+        <span class="ttl">充电储能系统可信设计</span>
+        <span class="sub">源数据驱动 · 生成 / 校核 / 优化</span>
       </span>
     </div>
     <div class="rtabs" id="rtabs">
@@ -199,6 +245,7 @@
       <button class="rtab" data-rt="anim">动画仿真</button>
       <button class="rtab" data-rt="export">导出</button>
       <button class="rtab" data-rt="insp">属性/评分</button>
+      <button class="rtab" data-rt="calc">工程校核</button>
       <button class="rtab" data-rt="bom">工程 BOM</button>
       <button class="rtab" data-rt="ai">AI 工具</button>
     </div>
@@ -317,6 +364,28 @@
         </div>
         <div id="bom" style="padding:0 8px 12px"></div>
       </div>
+    </div>
+    <div class="dpane" data-dp="calc">
+      <div class="calcbar">
+        <div class="lbl">工程校核与证据链</div>
+        <button class="btn" id="bCalcRun">运行电气校核</button>
+        <button class="btn" id="bCalcPack">导出证据包</button>
+        <button class="btn" id="bCalcCsv">导出校核 CSV</button>
+        <button class="btn" id="bCalcImport">导入来源包</button>
+        <input type="file" id="calcSrcFile" accept=".json,application/json" style="display:none">
+        <span id="calcMeta" style="margin-left:auto;font-size:10px;color:#5f6b78"></span>
+      </div>
+      <div class="calcmain">
+        <div class="calcside">
+          <div class="calctip">校核对象为当前画布（上次生成结果）；修改左侧参数后请先重新生成。以下为校核边界与工程假设，有原始资料时应覆盖；未知项不会被当作通过。</div>
+          <div class="calcopts" id="calcOpts"></div>
+        </div>
+        <div class="calccards">
+          <div class="calcsum" id="calcSum"></div>
+          <div id="calcResults"></div>
+        </div>
+      </div>
+      <div class="calcfoot">校核结果用于方案级预审，不替代注册电气工程师复核、并网试验、消防审批与型式试验。来源状态为 metadata/pending 的条目不计入“已核验”。</div>
     </div>
   </div>
 
@@ -453,6 +522,8 @@
 <script src="evse-core.js"></script>
 <script src="evse-mwess-core.js"></script>
 <script src="evse-vendor-kb.js"></script>
+<script src="evse-source.js"></script>
+<script src="evse-calc.js"></script>
 <script src="evse-geo.js"></script>
 <script src="evse-labelfix.js"></script>
 <script src="evse-render.js"></script>
@@ -484,14 +555,112 @@
   'use strict';
   var $ = function (id) { return document.getElementById(id); };
   var esc = function (s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); };
+  var escAttr = function (s) { return esc(s).replace(/"/g, '&quot;').replace(/'/g, '&#39;'); };
+
+  var EVSE_STD = ['gb', 'ccs2', 'ccs1', 'nacs', 'chademo'];
+  var EVSE_DEFAULTS = { name: '示范站 240kW 储能超充桩', family: 'evse', std: 'gb', kw: 240, guns: 2, gunA: 250,
+    moduleKw: 40, ess: true, essKwh: 200, essClusters: 2, coupling: 'dc' };
+  function boolParam(v, dflt) {
+    if (typeof v === 'boolean') return v;
+    if (typeof v === 'number') return v !== 0;
+    if (typeof v === 'string') {
+      var s = v.trim().toLowerCase();
+      if (s === '1' || s === 'true' || s === 'yes' || s === 'on' || s === '是' || s === '有' || s === '需要') return true;
+      if (s === '0' || s === 'false' || s === 'no' || s === 'off' || s === '' || s === '否' || s === '无' || s === '不需要') return false;
+    }
+    return dflt;
+  }
+  function numParam(v, dflt, min, max, int) {
+    var n = Number(v);
+    if (!isFinite(n)) n = dflt;
+    if (min != null && n < min) n = min;
+    if (max != null && n > max) n = max;
+    if (int) n = Math.round(n);
+    return n;
+  }
+  function normalizeEvse(raw) {
+    var p = Object.assign({}, EVSE_DEFAULTS, raw || {});
+    p.family = 'evse';
+    if (EVSE_STD.indexOf(p.std) < 0) p.std = 'gb';
+    p.kw = numParam(p.kw, EVSE_DEFAULTS.kw, 1, 100000);
+    p.guns = numParam(p.guns, EVSE_DEFAULTS.guns, 1, 6, true);
+    p.gunA = numParam(p.gunA, EVSE_DEFAULTS.gunA, 1, 5000);
+    p.moduleKw = numParam(p.moduleKw, EVSE_DEFAULTS.moduleKw, 1, 1000);
+    p.ess = boolParam(p.ess, EVSE_DEFAULTS.ess);
+    p.essKwh = numParam(p.essKwh, EVSE_DEFAULTS.essKwh, 1, 10000000);
+    p.essClusters = numParam(p.essClusters, EVSE_DEFAULTS.essClusters, 1, 4, true);
+    p.coupling = p.coupling === 'ac' ? 'ac' : 'dc';
+    p.name = String(p.name == null || p.name === '' ? EVSE_DEFAULTS.name : p.name);
+    return p;
+  }
+  function normalizeParams(fam, raw) {
+    if (fam === 'mwess' && window.EVSE_MWESS) return window.EVSE_MWESS.normalize(Object.assign({}, raw || {}, { family: 'mwess' }));
+    return normalizeEvse(raw);
+  }
+  function pickFamily(raw) {
+    if (!raw) return 'evse';
+    if (raw.family === 'mwess' || raw.family === 'evse') return raw.family;
+    return (raw.acdcCount != null || raw.dcdcCount != null || raw.essCab != null || raw.pmuCount != null) ? 'mwess' : 'evse';
+  }
+  function defaultsFor(fam) {
+    if (fam === 'mwess' && window.EVSE_MWESS) return window.EVSE_MWESS.normalize(window.EVSE_MWESS.defaults());
+    return normalizeEvse({});
+  }
 
   var ST = {
     sheet: 1, tool: 'sel', sel: null, msel: [], openKb: {}, flow: '', sim: false, SIM: null,
-    params: { name: '示范站 240kW 储能超充桩', family: 'evse', std: 'gb', kw: 240, guns: 2, gunA: 250, moduleKw: 40, ess: true, essKwh: 200, essClusters: 2, coupling: 'dc' },
+    params: normalizeEvse({ name: '示范站 240kW 储能超充桩' }),
     opts: { pinNo: true, pinName: true, devName: true },
     layers: { AC: 1, DC: 1, ESS: 1, AUX: 1, CTL: 1, COMM: 1, SAF: 1, PE: 1 }
   };
   var D = null, view = { x: 40, y: 40, k: .3 }, host, svgEl, world, sheetSize, hist = [], fut = [], drag = null, pending = null;
+
+  var CALC_KEY = 'evse.calc.opts.v1';
+  var CALC_FIELDS = [
+    { k: 'gridIkKa', t: '并网点短路电流', u: 'kA' },
+    { k: 'transformerKva', t: '变压器容量', u: 'kVA' },
+    { k: 'transformerZPct', t: '变压器阻抗', u: '%' },
+    { k: 'pf', t: '功率因数', u: '' },
+    { k: 'efficiency', t: '变流效率', u: '' },
+    { k: 'ambientC', t: '环境温度', u: '°C' },
+    { k: 'grouping', t: '成组回路', u: '路' },
+    { k: 'acVoltage', t: '交流电压', u: 'V' },
+    { k: 'acCableM', t: '交流进线长度', u: 'm' },
+    { k: 'dcCableM', t: '直流母线长度', u: 'm' },
+    { k: 'gunCableM', t: '枪线长度', u: 'm' },
+    { k: 'essCableM', t: '储能支路长度', u: 'm' },
+    { k: 'essPowerKw', t: '储能功率', u: 'kW' }
+  ];
+  var CALC_ADV = [
+    { k: 'acBreakerA', t: 'AC 保护额定', u: 'A' },
+    { k: 'dcBreakerA', t: 'DC 保护额定', u: 'A' },
+    { k: 'gunFuseA', t: '枪熔断额定', u: 'A' },
+    { k: 'dcIscKa', t: '直流短路电流', u: 'kA' },
+    { k: 'batteryIscKa', t: '电池短路电流', u: 'kA' },
+    { k: 'upstreamBreakerA', t: '上级保护额定', u: 'A' },
+    { k: 'essDod', t: 'DoD', u: '' },
+    { k: 'essSoh', t: 'SOH', u: '' },
+    { k: 'essCycleLife', t: '循环寿命', u: '次' },
+    { k: 'essCyclesPerDay', t: '日循环', u: '次/日' },
+    { k: 'thdPct', t: '实测 THD', u: '%' },
+    { k: 'unbalancePct', t: '三相不平衡', u: '%' },
+    { k: 'airflowM3h', t: '可用风量', u: 'm³/h' }
+  ];
+  var CALC_OPTS = (function () {
+    try { return JSON.parse(localStorage.getItem(CALC_KEY) || '{}'); } catch (e) { return {}; }
+  })();
+  var CALC_RESULT = null, CALC_STALE = true;
+  function calcOpts() {
+    var site = (window.EVSE_SOURCE && window.EVSE_SOURCE.siteData) ? window.EVSE_SOURCE.siteData() : {};
+    var merged = Object.assign({}, site, CALC_OPTS);
+    return window.EVSE_CALC ? window.EVSE_CALC.normalizeOpts(merged) : merged;
+  }
+  function saveCalcOpts() { try { localStorage.setItem(CALC_KEY, JSON.stringify(CALC_OPTS)); } catch (e) {} }
+  function invalidateCalc() {
+    CALC_RESULT = null;
+    CALC_STALE = true;
+    if (typeof ribCur !== 'undefined' && ribCur === 'calc') { renderCalcResult(); updateCalcMeta(); }
+  }
 
   /* ---------- 生成 ---------- */
   function viewOpts() {
@@ -500,18 +669,21 @@
       hiNet: ST.sel && (ST.sel.k === 'wire' || ST.sel.k === 'pin') ? ST.sel.net : null };
   }
   function generate(fit) {
+    ST.params = normalizeParams(ST.params.family, ST.params);
+    delete ST.params.custom;
+    CALC_RESULT = null;
+    CALC_STALE = true;
+    renderFields();
     var p = {}; Object.keys(ST.params).forEach(function (k) { p[k] = ST.params[k]; });
-    ['kw', 'guns', 'gunA', 'moduleKw', 'essKwh', 'essClusters'].forEach(function (k) { p[k] = +p[k] || 0; });
-    ['acdcKw', 'acdcCount', 'dcdcKw', 'dcdcCount', 'acIn', 'gunCount', 'gunV', 'gunA', 'busV', 'gunRated', 'essCab', 'essKwh', 'essPack', 'pmuCount', 'dcuCount'].forEach(function (k) { if (p[k] != null) p[k] = +p[k] || 0; });
-    p.guns = Math.max(1, Math.min(6, p.guns)); p.essClusters = Math.max(1, Math.min(4, p.essClusters));
     var t0 = performance.now();
     D = window.EVSE_GEO.generate(p);
     if (!D || !D.devices || !D.devices.length) { msg('⚠ 生成了空设计（参数异常或引擎故障）——请 Ctrl+F5 强制刷新后重试'); }
+    if (D && D.sheets && D.sheets.length && !D.sheets.some(function (s) { return s.no === ST.sheet; })) ST.sheet = D.sheets[0].no;
     hist = []; fut = []; ST.sel = null;
     msg('卢继雄倾注心力制作');
     paint(fit !== false); renderAll();
   }
-  function msg(s) { $('msg').textContent = s; var me = $('msg'); if (me) me.style.color = ''; }
+  function msg(s) { var me = $('msg'); if (me) { me.textContent = s; me.title = s; me.style.color = ''; } }
   var busyOn = false;
   function runBusy(text, fn) {
     if (busyOn) return;
@@ -533,7 +705,7 @@
     }
     requestAnimationFrame(function () {
       setTimeout(function () {
-        try { fn(); } catch (err) { console.error(err); msg('⚠ 生成失败：' + ((err && err.message) || err)); }
+        try { fn(); } catch (err) { console.error(err); msg('⚠ 生成失败：' + ((err && err.message) || err) + '（画布保留上一次结果）'); }
         finish();
       }, 40);
     });
@@ -541,7 +713,7 @@
   /* v231b: 全局错误可视化——静默失败变为红色横幅 */
   window.addEventListener('error', function (ev) {
     var me = document.getElementById('msg');
-    if (me) { me.textContent = '⚠ 脚本错误：' + (ev.message || '未知') + '（行 ' + (ev.lineno || '?') + '）——若页面空白请 Ctrl+F5 强制刷新'; me.style.color = '#ff6b5e'; }
+    if (me) { var s = '⚠ 脚本错误：' + (ev.message || '未知') + '（行 ' + (ev.lineno || '?') + '）——若页面空白请 Ctrl+F5 强制刷新'; me.textContent = s; me.title = s; me.style.color = '#ff6b5e'; }
   });
 
   /* ---------- 画布 ---------- */
@@ -1044,9 +1216,10 @@
     h.querySelectorAll('[data-p]').forEach(function (b) {
       b.onclick = function () {
         var pr = PRESETS[+b.getAttribute('data-p')];
-        dropOtherFamily(pr.p.family);
-        Object.keys(pr.p).forEach(function (k) { ST.params[k] = pr.p[k]; });
-        ST.params.name = pr.n + ' 示范站';
+        var next = defaultsFor(pr.p.family);
+        Object.keys(pr.p).forEach(function (k) { next[k] = pr.p[k]; });
+        next.name = pr.n + ' 示范站';
+        ST.params = normalizeParams(pr.p.family, next);
         renderFields();
         runBusy('正在载入方案并生成图纸…', function () { generate(true); msg('已载入方案：' + pr.n); });
       };
@@ -1332,9 +1505,14 @@
     dd.nets = dd.nets || []; dd.wires = dd.wires || []; dd.junctions = dd.junctions || []; dd.boxes = dd.boxes || []; dd.hops = dd.hops || [];
     dd.sheets.forEach(function (s) { if (!s.frame) s.frame = { x: 60, y: 60, w: 1680, h: 1188 }; });
     dd._ni = null;
+    if (dd.params) {
+      ST.params = normalizeParams(pickFamily(dd.params), dd.params);
+      dd.params = ST.params;
+    }
     D = dd; hist = []; fut = []; ST.sel = null; ST.msel = []; ST.sheet = 1;
+    CALC_RESULT = null; CALC_STALE = true;
     window.EVSE_GEO.crossings(D); window.EVSE_GEO.audit(D);
-    paint(true); renderAll();
+    renderFields(); paint(true); renderAll();
     msg('已打开工程：' + ((D.params && D.params.name) || '') + '（' + D.devices.length + ' 器件 / ' + D.nets.length + ' 网络 / ' + D.sheets.length + ' 页）');
   }
 
@@ -1371,29 +1549,184 @@
     { k: 'pmuCount', t: 'PMU 数（固定）', kind: 'num', fixed: true },
     { k: 'dcuCount', t: 'DCU 数（固定）', kind: 'num', fixed: true }
   ];
-  var MWESS_PK = ['acdcKw', 'acdcCount', 'dcdcKw', 'dcdcCount', 'acIn', 'busV', 'gunCount', 'gunV', 'gunRated', 'essCab', 'essPack', 'pmuCount', 'dcuCount'];
-  var EVSE_PK = ['std', 'kw', 'guns', 'moduleKw', 'ess', 'essClusters', 'coupling'];
-  function dropOtherFamily(fam) { (fam === 'mwess' ? EVSE_PK : MWESS_PK).forEach(function (k) { delete ST.params[k]; }); }
   function curFields() { return FIELDS_HEAD.concat(ST.params.family === 'mwess' ? FIELDS_MWESS : FIELDS_EVSE); }
   function renderFields() {
-    if (ST.params.family === 'mwess' && window.EVSE_MWESS) ST.params = Object.assign(ST.params, window.EVSE_MWESS.normalize(ST.params));
+    ST.params = normalizeParams(ST.params.family, ST.params);
+    var essOff = ST.params.family === 'evse' && !ST.params.ess;
     $('fields').innerHTML = curFields().map(function (f) {
       var v = ST.params[f.k];
       if (f.bool) v = v ? '1' : '0';
+      var dependent = essOff && (f.k === 'essKwh' || f.k === 'essClusters' || f.k === 'coupling');
+      var dis = f.fixed || dependent;
       var ctl = f.kind === 'sel'
-        ? '<select data-k="' + f.k + '">' + f.o.map(function (o) {
+        ? '<select data-k="' + f.k + '"' + (dependent ? ' disabled aria-disabled="true"' : '') + '>' + f.o.map(function (o) {
             return '<option value="' + o[0] + '"' + (String(v) === o[0] ? ' selected' : '') + '>' + esc(o[1]) + '</option>';
           }).join('') + '</select>'
-        : '<input type="' + (f.kind === 'num' ? 'number' : 'text') + '" data-k="' + f.k + '" value="' + esc(v) + '"' + (f.fixed ? ' disabled aria-disabled="true"' : '') + '/>';
-      return '<label class="f"><span>' + esc(f.t) + '</span>' + ctl + '</label>';
+        : '<input type="' + (f.kind === 'num' ? 'number' : 'text') + '" data-k="' + f.k + '" value="' + esc(v) + '"' + (dis ? ' disabled aria-disabled="true"' : '') + '/>';
+      return '<label class="f' + (dependent ? ' off' : '') + '"><span>' + esc(f.t) + '</span>' + ctl + '</label>';
     }).join('');
     $('fields').querySelectorAll('[data-k]').forEach(function (el) {
       el.addEventListener('change', function () {
-        var k = el.getAttribute('data-k'), f = curFields().filter(function (q) { return q.k === k; })[0];
-        ST.params[k] = f.bool ? el.value === '1' : el.value;
-        if (k === 'family') { dropOtherFamily(ST.params.family); renderFields(); } /* 切换方案类型 → 清残留参数并重绘表单 */
+        var k = el.getAttribute('data-k');
+        if (k === 'family') {
+          var keepName = ST.params.name;
+          ST.params = defaultsFor(el.value === 'mwess' ? 'mwess' : 'evse');
+          ST.params.name = keepName;
+          renderFields();
+          invalidateCalc();
+          msg('已切换方案类型：点击「确定性重新生成」更新图纸');
+          return;
+        }
+        var f = curFields().filter(function (q) { return q.k === k; })[0];
+        if (!f) return;
+        ST.params[k] = f.bool ? boolParam(el.value, false) : el.value;
+        if (k === 'ess') renderFields();
+        invalidateCalc();
+        msg('参数已修改：点击「确定性重新生成」更新图纸');
       });
     });
+  }
+  function calcStatusText(st) {
+    return { pass: '通过', warn: '注意', fail: '不通过', unknown: '待证据', na: '不适用' }[st] || st;
+  }
+  function sourceTag(id) {
+    var s = window.EVSE_SOURCE && window.EVSE_SOURCE.byId(id);
+    var status = s ? s.status : 'missing';
+    var cls = status === 'verified' || status === 'ingested' ? 'verified' : (status === 'assumption' ? 'assumption' : 'pending');
+    var tip = s ? (s.id + ' · ' + s.title + ' · ' + status) : (id + ' · 未登记');
+    return '<span class="srctag ' + cls + '" title="' + escAttr(tip) + '">' + esc(id) + '</span>';
+  }
+  function renderCalcOptions() {
+    var box = $('calcOpts'); if (!box) return;
+    var o = calcOpts();
+    function field(f) {
+      var v = o[f.k];
+      var val = v == null ? '' : v;
+      var label = f.t + (f.u ? ' / ' + f.u : '');
+      return '<label class="f"><span>' + esc(label) + '</span><input type="number" step="any" data-ck="' + escAttr(f.k) + '" value="' + escAttr(val) + '" placeholder="待输入"></label>';
+    }
+    box.innerHTML = CALC_FIELDS.map(field).join('') +
+      '<details style="flex:1 1 100%"><summary>高级假设与原始数据入口</summary><div style="display:flex;flex-wrap:wrap;gap:2px 10px">' + CALC_ADV.map(field).join('') + '</div></details>';
+    box.querySelectorAll('[data-ck]').forEach(function (el) {
+      el.addEventListener('change', function () {
+        var k = el.getAttribute('data-ck');
+        var v = el.value === '' ? null : Number(el.value);
+        if (v != null && !isFinite(v)) v = null;
+        CALC_OPTS[k] = v;
+        saveCalcOpts();
+        invalidateCalc();
+        renderCalcResult();
+        updateCalcMeta();
+      });
+    });
+  }
+  function renderCalcSourceSummary() {
+    var src = window.EVSE_SOURCE;
+    if (!src) return '<div class="calcempty">来源模块未加载：请确认 evse-source.js 已部署。</div>';
+    var st = src.stats();
+    var cov = Math.round(st.evidenceCoverage * 100);
+    var html = '<div class="calcgroup"><div class="lbl">原始来源与要求覆盖</div>';
+    html += '<div class="calcsrcbar"><span>已核验来源 ' + st.verifiedSources + ' / ' + st.sources + '</span><div class="calcprog"><i style="width:' + cov + '%"></i></div><span>' + cov + '%</span></div>';
+    html += '<div class="calcsrclist">' + Object.keys(st.byType).map(function (k) { return '<span class="srctag">' + esc(k) + ' ' + st.byType[k] + '</span>'; }).join('') + '</div>';
+    var open = st.openRequirements || [];
+    html += '<div style="font-size:10px;color:#7c8794;margin:7px 0 3px">未关闭要求 ' + open.length + ' 项（导出证据包可查看完整矩阵）</div>';
+    open.slice(0, 8).forEach(function (r) {
+      html += '<div class="reqrow"><em>' + esc(r.status) + '</em><b>' + esc(r.title) + '</b><span>' + esc(r.id) + '</span></div>';
+    });
+    if (open.length > 8) html += '<div style="font-size:10px;color:#6f7a87;margin-top:3px">…另有 ' + (open.length - 8) + ' 项</div>';
+    html += '</div>';
+    return html;
+  }
+  function renderCalcResult() {
+    var sum = $('calcSum'), out = $('calcResults');
+    if (!sum || !out) return;
+    if (!CALC_RESULT) {
+      var st0 = window.EVSE_SOURCE ? window.EVSE_SOURCE.stats() : null;
+      var covered = st0 ? (st0.requirementsByStatus.covered || 0) : 0;
+      sum.innerHTML = '<div class="calccard"><b>—</b><span>待运行电气校核</span></div>' +
+        '<div class="calccard"><b>' + covered + '</b><span>已关闭要求</span></div>' +
+        '<div class="calccard"><b>?</b><span>未知项不判通过</span></div>';
+      out.innerHTML = '<div class="calcempty">点击「运行电气校核」生成短路、载流、压降、保护、储能与消防校核结果。</div>' + renderCalcSourceSummary();
+      return;
+    }
+    var s = CALC_RESULT.summary;
+    sum.innerHTML =
+      '<div class="calccard"><b>' + s.score + '</b><span>' + esc(s.scoreLabel) + '</span></div>' +
+      '<div class="calccard"><b style="color:#22c55e">' + s.pass + '</b><span>通过</span></div>' +
+      '<div class="calccard"><b style="color:#e0a83a">' + s.warn + '</b><span>注意 / 假设</span></div>' +
+      '<div class="calccard"><b style="color:#ef4444">' + s.fail + '</b><span>不通过</span></div>' +
+      '<div class="calccard"><b style="color:#94a3b8">' + s.unknown + '</b><span>待证据</span></div>';
+    var groups = {}, order = [];
+    CALC_RESULT.results.forEach(function (r) { if (!groups[r.cat]) { groups[r.cat] = []; order.push(r.cat); } groups[r.cat].push(r); });
+    var html = '';
+    order.forEach(function (cat) {
+      html += '<div class="calcgroup"><div class="lbl">' + esc(cat) + '</div>';
+      groups[cat].forEach(function (r) {
+        html += '<div class="calccheck ' + escAttr(r.status) + '"><span class="dot"></span><span class="ct"><b>' + esc(r.title) + '</b><span class="statusword">' + esc(calcStatusText(r.status)) + '</span><span class="detail">' + esc(r.detail) + (r.remediation ? ' · 建议：' + esc(r.remediation) : '') + '</span><span class="srcs">' + (r.sourceIds || []).map(sourceTag).join('') + (r.assumptions && r.assumptions.length ? '<span class="srctag assumption" title="' + escAttr(r.assumptions.join('；')) + '">假设 ' + r.assumptions.length + '</span>' : '') + '</span></span><span class="cv">' + (r.value ? esc(r.value) + ' ' + esc(r.unit) : '') + '</span></div>';
+      });
+      html += '</div>';
+    });
+    var assumptions = [];
+    CALC_RESULT.results.forEach(function (r) { (r.assumptions || []).forEach(function (a) { if (assumptions.indexOf(a) < 0) assumptions.push(a); }); });
+    if (assumptions.length) {
+      html += '<div class="calcgroup"><div class="lbl">本次校核假设（需原始资料复核）</div>';
+      assumptions.forEach(function (a) { html += '<div class="reqrow"><em>ASSUME</em><b>' + esc(a) + '</b></div>'; });
+      html += '</div>';
+    }
+    html += renderCalcSourceSummary();
+    out.innerHTML = html;
+  }
+  function updateCalcMeta() {
+    var meta = $('calcMeta'); if (!meta) return;
+    var src = window.EVSE_SOURCE;
+    if (!src) { meta.textContent = ''; return; }
+    var st = src.stats();
+    var site = src.siteData ? src.siteData() : {};
+    var siteIds = site.__sourceIds || [];
+    var when = CALC_RESULT ? '上次校核 ' + String(CALC_RESULT.generatedAt).replace('T', ' ').slice(0, 19) + ' · ' : (CALC_STALE ? '待校核 · ' : '');
+    meta.textContent = when + '来源 ' + st.sources + ' / 已核验 ' + st.verifiedSources + ' / 未关闭要求 ' + st.openRequirements.length + (siteIds.length ? ' · 站点源 ' + siteIds.slice(0, 2).join('、') : '');
+  }
+  function renderCalc() {
+    if (!window.EVSE_CALC) { var out = $('calcResults'); if (out) out.innerHTML = '<div class="calcempty">校核模块未加载</div>'; return; }
+    renderCalcOptions();
+    renderCalcResult();
+    updateCalcMeta();
+  }
+  function runCalc() {
+    if (!D) { msg('请先生成图纸，再运行电气校核'); return false; }
+    if (!window.EVSE_CALC) { msg('校核模块未加载'); return false; }
+    CALC_RESULT = window.EVSE_CALC.auditDesign(D, calcOpts());
+    CALC_STALE = false;
+    renderCalcResult();
+    updateCalcMeta();
+    msg('电气校核完成：通过 ' + CALC_RESULT.summary.pass + ' / 注意 ' + CALC_RESULT.summary.warn + ' / 不通过 ' + CALC_RESULT.summary.fail + ' / 未知 ' + CALC_RESULT.summary.unknown + '（方案级预审，非合规认证）');
+    return true;
+  }
+  function exportCalcPack() {
+    if (!CALC_RESULT && !runCalc()) return;
+    var pack = window.EVSE_CALC.toEvidencePack(D, CALC_RESULT);
+    dl('EVSE-证据包-' + String(CALC_RESULT.generatedAt).replace(/[:T]/g, '-').slice(0, 19) + '.json', JSON.stringify(pack, null, 2), 'application/json');
+    msg('证据包已导出：含参数、校核结果、假设与来源登记（不替代原始资料归档）');
+  }
+  function exportCalcCsv() {
+    if (!CALC_RESULT && !runCalc()) return;
+    dl('EVSE-电气校核-' + String(CALC_RESULT.generatedAt).replace(/[:T]/g, '-').slice(0, 19) + '.csv', '\ufeff' + window.EVSE_CALC.toCSV(CALC_RESULT), 'text/csv;charset=utf-8');
+    msg('校核 CSV 已导出');
+  }
+  function importSourcePack(file) {
+    var rd = new FileReader();
+    rd.onload = function () {
+      try {
+        var o = JSON.parse(String(rd.result));
+        var r = window.EVSE_SOURCE.importPack(o);
+        invalidateCalc();
+        renderCalc();
+        msg('来源包导入：新增 ' + r.added + ' / 更新 ' + r.updated + '；来源总数 ' + r.sources + (r.warnings.length ? '；' + r.warnings.length + ' 条引用警告' : ''));
+      } catch (e) {
+        msg('来源包导入失败：' + e.message);
+      }
+    };
+    rd.readAsText(file, 'utf-8');
   }
   function renderTabs() {
     var sb = $('sheets');
@@ -1697,7 +2030,7 @@
   rebuildCustomLib();
 
   /* ---------- V14/V15: Word 式 ribbon 标签栏 + 抽屉面板 ---------- */
-  var RIB_DRAWER = { design: 1, lib: 1, insp: 1, bom: 1 };
+  var RIB_DRAWER = { design: 1, lib: 1, insp: 1, bom: 1, calc: 1 };
   var ribCur = '', drawerOpen = false;
   function switchRibbon(name, toggle, forceOpen) {
     var isD = !!RIB_DRAWER[name];
@@ -1715,6 +2048,7 @@
       dw.style.display = drawerOpen ? '' : 'none';
       document.querySelectorAll('#drawer .dpane').forEach(function (p) { p.classList.toggle('on', drawerOpen && p.getAttribute('data-dp') === name); });
     }
+    if (name === 'calc') renderCalc();
     try { localStorage.setItem('evse.ribbon', name); localStorage.setItem('evse.drawer', drawerOpen ? '1' : '0'); } catch (e) {}
   }
   document.querySelectorAll('#rtabs .rtab').forEach(function (b) { b.onclick = function () { switchRibbon(b.getAttribute('data-rt'), true); }; });
@@ -2039,7 +2373,9 @@ if (doc.url) {
     $('nlOut').textContent = '正在请求大模型…';
     try {
       var r = await window.EVSE_AI.parseParams(t);
-      Object.keys(r.params).forEach(function (k) { ST.params[k] = r.params[k]; });
+      var next = defaultsFor('evse');
+      Object.keys(r.params).forEach(function (k) { next[k] = r.params[k]; });
+      ST.params = normalizeParams('evse', next);
       renderFields();
       var a = r.assumptions.length
         ? '<div style="color:#e0a83a;margin-top:4px">AI 补的假设（请核对）：</div><ul style="margin:3px 0 0;padding-left:16px">'
@@ -2053,7 +2389,7 @@ if (doc.url) {
     b.disabled = false; b.textContent = '识别并填入参数';
   }
 
-  function renderAll() { renderTabs(); renderChips(); renderLib(); renderStatus(); renderInspector(); renderScore(); renderKb(); buildBom(); }
+  function renderAll() { renderTabs(); renderChips(); renderLib(); renderStatus(); renderInspector(); renderScore(); renderKb(); buildBom(); if (ribCur === 'calc') { renderCalcResult(); updateCalcMeta(); } }
 
   /* ---------- 启动 ---------- */
   function boot() {
@@ -2064,7 +2400,7 @@ if (doc.url) {
       var hm = /#c=([^&]+)/.exec(location.hash || '');
       if (hm) {
         var po = JSON.parse(decodeURIComponent(hm[1]));
-        Object.keys(po).forEach(function (k) { ST.params[k] = po[k]; });
+        ST.params = normalizeParams(pickFamily(po), po);
         setTimeout(function () { msg('已从分享链接载入方案：' + (po.name || '')); }, 300);
       }
     } catch (e) {}
@@ -2115,6 +2451,15 @@ if (doc.url) {
   $('bAddSheet').onclick = function () { openNewDlg('add'); };
   $('bSavePrj').onclick = savePrj;
   $('bOpenPrj').onclick = function () { $('prjFile').click(); };
+  $('bCalcRun').onclick = runCalc;
+  $('bCalcPack').onclick = exportCalcPack;
+  $('bCalcCsv').onclick = exportCalcCsv;
+  $('bCalcImport').onclick = function () { $('calcSrcFile').click(); };
+  $('calcSrcFile').addEventListener('change', function (e) {
+    var f = e.target.files && e.target.files[0];
+    if (f) importSourcePack(f);
+    e.target.value = '';
+  });
   $('prjFile').addEventListener('change', function (e) {
     var f = e.target.files && e.target.files[0]; if (!f) return;
     var rd = new FileReader();

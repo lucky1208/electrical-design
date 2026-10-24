@@ -166,7 +166,8 @@ window.EVSE_EXPORT = (function () {
   function exportDXFNow() {
     const d = getDesign();
     if (!d) { alert('请先生成方案'); return; }
-    const fn = 'evse-schematic-' + d.params.std + '-' + (d.params.kw || '') + 'kW.dxf';
+    const mw = d.params.family === 'mwess';
+    const fn = 'evse-schematic-' + (mw ? 'mwess' : (d.params.std || 'gb')) + '-' + (mw ? ((d.params.gunV || '') + 'V') : ((d.params.kw || '') + 'kW')) + '.dxf';
     download(fn, exportDXF(d, { scale: 1 }), 'application/dxf');
   }
 

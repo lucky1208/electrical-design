@@ -1,0 +1,98 @@
+{
+  "schema": "evse-source-pack/v1",
+  "version": "pilot-example",
+  "_note": "示例来源包：仅演示导入格式与字段，不包含真实项目资料。请用标准原文、厂家 datasheet、现场与运行记录替换。",
+  "sources": [
+    {
+      "id": "SITE-DEMO-001",
+      "type": "site",
+      "title": "示例站原始资料包（占位，不是实测）",
+      "publisher": "项目现场",
+      "version": "待导入",
+      "status": "pending",
+      "evidenceLevel": "none",
+      "scope": "变压器、并网点短路容量、保护定值、平面、电缆长度、环境条件",
+      "file": "sources/SITE-DEMO-001/",
+      "sha256": "",
+      "owner": "项目电气负责人",
+      "retrievedAt": "",
+      "_note": "导入后请填入实测/铭牌值，并附原始文件哈希与责任人。",
+      "data": {
+        "transformerKva": null,
+        "transformerZPct": null,
+        "gridIkKa": null,
+        "acCableM": null,
+        "dcCableM": null,
+        "ambientC": null,
+        "utility": "",
+        "interconnectionAgreement": ""
+      }
+    },
+    {
+      "id": "DS-DEMO-QF",
+      "type": "datasheet",
+      "title": "示例塑壳断路器 datasheet（占位，不是真实型号）",
+      "publisher": "示例厂家",
+      "version": "DEMO",
+      "status": "pending",
+      "evidenceLevel": "none",
+      "scope": "In、Icu/Ics、脱扣曲线、I2t、降容、附件",
+      "_note": "请替换为项目实际选型 datasheet，并填写文件哈希。",
+      "data": {
+        "InA": null,
+        "IcuKa": null,
+        "tripCurve": "",
+        "i2t": null,
+        "derating": []
+      }
+    },
+    {
+      "id": "OPS-DEMO-001",
+      "type": "operational",
+      "title": "示例运行数据（OCPP/BMS/工单，占位）",
+      "publisher": "示例站",
+      "version": "待导入",
+      "status": "pending",
+      "evidenceLevel": "none",
+      "scope": "充电会话、负荷曲线、告警、故障、维护",
+      "_note": "运行数据用于负荷/衰减/可用性建模，不能用手工估计替代。"
+    },
+    {
+      "id": "TEST-DEMO-001",
+      "type": "test-report",
+      "title": "示例 FAT/SAT/并网/EMC 测试报告（占位）",
+      "publisher": "示例实验室",
+      "version": "待导入",
+      "status": "pending",
+      "evidenceLevel": "none",
+      "scope": "出厂、现场、并网、EMC 与消防试验",
+      "_note": "测试报告是关闭验证要求的证据，不是设计假设。"
+    }
+  ],
+  "requirements": [
+    {
+      "id": "REQ-PILOT-001",
+      "title": "示例站并网、保护与电能质量证据闭环",
+      "sourceIds": [
+        "SITE-DEMO-001",
+        "DS-DEMO-QF",
+        "STD-GB-36547",
+        "STD-IEEE-1547"
+      ],
+      "status": "open",
+      "_note": "导入来源后，由专业人员在证据包中逐条关闭。"
+    }
+  ],
+  "links": [
+    {
+      "from": "SITE-DEMO-001",
+      "to": "REQ-PILOT-001",
+      "relation": "evidence-for"
+    },
+    {
+      "from": "DS-DEMO-QF",
+      "to": "REQ-SC-001",
+      "relation": "evidence-for"
+    }
+  ]
+}

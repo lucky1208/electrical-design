@@ -587,9 +587,20 @@ window.EVSE_CORE = (function () {
   function build(par) {
     const p = Object.assign({
       name: '示范站 直流充电桩', site: '', std: 'gb', kw: 240, guns: 2, gunA: 250,
-      moduleKw: 40, ess: true, essKwh: 200, essClusters: 2, coupling: 'dc', busV: 750
+      moduleKw: 40, ess: false, essKwh: 200, essClusters: 2, coupling: 'dc', busV: 750
     }, par || {});
-    const SD = STDDEF[p.std] || STDDEF.gb;
+    p.name = String(p.name || '示范站 直流充电桩');
+    p.busV = Math.max(50, Number(p.busV) || 750);
+    p.kw = Math.max(1, Number(p.kw) || 240);
+    p.guns = Math.max(1, Math.min(6, Math.round(Number(p.guns) || 2)));
+    p.gunA = Math.max(1, Number(p.gunA) || 250);
+    p.moduleKw = Math.max(1, Number(p.moduleKw) || 40);
+    p.ess = p.ess === true || p.ess === 1 || p.ess === '1' || String(p.ess).toLowerCase() === 'true';
+    p.essKwh = Math.max(1, Number(p.essKwh) || 200);
+    p.essClusters = Math.max(1, Math.min(4, Math.round(Number(p.essClusters) || 2)));
+    p.coupling = p.coupling === 'ac' ? 'ac' : 'dc';
+    if (!STDDEF[p.std]) p.std = 'gb';
+    const SD = STDDEF[p.std];
     const sig = SD.sig;
     const isGB = sig === 'gb';
     const acV = 400;
