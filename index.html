@@ -38,6 +38,21 @@
     border-radius:5px;padding:6px 8px;font-size:12px;font-family:inherit}
   .gen{width:100%;margin:6px 0 16px;background:#0e7c86;border:1px solid #12a0ad;color:#fff;
     border-radius:6px;padding:9px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit}
+  .gen.loading{display:flex;align-items:center;justify-content:center;gap:8px;cursor:progress;opacity:.85}
+  .gen.loading::before{content:"";width:13px;height:13px;border-radius:50%;border:2px solid rgba(255,255,255,.35);
+    border-top-color:#fff;animation:spin .7s linear infinite}
+  .gen:disabled{cursor:progress}
+  .cvwrap{position:relative;flex:1;min-width:0;min-height:0;display:flex;flex-direction:column;background:#0b0e12}
+  #busy{position:absolute;inset:0 0 28px;z-index:20;display:none;align-items:center;justify-content:center;
+    background:rgba(8,11,16,.62);backdrop-filter:blur(2px)}
+  #busy.on{display:flex}
+  .busybox{display:flex;flex-direction:column;align-items:center;gap:12px;padding:26px 40px;border:1px solid #263341;
+    border-radius:14px;background:rgba(15,20,26,.94);box-shadow:0 20px 60px rgba(0,0,0,.55)}
+  .spin{width:42px;height:42px;border-radius:50%;border:3px solid rgba(143,220,255,.16);border-top-color:#22d3ee;
+    border-right-color:#2f6fdc;animation:spin .8s linear infinite;box-shadow:0 0 24px rgba(34,211,238,.22)}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .busytxt{font-size:13px;font-weight:600;letter-spacing:.06em;color:#dff3ff}
+  .busysub{font-size:10.5px;color:#7c8794;letter-spacing:.06em}
   .chips{display:flex;flex-wrap:wrap;gap:5px;margin-bottom:10px}
   .chip{border:1px solid #2b333d;background:#0f1318;color:#5f6b78;border-radius:4px;padding:4px 7px;
     font-size:10.5px;cursor:pointer;display:flex;align-items:center;gap:5px;font-family:inherit}
@@ -132,6 +147,7 @@
   .sheets button.on{background:#1a2531;border-color:#2f6fdc;color:#bfeaff;font-weight:600;
     box-shadow:inset 2px 0 0 #22d3ee,0 0 0 1px rgba(47,111,220,.18)}
   .sheetacts{display:flex;align-items:center;gap:6px;flex:0 0 auto;padding-left:10px;border-left:1px solid #232b34}
+  .ssep{width:1px;height:18px;background:#2b333d;margin:0 2px;flex:0 0 1px}
   /* V15: 顶部抽屉面板（原左右两栏收进来） */
   .drawer{background:#151a20;border-bottom:1px solid #232b34;max-height:46vh;overflow:auto;padding:10px 16px 14px;flex:0 0 auto}
   .dpane{display:none}
@@ -194,13 +210,6 @@
   </div>
 
   <div class="ribbon" id="ribbon">
-    <div class="rpane on" data-rp="file">
-      <button class="btn" id="bSavePrj" title="保存工程到浏览器并导出 JSON（Ctrl+S）">保存工程</button>
-      <button class="btn" id="bOpenPrj" title="打开工程 JSON 文件">打开工程</button>
-      <input type="file" id="prjFile" accept=".json,application/json" style="display:none">
-      <div class="rsep"></div>
-      <span class="rlbl">工程存取 · 支持 JSON 导入 / 导出</span>
-    </div>
     <div class="rpane" data-rp="edit">
       <button class="btn" id="bUndo">撤销</button>
       <button class="btn" id="bRedo">重做</button>
@@ -314,14 +323,25 @@
   <div class="sheetbar">
     <div class="sheets" id="sheets"></div>
     <div class="sheetacts">
+      <button class="btn sm" id="bSavePrj" title="保存工程到浏览器并导出 JSON（Ctrl+S）">保存工程</button>
+      <button class="btn sm" id="bOpenPrj" title="打开工程 JSON 文件">打开工程</button>
+      <input type="file" id="prjFile" accept=".json,application/json" style="display:none">
+      <span class="ssep" aria-hidden="true"></span>
       <button class="btn sm" id="bNew" title="新建空白电路图（图框尺寸/标题栏可自定义，自主画图）" style="background:#1d4ed8;border-color:#3b82f6;color:#fff">＋ 新建图纸</button>
       <button class="btn sm" id="bAddSheet" title="给当前工程添加新的空白页">＋ 加页</button>
     </div>
   </div>
 
   <div class="body">
-    <div style="flex:1;min-width:0;display:flex;flex-direction:column;background:#0b0e12">
+    <div class="cvwrap">
       <div id="cv"></div>
+      <div id="busy" role="status" aria-live="polite" aria-hidden="true">
+        <div class="busybox">
+          <div class="spin" aria-hidden="true"></div>
+          <div class="busytxt">正在生成图纸…</div>
+          <div class="busysub">布线 · 跨越处理 · 审计评分</div>
+        </div>
+      </div>
       <div class="status">
         <span id="st1"></span><span id="st2"></span><span id="st3"></span>
         <span id="st4"></span><span id="st5"></span>
@@ -492,6 +512,32 @@
     paint(fit !== false); renderAll();
   }
   function msg(s) { $('msg').textContent = s; var me = $('msg'); if (me) me.style.color = ''; }
+  var busyOn = false;
+  function runBusy(text, fn) {
+    if (busyOn) return;
+    busyOn = true;
+    text = text || '正在生成图纸…';
+    var el = $('busy'), b = $('bGen'), t = el && el.querySelector('.busytxt');
+    if (t) t.textContent = text;
+    if (el) { el.classList.add('on'); el.setAttribute('aria-hidden', 'false'); }
+    if (b) { b.classList.add('loading'); b.disabled = true; }
+    msg(text);
+    var t0 = Date.now();
+    function finish() {
+      var left = Math.max(0, 320 - (Date.now() - t0));
+      setTimeout(function () {
+        if (el) { el.classList.remove('on'); el.setAttribute('aria-hidden', 'true'); }
+        if (b) { b.classList.remove('loading'); b.disabled = false; }
+        busyOn = false;
+      }, left);
+    }
+    requestAnimationFrame(function () {
+      setTimeout(function () {
+        try { fn(); } catch (err) { console.error(err); msg('⚠ 生成失败：' + ((err && err.message) || err)); }
+        finish();
+      }, 40);
+    });
+  }
   /* v231b: 全局错误可视化——静默失败变为红色横幅 */
   window.addEventListener('error', function (ev) {
     var me = document.getElementById('msg');
@@ -1001,8 +1047,8 @@
         dropOtherFamily(pr.p.family);
         Object.keys(pr.p).forEach(function (k) { ST.params[k] = pr.p[k]; });
         ST.params.name = pr.n + ' 示范站';
-        renderFields(); generate(true);
-        msg('已载入方案：' + pr.n);
+        renderFields();
+        runBusy('正在载入方案并生成图纸…', function () { generate(true); msg('已载入方案：' + pr.n); });
       };
     });
   }
@@ -1662,8 +1708,8 @@
     ribCur = name;
     document.querySelectorAll('#rtabs .rtab').forEach(function (b) { b.classList.toggle('on', b.getAttribute('data-rt') === name); });
     document.querySelectorAll('#ribbon .rpane').forEach(function (p) { p.classList.toggle('on', !isD && p.getAttribute('data-rp') === name); });
-    var rb = $('ribbon');
-    if (rb) rb.style.display = isD ? 'none' : '';
+    var rb = $('ribbon'), pane = document.querySelector('#ribbon .rpane[data-rp="' + name + '"]');
+    if (rb) rb.style.display = (!isD && pane) ? '' : 'none';
     var dw = $('drawer');
     if (dw) {
       dw.style.display = drawerOpen ? '' : 'none';
@@ -2061,7 +2107,10 @@ if (doc.url) {
         navigator.clipboard.writeText(u).then(function () { msg('方案链接已复制，发给同事一键还原：' + u.substring(0, 60) + '…'); }, function () { prompt('复制方案链接', u); });
       } else prompt('复制方案链接', u);
     };
-    $('bGen').onclick = function () { if (D && D.params && D.params.custom && !window.confirm('当前为自定义图纸：重新生成将用左侧参数方案覆盖画布（未保存内容会丢失，已保存的工程文件不受影响）。继续？')) return; generate(true); };
+    $('bGen').onclick = function () {
+      if (D && D.params && D.params.custom && !window.confirm('当前为自定义图纸：重新生成将用左侧参数方案覆盖画布（未保存内容会丢失，已保存的工程文件不受影响）。继续？')) return;
+      runBusy(D ? '正在重新生成图纸…' : '正在生成图纸…', function () { generate(true); });
+    };
   $('bNew').onclick = function () { openNewDlg('new'); };
   $('bAddSheet').onclick = function () { openNewDlg('add'); };
   $('bSavePrj').onclick = savePrj;
@@ -2180,7 +2229,7 @@ if (doc.url) {
         lw = w; lh = h; doFit();
       }).observe(host);
     }
-    generate(true);
+    runBusy('正在生成图纸…', function () { generate(true); });
   }
   boot();
 })();
