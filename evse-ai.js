@@ -18,7 +18,7 @@ window.EVSE_AI = (function () {
   'use strict';
 
   const LS = 'evse.ai.cfg.v1';
-  const DEF = { url: 'https://api.openai.com/v1', key: '', model: 'gpt-4o-mini', search: false, temp: 0.1 };
+  const DEF = { url: 'https://api.openai.com/v1', key: '', model: 'gpt-4o-mini', search: false, searchMode: 'off', searchKey: '', temp: 0.1 };
 
   function cfg(next) {
     if (next) {
@@ -45,7 +45,8 @@ window.EVSE_AI = (function () {
       temperature: (opt && opt.temp != null) ? opt.temp : c.temp,
       max_tokens: (opt && opt.max) || 4096
     };
-    if (opt && opt.json) body.response_format = { type: 'json_object' };
+    if (opt && opt.json && !opt.webSearch) body.response_format = { type: 'json_object' };
+    if (opt && opt.webSearch) body.web_search_options = { search_context_size: 'medium' };
     const ctrl = new AbortController();
     const t = setTimeout(function () { ctrl.abort(); }, (opt && opt.timeout) || 180000);
     let res;
@@ -196,11 +197,149 @@ window.EVSE_AI = (function () {
     return out;
   }
 
+  const DOC_SYS = [
+    '你是充电储能系统的文档检索与选型资料管理员。',
+    '只输出 JSON：{"rows":[{"i":行号,"url":"","title":"","vendor":"","conf":"high|med|low","reason":""}]}',
+    '规则：',
+    '1. 只推荐 http(s) 官方链接：厂家官网、官方文档中心、官方 datasheet/选型手册 PDF、官方产品页。',
+    '2. 优先使用输入中的 search 搜索结果；其次使用 official 官方入口；不得编造 search 中不存在的深链。',
+    '3. 拒绝电商、论坛、文库、CSDN、百度百科、聚合站、搜索结果页、短链、未知下载站。',
+    '4. 没有可靠结果时 url 留空，reason 说明；conf=low。',
+    '5. 不得推荐与条目无关的链接；宁可留空，不要编造。'
+  ].join('\n');
+
+  function validateDocUrl(u) {
+    try {
+      const x = new URL(String(u || '').trim());
+      if (!/^https?:$/.test(x.protocol)) return '';
+      const host = x.hostname.toLowerCase();
+      const badHost = /(^|\.)(google|bing|baidu|sogou|so|duckduckgo|yandex|yahoo|ask|ecosia|csdn|zhihu|doc88|docin|book118|wenku|jianshu|51cto|elecfans|1688|taobao|tmall|jd|amazon)\./i;
+      if (badHost.test(host)) return '';
+      if (x.username || x.password) return '';
+      return x.href;
+    } catch (e) { return ''; }
+  }
+
+  async function searchWeb(query) {
+    const c = load();
+    if (c.searchMode !== 'tavily' || !c.searchKey) throw new Error('未配置 Tavily 搜索 Key');
+    let res;
+    try {
+      res = await fetch('https://api.tavily.com/search', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ api_key: c.searchKey, query: String(query || '').slice(0, 400), search_depth: 'basic', max_results: 5, include_answer: false, include_raw_content: false })
+      });
+    } catch (e) {
+      throw new Error('Tavily 直连失败（可能 CORS/网络）：' + e.message + '；可改用模型自带联网或服务端反代');
+    }
+    if (!res.ok) {
+      let d = '';
+      try { d = (await res.text()).slice(0, 200); } catch (e) {}
+      throw new Error('Tavily HTTP ' + res.status + (d ? ' · ' + d : ''));
+    }
+    const j = await res.json();
+    return (j.results || []).map(function (r) {
+      return { title: String(r.title || '').slice(0, 160), url: validateDocUrl(r.url), content: String(r.content || '').slice(0, 300) };
+    }).filter(function (r) { return r.url; });
+  }
+
+  function officialUrls(item) {
+    const out = [];
+    const P = window.EVSE_BOM && window.EVSE_BOM.PORTAL;
+    (item.vendors || []).forEach(function (v) {
+      const u = P && P[v];
+      if (u && out.indexOf(u) < 0) out.push(u);
+    });
+    return out.slice(0, 3);
+  }
+
+  async function recommendDocs(items, onProgress) {
+    const c = load();
+    const mode = c.searchMode === 'tavily' || c.searchMode === 'model' ? c.searchMode : 'off';
+    const BATCH = 6;
+    const out = {}, warnings = [];
+    let anySearch = false;
+    for (let s = 0; s < items.length; s += BATCH) {
+      const slice = items.slice(s, s + BATCH);
+      const enriched = [];
+      for (let k = 0; k < slice.length; k++) {
+        const item = slice[k];
+        let search = [];
+        if (mode === 'tavily') {
+          try {
+            search = await searchWeb([(item.vendors || []).slice(0, 2).join(' '), item.model, item.name, 'datasheet PDF'].filter(Boolean).join(' '));
+          } catch (e) {
+            warnings.push(String(item.name || ('行 ' + item.i)) + '：' + e.message);
+          }
+        }
+        if (search.length) anySearch = true;
+        enriched.push({ i: item.i, cat: item.cat, name: item.name, model: item.model, vendors: item.vendors || [], params: item.params, official: officialUrls(item), search: search });
+      }
+      const searchUsed = mode === 'tavily' ? enriched.some(function (x) { return x.search.length; }) : mode === 'model';
+      const user = { searchMode: mode, searchUsed: searchUsed, rows: enriched };
+      let txt, usedSearch = searchUsed;
+      try {
+        txt = await chat([
+          { role: 'system', content: DOC_SYS },
+          { role: 'user', content: JSON.stringify(user, null, 1) }
+        ], { json: true, temp: 0.1, max: 3500, webSearch: mode === 'model' });
+      } catch (e) {
+        if (mode === 'model') {
+          warnings.push('模型联网字段不被支持，已降级为模型知识：' + e.message);
+          try {
+            txt = await chat([
+              { role: 'system', content: DOC_SYS },
+              { role: 'user', content: JSON.stringify(Object.assign({}, user, { searchUsed: false }), null, 1) }
+            ], { json: true, temp: 0.1, max: 3500 });
+            usedSearch = false;
+          } catch (e2) {
+            warnings.push('文档推荐失败：' + e2.message);
+            if (onProgress) onProgress(Math.min(s + BATCH, items.length), items.length, e2.message);
+            continue;
+          }
+        } else {
+          warnings.push('文档推荐失败：' + e.message);
+          if (onProgress) onProgress(Math.min(s + BATCH, items.length), items.length, e.message);
+          continue;
+        }
+      }
+      if (usedSearch) anySearch = true;
+      try {
+        const j = grabJSON(txt);
+        (j.rows || []).forEach(function (r) {
+          const i = +r.i;
+          const item = enriched.filter(function (x) { return x.i === i; })[0];
+          if (!item) return;
+          const url = validateDocUrl(r.url);
+          let conf = ['high', 'med', 'low'].indexOf(r.conf) >= 0 ? r.conf : 'low';
+          const exact = !!(url && item.search.some(function (s2) { return s2.url === url; }));
+          const official = !!(url && item.official.some(function (u) { return u && url.indexOf(u.replace(/\/+$/, '')) === 0; }));
+          const rowSearchUsed = mode === 'tavily' ? item.search.length > 0 : usedSearch;
+          if (!url) conf = 'low';
+          else if (!rowSearchUsed) conf = official ? 'med' : 'low';
+          else if (mode === 'tavily' && !exact && !official) conf = 'low';
+          else if (mode === 'model' && !official && conf === 'high') conf = 'med';
+          out[i] = {
+            doc: url, docTitle: String(r.title || '').slice(0, 120), docVendor: String(r.vendor || '').slice(0, 80),
+            docConf: conf, docReason: String(r.reason || '').slice(0, 240),
+            searchUsed: rowSearchUsed,
+            src: 'AI_SEARCH'
+          };
+        });
+      } catch (e) {
+        warnings.push('返回 JSON 解析失败：' + e.message);
+      }
+      if (onProgress) onProgress(Math.min(s + BATCH, items.length), items.length, warnings.length ? warnings[0] : null);
+    }
+    return { rows: out, meta: { searchMode: mode, searchUsed: anySearch, warnings: warnings } };
+  }
+
   async function test() {
     const t0 = performance.now();
     const r = await chat([{ role: 'user', content: '回复两个字：连通' }], { temp: 0, max: 20, timeout: 30000 });
     return { ok: true, ms: Math.round(performance.now() - t0), reply: String(r).trim().slice(0, 40) };
   }
 
-  return { cfg, ready, chat, parseParams, enrichBOM, test, DEF };
+  return { cfg, ready, chat, parseParams, enrichBOM, recommendDocs, validateDocUrl, searchWeb, test, DEF };
 })();

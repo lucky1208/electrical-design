@@ -353,13 +353,15 @@
             <div class="lbl" style="margin:0">工程 BOM</div>
             <div style="margin-left:auto;font-size:10px;color:#5f6b78" id="bomMeta"></div>
           </div>
-          <div style="display:flex;gap:5px;margin-bottom:9px;max-width:560px">
+          <div style="display:flex;gap:5px;margin-bottom:9px;max-width:760px;flex-wrap:wrap">
             <button class="btn" id="bBomAi" style="flex:1;background:#6d28d9;border-color:#7c3aed;color:#fff">AI 补全型号/厂家/手册</button>
+            <button class="btn" id="bBomDocs" style="flex:1;background:#1e5cc8;border-color:#2f6fdc;color:#fff" title="AI 联网搜索缺失的手册/datasheet URL；结果标 AI 需人工核验，并写入图纸 BOM">AI 搜索缺失手册链接</button>
+            <button class="btn" id="bBomDocsClear" title="清除浏览器保存的 AI 手册链接，恢复手册库/原厂入口">清除 AI 手册</button>
             <button class="btn" id="bBomCsv">导出 CSV</button>
             <button class="btn" id="bBomKb" title="导入 JSON 手册库（EVSE_MANUAL_KB.merge 格式，参考 manual-db.example.json）">导入手册库</button>
             <input type="file" id="kbFile" accept=".json,application/json" style="display:none">
           </div>
-          <div style="font-size:10px;color:#6f7a87;line-height:1.6">数量与关键参数由设计模型计算得出，真实可追溯。型号仅到系列级、厂家为常见候选（非背书）。AI 补全内容标 <span style="color:#a78bfa">AI</span>，<b style="color:#e0a83a">必须人工核验</b>。</div>
+          <div style="font-size:10px;color:#6f7a87;line-height:1.6">数量与关键参数由设计模型计算得出，真实可追溯。型号仅到系列级、厂家为常见候选（非背书）。AI 补全/搜索内容标 <span style="color:#a78bfa">AI</span>，链接与型号均<b style="color:#e0a83a">必须人工核验并归档厂家原文</b>。</div>
           <div id="bomProg" style="font-size:10.5px;color:#8c96a3;margin-top:7px"></div>
         </div>
         <div id="bom" style="padding:0 8px 12px"></div>
@@ -421,7 +423,7 @@
 </div>
 
 <div id="aiDlg" style="display:none;position:fixed;inset:0;background:rgba(6,9,13,.72);z-index:99;align-items:center;justify-content:center">
-  <div style="width:520px;max-width:94vw;background:#151a20;border:1px solid #2b333d;border-radius:10px;padding:20px">
+  <div style="width:520px;max-width:94vw;max-height:90vh;overflow:auto;background:#151a20;border:1px solid #2b333d;border-radius:10px;padding:20px">
     <div style="font-size:14px;font-weight:700;margin-bottom:4px">大语言模型接入</div>
     <div style="font-size:11px;color:#7c8794;line-height:1.6;margin-bottom:14px">
       兼容 OpenAI <code>/chat/completions</code> 协议的任意服务：OpenAI · Azure · DeepSeek ·
@@ -434,9 +436,18 @@
       <input id="aiKey" type="password" placeholder="sk-..."/></label>
     <label class="f"><span>模型名</span>
       <input id="aiModel" type="text" placeholder="deepseek-chat / gpt-4o-mini / qwen-plus"/></label>
+    <label class="f"><span>手册 URL 联网搜索方式</span>
+      <select id="aiSearchMode">
+        <option value="off">关闭：仅模型知识，链接按低置信度标注</option>
+        <option value="model">模型自带联网（需搜索模型 / web_search_options）</option>
+        <option value="tavily">Tavily Search API</option>
+      </select></label>
+    <label class="f"><span>Tavily API Key（仅 Tavily 模式）</span>
+      <input id="aiSearchKey" type="password" placeholder="tvly-..."/></label>
     <div style="font-size:10.5px;color:#6f7a87;line-height:1.6;margin:4px 0 14px">
       ① 浏览器直连第三方 API 会受 CORS 限制；若提示跳约，请在自己服务器上做一个反代（README 含 Nginx 配置）。<br>
-      ② BOM 补全需要联网检索能力才能拿到真实手册链接；纯离线模型容易幻觉型号，请优先选带搜索工具的模型。
+      ② 手册 URL 推荐优先使用「模型自带联网」或 Tavily；未联网时只推荐官方文档中心，深链一律标低置信度。<br>
+      ③ AI 推荐链接必须人工核验，不替代厂家原始 datasheet / 手册归档。
     </div>
     <div style="display:flex;gap:7px">
       <button class="btn" id="aiTest">测试连通</button>
@@ -2329,8 +2340,9 @@ if (doc.url) {
         + '<div class="kv"><b>位号</b><s style="color:#7c8794;font-size:10.5px">' + esc(r.tags.join(' ')) + '</s></div>'
         + '<div class="kv"><b>说明</b><s style="color:#a7b1bd;font-size:10.5px">' + esc((ai && ai.note) ? ai.note : r.note) + '</s></div>'
         + '<div class="kv"><b>手册</b><s>' + (doc.url
-          ? '<a href="' + esc(doc.url) + '" target="_blank" rel="noopener" style="font-size:10.5px">' + esc(doc.text) + ' ↗</a>'
+          ? '<a href="' + esc(doc.url) + '" target="_blank" rel="noopener" title="' + escAttr(doc.url) + '" style="font-size:10.5px">' + esc(doc.text) + ' ↗</a>'
             + (doc.ai ? '<span style="color:#a78bfa;font-size:9.5px"> AI 提供·需核验</span>' : '<span style="color:#6f7a87;font-size:9.5px"> 原厂·按型号检索</span>')
+            + '<span style="display:block;font-size:9px;color:#6f7a87;word-break:break-all">' + esc(doc.url) + '</span>'
           : '<span style="color:#8a93a0;font-size:10.5px">' + esc(doc.text) + '</span>') + '</s></div>'
         + '</div>';
     });
@@ -2357,6 +2369,44 @@ if (doc.url) {
       $('bomProg').textContent = '失败：' + e.message;
     }
     b.disabled = false; b.textContent = 'AI 补全型号/厂家/手册';
+  }
+  async function bomDocs() {
+    if (!BOM) return;
+    if (!window.EVSE_AI.ready()) { openAi(); $('aiMsg').textContent = '先配置大模型，再搜索手册链接'; return; }
+    var targets = [];
+    BOM.rows.forEach(function (r, i) {
+      var dl = window.EVSE_BOM.docLabel(r);
+      if (!dl.url || dl.ai) targets.push({ i: i, cat: r.cat, name: r.name, model: (r.ai && r.ai.model) || r.model, vendors: r.vendors, params: r.params, qty: r.qty });
+    });
+    if (!targets.length) { $('bomProg').textContent = '全部 BOM 条目已有手册链接；如需重搜请先清除 AI 链接'; return; }
+    var b = $('bBomDocs'); b.disabled = true; b.textContent = 'AI 搜索中…';
+    $('bomProg').textContent = 'AI 搜索手册链接 0/' + targets.length + '（推荐链接需人工核验）';
+    try {
+      var res = await window.EVSE_AI.recommendDocs(targets, function (done, all, err) {
+        $('bomProg').textContent = 'AI 搜索手册链接 ' + done + '/' + all + (err ? ' · ' + err : '');
+      });
+      var map = {}, n = 0, empty = 0;
+      Object.keys(res.rows).forEach(function (k) {
+        var i = +k, a = res.rows[k], row = BOM.rows[i];
+        if (!row) return;
+        if (a.doc) {
+          map[window.EVSE_BOM.docKey(row)] = { url: a.doc, title: a.docTitle, vendor: a.docVendor, note: a.docReason, conf: a.docConf };
+          n++;
+        } else empty++;
+        aiRows[i] = Object.assign({}, aiRows[i] || {}, { doc: a.doc, docTitle: a.docTitle, docVendor: a.docVendor, docReason: a.docReason, docConf: a.docConf, src: 'AI_SEARCH' });
+      });
+      window.EVSE_BOM.setDocOverrides(map);
+      buildBom();
+      paint(false);
+      var meta = res.meta || {};
+      var warn = (meta.warnings && meta.warnings.length) ? ' · ' + meta.warnings.length + ' 条搜索警告' : '';
+      var mode = meta.searchMode === 'model' ? '模型联网' : meta.searchMode === 'tavily' ? 'Tavily' : '未联网';
+      $('bomProg').textContent = 'AI 搜索完成：' + n + ' 条链接写入 BOM/图纸，' + empty + ' 条未找到官方链接 · ' + mode + warn + '；全部需人工核验';
+      msg('AI 手册链接已写入 BOM 与图纸：' + n + ' 条（' + mode + '，需核验）');
+    } catch (e) {
+      $('bomProg').textContent = '失败：' + e.message;
+    }
+    b.disabled = false; b.textContent = 'AI 搜索缺失手册链接';
   }
   function exportCsv() {
     if (!BOM) return;
@@ -2388,6 +2438,7 @@ if (doc.url) {
   function openAi() {
     var c = window.EVSE_AI.cfg();
     $('aiUrl').value = c.url; $('aiKey').value = c.key; $('aiModel').value = c.model;
+    $('aiSearchMode').value = c.searchMode || 'off'; $('aiSearchKey').value = c.searchKey || '';
     $('aiMsg').textContent = '';
     $('aiDlg').style.display = 'flex';
   }
@@ -2512,14 +2563,24 @@ if (doc.url) {
     $('bAi').onclick = openAi;
     $('bNl').onclick = nlParse;
     $('bBomAi').onclick = bomAi;
+    $('bBomDocs').onclick = bomDocs;
+    $('bBomDocsClear').onclick = function () {
+      window.EVSE_BOM.clearDocOverrides();
+      Object.keys(aiRows).forEach(function (i) {
+        if (!aiRows[i]) return;
+        delete aiRows[i].doc; delete aiRows[i].docTitle; delete aiRows[i].docVendor; delete aiRows[i].docReason; delete aiRows[i].docConf;
+      });
+      buildBom(); paint(false);
+      $('bomProg').textContent = '已清除 AI 手册链接，恢复手册库/原厂入口';
+    };
     $('bBomCsv').onclick = exportCsv;
     $('aiCancel').onclick = function () { $('aiDlg').style.display = 'none'; };
     $('aiSave').onclick = function () {
-      window.EVSE_AI.cfg({ url: $('aiUrl').value.trim(), key: $('aiKey').value.trim(), model: $('aiModel').value.trim() });
+      window.EVSE_AI.cfg({ url: $('aiUrl').value.trim(), key: $('aiKey').value.trim(), model: $('aiModel').value.trim(), searchMode: $('aiSearchMode').value, searchKey: $('aiSearchKey').value.trim() });
       $('aiDlg').style.display = 'none'; msg('大模型配置已保存到本浏览器');
     };
     $('aiTest').onclick = async function () {
-      window.EVSE_AI.cfg({ url: $('aiUrl').value.trim(), key: $('aiKey').value.trim(), model: $('aiModel').value.trim() });
+      window.EVSE_AI.cfg({ url: $('aiUrl').value.trim(), key: $('aiKey').value.trim(), model: $('aiModel').value.trim(), searchMode: $('aiSearchMode').value, searchKey: $('aiSearchKey').value.trim() });
       $('aiMsg').textContent = '测试中…'; $('aiMsg').style.color = '#8c96a3';
       try {
         var r = await window.EVSE_AI.test();

@@ -214,8 +214,11 @@ window.EVSE_RENDER = (function () {
       if (!grp[key]) {
         grp[key] = { cat: k.cat, name: d.name, model: k.series, vendors: k.vendors,
           params: d.spec || '—', qty: 0, note: k.note || '—', tags: [], sym: d.sym };
-        grp[key].manuals = (window.EVSE_MANUAL_KB && EVSE_MANUAL_KB.lookup) ? EVSE_MANUAL_KB.lookup(k.series) : [];
-        grp[key].doc = grp[key].manuals.length ? grp[key].manuals[0].url : '';
+        const dl = BOM ? BOM.docLink(grp[key]) : null;
+        grp[key].doc = dl ? dl.url : '';
+        grp[key].docKind = dl ? dl.kind : 'none';
+        grp[key].docVendor = dl ? dl.vendor : '';
+        grp[key].hint = dl ? dl.hint : '';
         order.push(key);
       }
       grp[key].qty++; grp[key].tags.push(d.tag);
@@ -276,7 +279,7 @@ window.EVSE_RENDER = (function () {
             + (ci === 5 ? ' text-anchor="middle"' : '')
             + ' style="font-size:' + FS + 'px;' + (bold ? 'font-weight:700;' : '')
             + (isDoc && rc.dl.url ? 'text-decoration:underline;' : '') + 'fill:' + fill + '">' + esc(ln) + '</text>';
-          s += (isDoc && rc.dl.url) ? '<a href="' + esc(rc.dl.url) + '" target="_blank">' + body + '</a>' : body;
+          s += (isDoc && rc.dl.url) ? '<a href="' + esc(rc.dl.url) + '" target="_blank"><title>' + esc(rc.dl.url) + '</title>' + body + '</a>' : body;
         });
         x += CW[ci];
       });
@@ -286,7 +289,7 @@ window.EVSE_RENDER = (function () {
       }
       ry += rc.h;
     });
-    s += '<text x="' + (bx + 8) + '" y="' + (ry + 13) + '" style="font-size:6.2px;fill:#94a3b8">数量·关键参数·位号由引脚级网表计算得出；型号参考仅到系列级，推荐厂家为该品类常见候选（非推荐背书、非授权关系）；手册链接为原厂文档中心入口，具体型号 datasheet 需在其中按型号检索并人工核实。</text>';
+    s += '<text x="' + (bx + 8) + '" y="' + (ry + 13) + '" style="font-size:6.2px;fill:#94a3b8">数量·关键参数·位号由引脚级网表计算得出；型号参考仅到系列级，推荐厂家为该品类常见候选（非推荐背书、非授权关系）；手册链接优先原厂文档中心，标 AI 的链接为模型/搜索推荐，均须人工核验并归档厂家原文。</text>';
     return s;
   }
 

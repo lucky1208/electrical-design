@@ -271,7 +271,42 @@ window.EVSE_BOM = (function () {
      ① 原厂文档中心（确知的稳定官方入口）
      ② AI 补全的具体型号 datasheet（enrichBOM 回填，标注置信度）
      ③ 自研件/按图加工件：无原厂手册，标注为内部文档 */
+  var DOC_STORE = 'evse.bom.docOverrides.v1';
+  var DOC_OVERRIDES = {};
+  try {
+    if (typeof localStorage !== 'undefined') DOC_OVERRIDES = JSON.parse(localStorage.getItem(DOC_STORE) || '{}') || {};
+  } catch (e) { DOC_OVERRIDES = {}; }
+  function docKey(row) { return String((row && row.cat) || '') + '|' + String((row && row.name) || ''); }
+  function validHttpUrl(u) {
+    try {
+      var x = new URL(String(u || '').trim());
+      return /^https?:$/.test(x.protocol) ? x.href : '';
+    } catch (e) { return ''; }
+  }
+  function getDocOverride(row) {
+    var o = DOC_OVERRIDES[docKey(row)];
+    return o && validHttpUrl(o.url) ? o : null;
+  }
+  function setDocOverrides(map) {
+    if (!map || typeof map !== 'object') return 0;
+    var n = 0;
+    Object.keys(map).forEach(function (k) {
+      var v = map[k] || {};
+      var url = validHttpUrl(v.url);
+      if (!url) return;
+      DOC_OVERRIDES[k] = { url: url, title: String(v.title || ''), vendor: String(v.vendor || ''), note: String(v.note || ''), conf: String(v.conf || 'low'), at: new Date().toISOString() };
+      n++;
+    });
+    try { if (typeof localStorage !== 'undefined') localStorage.setItem(DOC_STORE, JSON.stringify(DOC_OVERRIDES)); } catch (e) {}
+    return n;
+  }
+  function clearDocOverrides() {
+    DOC_OVERRIDES = {};
+    try { if (typeof localStorage !== 'undefined') localStorage.removeItem(DOC_STORE); } catch (e) {}
+  }
   function docLink(row) {
+    var ov = getDocOverride(row);
+    if (ov) return { url: ov.url, kind: 'ai', vendor: ov.vendor || 'AI 推荐', hint: ov.note || '' };
     /* V8-MANUAL: 手册数据库优先——2026-09-26 逐链联网核验，失效链接已替换/标注 */
     const kb = window.EVSE_MANUAL_KB;
     if (kb && kb.pick) {
@@ -327,13 +362,17 @@ window.EVSE_BOM = (function () {
   const COLS = ['类别', '设备名称', '型号参考', '推荐厂家', '关键参数', '数量', '说明', '手册下载链接'];
 
   /* 手册列的展示文本（图纸与面板共用） */
+  function hostShort(u) {
+    try { return new URL(String(u)).hostname.replace(/^www\./i, ''); } catch (e) { return ''; }
+  }
   function docLabel(r) {
-    if (r.ai && r.ai.doc) return { text: r.ai.model ? r.ai.model + ' datasheet' : '原厂 datasheet', url: r.ai.doc, ai: true };
+    if (r.ai && r.ai.doc) return { text: r.ai.docTitle ? String(r.ai.docTitle).slice(0, 28) : ('AI 推荐 · ' + hostShort(r.ai.doc)), url: r.ai.doc, ai: true, hint: r.ai.docReason || '' };
+    if (r.docKind === 'ai' && r.doc) return { text: 'AI 推荐 · ' + hostShort(r.doc) + ' · 核验', url: r.doc, ai: true, hint: r.hint || '' };
     /* V8-MANUAL: 手册库状态化展示 */
     if (r.docKind === 'nohref') return { text: '◎ 无公开手册：' + (r.docVendor || '该厂家'), url: '', hint: r.hint || '', nohref: true };
-    if (r.docKind === 'warn') return { text: '⚠ ' + (r.docVendor || '厂家') + ' 手册（待复核）', url: r.doc, warn: true, hint: r.hint || '' };
+    if (r.docKind === 'warn') return { text: '⚠ ' + hostShort(r.doc) + ' 手册（待复核）', url: r.doc, warn: true, hint: r.hint || '' };
     if (r.doc && /^https?:\/\//.test(r.doc) && r.manuals && r.manuals.length) return { text: '📄 ' + (r.manuals[0].vendor || '厂家') + ' 手册', url: r.doc, ai: false, alt: r.manuals };
-    if (r.doc && /^https?:\/\//.test(r.doc)) return { text: '📄 原厂手册', url: r.doc, ai: false };
+    if (r.doc && /^https?:\/\//.test(r.doc)) return { text: '📄 ' + (hostShort(r.doc) || '原厂') + ' 手册', url: r.doc, ai: false };
     if (r.docKind === 'oem') return { text: r.docVendor + ' 文档中心', url: r.doc, ai: false };
     if (r.docKind === 'internal') return { text: '内部文档（自研/按图加工）', url: '', ai: false };
     return { text: '待补充原厂文档', url: '', ai: false };
@@ -347,12 +386,12 @@ window.EVSE_BOM = (function () {
       return [r.cat, r.name, (r.ai && r.ai.model) || r.model, (r.ai && r.ai.vendor) || r.vendors.join(' / '),
         r.params + (r.ai && r.ai.params ? '；' + r.ai.params : ''), r.qty,
         (r.ai && r.ai.note) || r.note, dl.url,
-        dl.ai ? 'AI 回填·置信度 ' + (r.ai.conf || '?') + '·需核验' : (r.docKind === 'oem' ? '原厂文档中心' : r.docKind === 'internal' ? '内部文档' : '待补充'),
+        dl.ai ? 'AI 推荐·置信度 ' + ((r.ai && r.ai.conf) || '?') + '·需核验' : (r.docKind === 'oem' ? '原厂文档中心' : r.docKind === 'internal' ? '内部文档' : '待补充'),
         r.tags.join(' ')].map(q).join(',');
     }).join('\n');
     const foot = '\n' + q('注：数量·关键参数·位号由引脚级网表计算得出；型号参考仅到系列级，推荐厂家为常见候选非背书；手册链接为原厂文档中心入口，具体型号 datasheet 需在其中按型号检索；全部条目 RFQ_REQUIRED，须经电气专业复核。') + '\n';
     return head + body + foot;
   }
 
-  return { VERSION, CATS, COLS, KB, PORTAL, build, toCSV, classify, docLink, docLabel };
+  return { VERSION, CATS, COLS, KB, PORTAL, build, toCSV, classify, docLink, docLabel, setDocOverrides, clearDocOverrides, getDocOverride, docKey };
 })();
