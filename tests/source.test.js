@@ -8,7 +8,7 @@ test('source registry seeds standards, datasheets, sites and assumptions', () =>
   source.reset();
   const s = source.stats();
   assert.equal(s.sources > 30, true);
-  assert.equal(s.requirements, 9);
+  assert.equal(s.requirements, 11);
   assert.equal(s.verifiedSources, 0);
   assert.equal(s.assumptionSources > 0, true);
   assert.equal(s.byType.standard > 10, true);

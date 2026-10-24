@@ -638,13 +638,32 @@
     { k: 'dcIscKa', t: '直流短路电流', u: 'kA' },
     { k: 'batteryIscKa', t: '电池短路电流', u: 'kA' },
     { k: 'upstreamBreakerA', t: '上级保护额定', u: 'A' },
+    { k: 'upstreamCurve', t: '上级曲线', type: 'sel', o: [['SI', '标准反时限'], ['VI', '非常反时限'], ['EI', '极度反时限'], ['LTI', '长反时限']] },
+    { k: 'upstreamPickupA', t: '上级启动值', u: 'A' },
+    { k: 'upstreamTms', t: '上级 TMS', u: 's' },
+    { k: 'downstreamCurve', t: '下级曲线', type: 'sel', o: [['SI', '标准反时限'], ['VI', '非常反时限'], ['EI', '极度反时限'], ['LTI', '长反时限']] },
+    { k: 'downstreamPickupA', t: '下级启动值', u: 'A' },
+    { k: 'downstreamTms', t: '下级 TMS', u: 's' },
+    { k: 'selectivityMarginSec', t: '时间级差', u: 's' },
     { k: 'essDod', t: 'DoD', u: '' },
     { k: 'essSoh', t: 'SOH', u: '' },
     { k: 'essCycleLife', t: '循环寿命', u: '次' },
     { k: 'essCyclesPerDay', t: '日循环', u: '次/日' },
     { k: 'thdPct', t: '实测 THD', u: '%' },
     { k: 'unbalancePct', t: '三相不平衡', u: '%' },
-    { k: 'airflowM3h', t: '可用风量', u: 'm³/h' }
+    { k: 'thdLimitPct', t: 'THD 限值', u: '%' },
+    { k: 'unbalanceLimitPct', t: '不平衡限值', u: '%' },
+    { k: 'voltageLimitPct', t: '电压变化限值', u: '%' },
+    { k: 'transformerLoadLimitPct', t: '变压器负载限值', u: '%' },
+    { k: 'airflowM3h', t: '可用风量', u: 'm³/h' },
+    { k: 'capexYuan', t: 'CAPEX', u: '元' },
+    { k: 'opexYuanPerYear', t: '年 OPEX', u: '元/年' },
+    { k: 'annualDischargeMwh', t: '年放电量', u: 'MWh' },
+    { k: 'targetLcosYuan', t: '目标 LCOS', u: '元/kWh' },
+    { k: 'projectYears', t: '项目年限', u: '年' },
+    { k: 'discountRate', t: '折现率', u: '' },
+    { k: 'degradationPct', t: '年衰减', u: '' },
+    { k: 'residualPct', t: '残值率', u: '' }
   ];
   var CALC_OPTS = (function () {
     try { return JSON.parse(localStorage.getItem(CALC_KEY) || '{}'); } catch (e) { return {}; }
@@ -1603,6 +1622,11 @@
       var v = o[f.k];
       var val = v == null ? '' : v;
       var label = f.t + (f.u ? ' / ' + f.u : '');
+      if (f.type === 'sel') {
+        return '<label class="f"><span>' + esc(label) + '</span><select data-ck="' + escAttr(f.k) + '">' + (f.o || []).map(function (op) {
+          return '<option value="' + escAttr(op[0]) + '"' + (String(val) === String(op[0]) ? ' selected' : '') + '>' + esc(op[1]) + '</option>';
+        }).join('') + '</select></label>';
+      }
       return '<label class="f"><span>' + esc(label) + '</span><input type="number" step="any" data-ck="' + escAttr(f.k) + '" value="' + escAttr(val) + '" placeholder="待输入"></label>';
     }
     box.innerHTML = CALC_FIELDS.map(field).join('') +
@@ -1610,8 +1634,10 @@
     box.querySelectorAll('[data-ck]').forEach(function (el) {
       el.addEventListener('change', function () {
         var k = el.getAttribute('data-ck');
-        var v = el.value === '' ? null : Number(el.value);
-        if (v != null && !isFinite(v)) v = null;
+        var meta = CALC_FIELDS.concat(CALC_ADV).filter(function (q) { return q.k === k; })[0];
+        var v;
+        if (meta && meta.type === 'sel') v = el.value;
+        else { v = el.value === '' ? null : Number(el.value); if (v != null && !isFinite(v)) v = null; }
         CALC_OPTS[k] = v;
         saveCalcOpts();
         invalidateCalc();

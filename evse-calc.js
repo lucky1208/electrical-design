@@ -20,6 +20,12 @@
     { n: 1, f: 1 }, { n: 2, f: 0.8 }, { n: 3, f: 0.7 }, { n: 4, f: 0.65 }, { n: 5, f: 0.6 }, { n: 6, f: 0.57 }
   ];
   var K_THERMAL = { cu: { pvc: 115, xlpe: 143 }, al: { pvc: 76, xlpe: 94 } };
+  var IEC_CURVES = {
+    SI: { K: 0.14, a: 0.02, label: 'IEC 标准反时限' },
+    VI: { K: 13.5, a: 1, label: 'IEC 非常反时限' },
+    EI: { K: 80, a: 2, label: 'IEC 极度反时限' },
+    LTI: { K: 120, a: 1, label: 'IEC 长反时限' }
+  };
   var DEFAULT_OPTS = {
     acVoltage: 400, pf: 0.95, efficiency: 0.96, ambientC: 35, grouping: 1,
     acCableM: 30, dcCableM: 20, gunCableM: 15, essCableM: 10,
@@ -29,8 +35,15 @@
     acBreakerA: null, dcBreakerA: null, gunFuseA: null, essBreakerA: null,
     acCableSize: null, dcCableSize: null, gunCableSize: null, essCableSize: null,
     dcIscKa: null, batteryIscKa: null, upstreamBreakerA: null,
+    upstreamCurve: 'SI', upstreamPickupA: null, upstreamTms: null,
+    downstreamCurve: 'SI', downstreamPickupA: null, downstreamTms: null,
+    selectivityMarginSec: 0.2,
     essPowerKw: null, essDod: 0.9, essSoh: 0.8, essCycleLife: 6000, essCyclesPerDay: 1, essRte: 0.88, maxCrate: 0.5,
-    thdPct: null, unbalancePct: null, airflowM3h: null, temperatureRiseK: 10,
+    thdPct: null, unbalancePct: null, thdLimitPct: 5, unbalanceLimitPct: 2,
+    voltageLimitPct: 5, transformerLoadLimitPct: 80,
+    airflowM3h: null, temperatureRiseK: 10,
+    capexYuan: null, opexYuanPerYear: null, projectYears: 15, discountRate: 0.06,
+    annualDischargeMwh: null, degradationPct: 0.02, residualPct: 0.1, targetLcosYuan: null,
     cableMaterial: 'cu', insulation: 'xlpe', dataSource: 'assumption'
   };
 
@@ -38,6 +51,7 @@
   function finite(v) { return typeof v === 'number' && isFinite(v); }
   function num(v, d) { var n = Number(v); return isFinite(n) ? n : d; }
   function optNum(v) { if (v == null || v === '') return null; var n = Number(v); return isFinite(n) && n > 0 ? n : null; }
+  function optZero(v) { if (v == null || v === '') return null; var n = Number(v); return isFinite(n) && n >= 0 ? n : null; }
   function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
   function round(v, n) { var k = Math.pow(10, n == null ? 2 : n); return Math.round(v * k) / k; }
   function pct(v) { return round(v * 100, 2); }
@@ -62,7 +76,8 @@
     ['acVoltage', 'pf', 'efficiency', 'ambientC', 'grouping', 'acCableM', 'dcCableM', 'gunCableM', 'essCableM',
       'voltageDropLimitAc', 'voltageDropLimitDc', 'transformerKva', 'transformerZPct', 'gridIkKa', 'faultClearSec',
       'acBreakerIcuKa', 'dcBreakerIcuKa', 'gunFuseIcuKa', 'essDod', 'essSoh', 'essCycleLife', 'essCyclesPerDay',
-      'essRte', 'maxCrate', 'temperatureRiseK'].forEach(function (k) { x[k] = num(x[k], DEFAULT_OPTS[k]); });
+      'essRte', 'maxCrate', 'temperatureRiseK', 'selectivityMarginSec', 'thdLimitPct', 'unbalanceLimitPct',
+      'voltageLimitPct', 'transformerLoadLimitPct', 'projectYears', 'discountRate', 'degradationPct', 'residualPct'].forEach(function (k) { x[k] = num(x[k], DEFAULT_OPTS[k]); });
     x.pf = clamp(x.pf, 0.5, 1);
     x.efficiency = clamp(x.efficiency, 0.7, 1);
     x.ambientC = clamp(x.ambientC, 20, 60);
@@ -73,12 +88,27 @@
     x.essSoh = clamp(x.essSoh, 0.1, 1);
     x.essRte = clamp(x.essRte, 0.5, 1);
     x.maxCrate = Math.max(0.05, x.maxCrate);
+    x.selectivityMarginSec = clamp(x.selectivityMarginSec, 0.05, 2);
+    x.thdLimitPct = Math.max(0.1, x.thdLimitPct);
+    x.unbalanceLimitPct = Math.max(0.1, x.unbalanceLimitPct);
+    x.voltageLimitPct = Math.max(0.1, x.voltageLimitPct);
+    x.transformerLoadLimitPct = clamp(x.transformerLoadLimitPct, 10, 200);
+    x.projectYears = clamp(Math.round(x.projectYears), 1, 40);
+    x.discountRate = clamp(x.discountRate, 0, 0.3);
+    x.degradationPct = clamp(x.degradationPct, 0, 0.2);
+    x.residualPct = clamp(x.residualPct, 0, 1);
     x.cableMaterial = x.cableMaterial === 'al' ? 'al' : 'cu';
     x.insulation = x.insulation === 'pvc' ? 'pvc' : 'xlpe';
+    x.upstreamCurve = IEC_CURVES[x.upstreamCurve] ? x.upstreamCurve : 'SI';
+    x.downstreamCurve = IEC_CURVES[x.downstreamCurve] ? x.downstreamCurve : 'SI';
     ['acBreakerA', 'dcBreakerA', 'gunFuseA', 'essBreakerA', 'acCableSize', 'dcCableSize', 'gunCableSize', 'essCableSize',
-      'dcIscKa', 'batteryIscKa', 'upstreamBreakerA', 'essPowerKw', 'thdPct', 'unbalancePct', 'airflowM3h'].forEach(function (k) {
+      'dcIscKa', 'batteryIscKa', 'upstreamBreakerA', 'upstreamPickupA', 'upstreamTms', 'downstreamPickupA', 'downstreamTms',
+      'essPowerKw', 'airflowM3h', 'capexYuan', 'annualDischargeMwh', 'targetLcosYuan'].forEach(function (k) {
       x[k] = optNum(x[k]);
     });
+    x.opexYuanPerYear = optZero(x.opexYuanPerYear);
+    x.thdPct = optZero(x.thdPct);
+    x.unbalancePct = optZero(x.unbalancePct);
     return x;
   }
   function cableEntry(size) {
@@ -124,6 +154,11 @@
   function transformerIsc(kva, zPct, voltage) {
     if (!(kva > 0) || !(zPct > 0) || !(voltage > 0)) return null;
     return kva * 1000 / (Math.sqrt(3) * voltage * (zPct / 100)) / 1000;
+  }
+  function curveTime(curve, currentA, pickupA, tms) {
+    var c = IEC_CURVES[curve] || IEC_CURVES.SI;
+    if (!(currentA > pickupA) || !(pickupA > 0) || !(tms > 0)) return null;
+    return tms * c.K / (Math.pow(currentA / pickupA, c.a) - 1);
   }
   function designInputs(D, opts) {
     var p = (D && D.params) || {};
@@ -214,6 +249,15 @@
       !ess ? 'na' : (has(/气体|GAS|烟感|温感|可燃/) ? 'pass' : 'warn'),
       !ess ? '不适用' : (has(/气体|GAS|烟感|温感|可燃/) ? '已见' : '未见'),
       '', !ess ? '未配置储能' : 'BESS 舱/柜应独立配置可燃气体、烟感、温感并与消防/通风联锁', ['STD-NFPA-855', 'STD-GB-51048'], ['需厂家消防系统 datasheet 与联锁逻辑'], '', '增加探测点并明确报警/排风/切断策略'));
+    var fireVerified = false;
+    try {
+      var src = root.EVSE_SOURCE;
+      if (src && src.list) fireVerified = src.list('test-report').some(function (s) { return /消防|fire|热失控|9540/i.test(String(s.title || '') + ' ' + String(s.scope || '')) && (s.status === 'verified' || s.status === 'ingested'); });
+    } catch (e) {}
+    out.push(result('SAFE-FIRE-EVIDENCE', '安全', '消防/热失控测试证据', !ess ? 'na' : (fireVerified ? 'pass' : 'unknown'),
+      !ess ? '不适用' : (fireVerified ? '已核验' : '缺报告'), '',
+      !ess ? '未配置储能' : '需 UL 9540A/消防联锁/气体探测/泄压报告，并由厂家与第三方签字；当前来源登记中无已核验消防测试报告',
+      ['TST-FIRE-001', 'STD-UL-9540A', 'STD-NFPA-855', 'STD-GB-51048'], ['来源状态为 pending 时不能视为合规证据'], '', '导入消防/热失控测试报告并关闭 REQ-ESS-001'));
     return out;
   }
   function vendorSafetyCheck(D) {
@@ -299,6 +343,17 @@
         res.push(result('PROT-SELECT', '短路与保护', '上下级选择性（启发式）', selOk == null ? 'unknown' : (selOk ? 'pass' : 'warn'), opts.upstreamBreakerA ? opts.upstreamBreakerA + ' / ' + c.breakerA : '未输入', '',
           selOk == null ? '需上级保护额定值与脱扣曲线' : '按 1.6 倍额定比启发式判断，不能替代曲线配合',
           ['STD-IEC-60909', 'ASM-PROTECTION'], ['未使用脱扣曲线/I2t；仅提示'], 'I_up ≥ 1.6·I_down', '导入上级/下级脱扣曲线做选择性研究'));
+        var tUp = null, tDown = null, margin = null;
+        if (opts.upstreamPickupA && opts.upstreamTms && opts.downstreamPickupA && opts.downstreamTms && acIk > 0) {
+          tUp = curveTime(opts.upstreamCurve, acIk * 1000, opts.upstreamPickupA, opts.upstreamTms);
+          tDown = curveTime(opts.downstreamCurve, acIk * 1000, opts.downstreamPickupA, opts.downstreamTms);
+          if (tUp != null && tDown != null) margin = tUp - tDown;
+        }
+        var curveStatus = margin == null ? 'unknown' : (margin >= opts.selectivityMarginSec ? 'pass' : (margin > 0 ? 'warn' : 'fail'));
+        res.push(result('PROT-CURVE', '短路与保护', '上下级保护曲线配合', curveStatus,
+          margin == null ? '参数缺失' : round(margin, 3) + ' s', '',
+          margin == null ? '需上级/下级反时限曲线、启动值、TMS 与故障电流' : '故障 Ik=' + round(acIk, 2) + ' kA；上级 ' + opts.upstreamCurve + ' t=' + round(tUp, 3) + ' s；下级 ' + opts.downstreamCurve + ' t=' + round(tDown, 3) + ' s；要求时间级差 ≥ ' + opts.selectivityMarginSec + ' s',
+          ['STD-IEC-60255', 'STD-IEC-60909', 'DS-ACB-MCCB'], ['曲线为 IEC 反时限模型；未使用厂家实测曲线/CTI/熔断器 I2t'], 't = TMS·K/((I/Is)^α - 1)', '导入厂家脱扣曲线与整定单，按同一故障电流复核'));
       }
       if (c.id === 'DC-BUS' || c.id === 'GUN' || c.id === 'ESS') {
         var ik = c.ik;
@@ -321,6 +376,25 @@
     res.push(result('TRANSFORMER', '电源与并网', '变压器容量', trKva ? (trKva >= trReq ? 'pass' : 'fail') : 'unknown', round(trReq, 1), 'kVA',
       trKva ? '需求 ' + round(trReq, 1) + ' kVA（含 10% 裕量）；现有 ' + trKva + ' kVA' : '未提供变压器容量/阻抗',
       siteSrc.concat(['STD-IEC-60909']), ['按视在功率与 10% 裕量估算；未考虑同时率、谐波与未来扩容'], 'S_req = P/(PF)·1.1', '导入变压器铭牌/并网协议并复核'));
+    var sLoadMva = inputs.acPowerKw / opts.pf / 1000;
+    var trLoadPct = trKva ? (sLoadMva * 1000 / trKva * 100) : null;
+    res.push(result('TRANSFORMER-LOAD', '电源与并网', '变压器负载率', trLoadPct == null ? 'unknown' : (trLoadPct <= opts.transformerLoadLimitPct ? 'pass' : (trLoadPct <= 100 ? 'warn' : 'fail')), trLoadPct == null ? '数据缺失' : round(trLoadPct, 1), '%',
+      trLoadPct == null ? '未提供变压器容量' : '视在负载 ' + round(sLoadMva * 1000, 1) + ' kVA / 变压器 ' + trKva + ' kVA；建议限值 ' + opts.transformerLoadLimitPct + '%',
+      siteSrc.concat(['STD-IEC-60909']), ['未考虑同时率、谐波、温升与短时过载'], 'Load% = S_load/S_tr×100', '导入铭牌/负荷曲线；评估扩容或限功率'));
+    var sScMva = opts.gridIkKa > 0 ? Math.sqrt(3) * (opts.acVoltage / 1000) * opts.gridIkKa : null;
+    if (sScMva && sLoadMva > 0) {
+      var scr = sScMva / sLoadMva;
+      res.push(result('GRID-SCR', '并网与电能质量', '短路比 SCR', scr >= 3 ? 'pass' : (scr >= 2 ? 'warn' : 'fail'), round(scr, 2), '',
+        '并网点 S_sc=' + round(sScMva, 2) + ' MVA；负载 S=' + round(sLoadMva, 2) + ' MVA；SCR<3 视为弱电网筛查阈值',
+        ['STD-GB-36547', 'STD-IEEE-1547'].concat(siteSrc), ['SCR 由短路电流反推；弱电网阈值需按当地电网代码/变流器手册确认'], 'SCR = S_sc/S_load', '获取电网短路容量与变流器弱网特性；必要时降低容量或加装支撑'));
+      var vPct = 100 * sLoadMva / sScMva;
+      res.push(result('GRID-VOLTAGE', '并网与电能质量', '并网点电压变化（筛查）', vPct <= opts.voltageLimitPct ? 'pass' : (vPct <= opts.voltageLimitPct * 1.2 ? 'warn' : 'fail'), round(vPct, 2), '%',
+        '近似 ΔU≈S_load/S_sc；限值 ' + opts.voltageLimitPct + '%；未做潮流/多机叠加',
+        ['STD-GB-12325', 'STD-IEEE-1547'].concat(siteSrc), ['单机近似；未考虑线路阻抗、变压器分接头、无功补偿与多桩同时率'], 'ΔU% ≈ 100·S_load/S_sc', '导入电网阻抗/线路参数并做潮流计算；配置无功/调压'));
+    } else {
+      res.push(result('GRID-SCR', '并网与电能质量', '短路比 SCR', 'unknown', '数据缺失', '', '未提供并网点短路电流', ['STD-GB-36547', 'STD-IEEE-1547'].concat(siteSrc), [], 'SCR = S_sc/S_load', '导入电网短路容量'));
+      res.push(result('GRID-VOLTAGE', '并网与电能质量', '并网点电压变化（筛查）', 'unknown', '数据缺失', '', '未提供电网阻抗/短路容量', ['STD-GB-12325', 'STD-IEEE-1547'].concat(siteSrc), [], 'ΔU% ≈ 100·S_load/S_sc', '导入电网资料并做潮流计算'));
+    }
     var essE = inputs.essEnergyKwh * opts.essDod * opts.essSoh;
     if (!inputs.hasEss) {
       res.push(result('ESS-ENERGY', '储能', '储能容量与功率', 'na', '不适用', '', '未配置储能', [], [], '', ''));
@@ -342,13 +416,33 @@
       airflowReq ? round(airflowReq, 0) : '', 'm³/h',
       '估算损耗 ' + round(lossKw, 1) + ' kW；ΔT=' + opts.temperatureRiseK + ' K；' + (opts.airflowM3h ? '现有风量 ' + opts.airflowM3h + ' m³/h' : '未提供风量/液冷能力'),
       ['ASM-CONVERSION', 'DS-PCS'], ['仅按空气显热估算，未计算柜体传热、海拔、液冷、太阳辐射'], 'Q ≈ 2984·P_loss/ΔT', '导入热仿真/液冷 datasheet 并复核'));
-    var pqStatus = (opts.thdPct == null && opts.unbalancePct == null) ? 'unknown' : ((opts.thdPct == null || opts.thdPct <= 5) && (opts.unbalancePct == null || opts.unbalancePct <= 2) ? 'pass' : 'warn');
-    res.push(result('POWER-QUALITY', '并网与电能质量', '谐波 / 三相不平衡 / 并网研究', pqStatus,
-      opts.thdPct == null ? '缺少实测' : (opts.thdPct + '% THD'), '',
-      '需并网点的短路容量、背景谐波、变流器谐波频谱与实测数据；当前未做潮流/谐波/闪变/防孤岛研究',
-      ['STD-GB-36547', 'STD-IEEE-1547', 'STD-IEEE-519'].concat(siteSrc), ['未进行电网仿真；不能用默认值代替并网审批'], '', '导入电网资料并做潮流/谐波/保护/防孤岛研究'));
+    var thdOk = opts.thdPct == null ? null : opts.thdPct <= opts.thdLimitPct;
+    var unbOk = opts.unbalancePct == null ? null : opts.unbalancePct <= opts.unbalanceLimitPct;
+    var pqStatus = (thdOk == null && unbOk == null) ? 'unknown' : ((thdOk === false || unbOk === false) ? 'fail' : ((thdOk == null || unbOk == null) ? 'warn' : 'pass'));
+    var pqVal = (opts.thdPct == null ? 'THD 缺少' : 'THD ' + opts.thdPct + '%') + ' / ' + (opts.unbalancePct == null ? '不平衡 缺少' : '不平衡 ' + opts.unbalancePct + '%');
+    res.push(result('POWER-QUALITY', '并网与电能质量', '谐波 / 三相不平衡', pqStatus, pqVal, '',
+      '限值：THD ≤ ' + opts.thdLimitPct + '%，不平衡 ≤ ' + opts.unbalanceLimitPct + '%；仍需背景谐波、变流器频谱与闪变/防孤岛研究',
+      ['STD-GB-14549', 'STD-GB-12325', 'STD-GB-12326', 'STD-IEEE-519'].concat(siteSrc), ['限值为筛查阈值；电网/项目适用条款需按并网协议确认'], '', '导入电能质量实测与变流器谐波数据，做谐波潮流/闪变评估'));
     res.push(result('GRID-PROTECTION', '并网与电能质量', '并网保护与防孤岛', 'unknown', '待电网定值', '', '需按当地电网代码配置过/欠压、过/欠频、防孤岛、过流与零序保护，并提交定值单', ['STD-GB-36547', 'STD-IEEE-1547'], [], '', '导入并网协议/定值单并完成继保整定'));
-    res.push(result('LIFE-COST', '全寿命', 'CAPEX / OPEX / LCOS', 'unknown', '待成本数据', '', '需 CAPEX、OPEX、电价/需量费、循环与衰减、折现率；当前未导入经济数据，不能给出 LCOS', ['ECO-PILOT-001', 'OPS-PILOT-001'], ['全寿命评估需要原始报价、电价与运行数据'], '', '导入报价/电价/运行数据，做 LCOS 与敏感性分析'));
+    var annualMwh = opts.annualDischargeMwh || (inputs.hasEss && essE > 0 ? essE * opts.essCyclesPerDay * 365 * opts.essRte / 1000 : null);
+    if (opts.capexYuan && opts.opexYuanPerYear != null && annualMwh > 0) {
+      var N = opts.projectYears, r = opts.discountRate, deg = opts.degradationPct;
+      var pvCost = opts.capexYuan;
+      for (var y = 1; y <= N; y++) pvCost += opts.opexYuanPerYear / Math.pow(1 + r, y);
+      pvCost -= opts.capexYuan * opts.residualPct / Math.pow(1 + r, N);
+      var pvEnergy = 0;
+      for (var y2 = 0; y2 < N; y2++) pvEnergy += annualMwh * 1000 * Math.pow(1 - deg, y2) / Math.pow(1 + r, y2);
+      var lcos = pvCost / pvEnergy;
+      var target = opts.targetLcosYuan;
+      var lcosStatus = target ? (lcos <= target ? 'pass' : 'fail') : 'warn';
+      res.push(result('LIFE-LCOS', '全寿命', 'LCOS 平准化度电成本', lcosStatus, round(lcos, 3), '元/kWh',
+        'CAPEX ' + opts.capexYuan + ' 元；年 OPEX ' + opts.opexYuanPerYear + ' 元；年放电 ' + round(annualMwh, 1) + ' MWh；N=' + N + ' 年，折现 ' + round(opts.discountRate * 100, 1) + '%，衰减 ' + round(deg * 100, 1) + '%/年' + (target ? '；目标 ' + target + ' 元/kWh' : '；未设目标值'),
+        ['ECO-PILOT-001', 'OPS-PILOT-001', 'ASM-BESS'], ['未含更换、税费、需量费与辅助服务收益；年放电量由循环数估算', 'CAPEX/OPEX/电价必须来自报价与运行数据'],
+        'LCOS = PV(CAPEX+OPEX-残值)/PV(放电量)', '导入报价/电价/运行数据，加入更换与敏感性分析'));
+    } else {
+      res.push(result('LIFE-LCOS', '全寿命', 'LCOS 平准化度电成本', 'unknown', '待成本数据', '',
+        '需 CAPEX、年 OPEX、年放电量；当前数据不足，不能给出 LCOS', ['ECO-PILOT-001', 'OPS-PILOT-001'], ['全寿命评估需要原始报价、电价与运行数据'], '', '导入报价/电价/运行数据，做 LCOS 与敏感性分析'));
+    }
     res.push.apply(res, resilienceCheck(D));
     res.push.apply(res, safetyCheck(D));
     res.push.apply(res, vendorSafetyCheck(D));
@@ -410,10 +504,10 @@
   }
 
   return {
-    VERSION: VERSION, DEFAULT_OPTS: DEFAULT_OPTS, CABLE_TABLE: CABLE_TABLE, STD_RATINGS: STD_RATINGS,
+    VERSION: VERSION, DEFAULT_OPTS: DEFAULT_OPTS, CABLE_TABLE: CABLE_TABLE, STD_RATINGS: STD_RATINGS, IEC_CURVES: IEC_CURVES,
     normalizeOpts: normalizeOpts, stdRating: stdRating, ambientFactor: ambientFactor, groupFactor: groupFactor,
     cableIz: cableIz, selectCable: selectCable, voltageDropAC: voltageDropAC, voltageDropDC: voltageDropDC,
-    thermalMinSize: thermalMinSize, transformerIsc: transformerIsc, designInputs: designInputs,
+    thermalMinSize: thermalMinSize, transformerIsc: transformerIsc, curveTime: curveTime, designInputs: designInputs,
     auditDesign: auditDesign, toCSV: toCSV, toEvidencePack: toEvidencePack, hash: hash
   };
 });

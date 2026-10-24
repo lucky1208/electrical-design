@@ -119,3 +119,58 @@ test('auditDesign handles MWESS without throwing', () => {
   assert.equal(r.results.find(x => x.id === 'SAFE-GAS').status, 'warn');
   assert.ok(r.results.some(x => x.id === 'SC-ESS'));
 });
+test('IEC inverse-time protection curves', () => {
+  assert.ok(Math.abs(calc.curveTime('SI', 5000, 400, 0.1) - 0.2702) < 0.002);
+  assert.ok(Math.abs(calc.curveTime('VI', 5000, 400, 0.1) - 0.1174) < 0.002);
+  assert.ok(Math.abs(calc.curveTime('EI', 5000, 400, 0.1) - 0.0515) < 0.002);
+  assert.equal(calc.curveTime('SI', 400, 400, 0.1), null);
+  assert.equal(calc.curveTime('SI', 6000, 400, 0), null);
+  assert.equal(calc.curveTime('bad', 5000, 400, 0.1), calc.curveTime('SI', 5000, 400, 0.1));
+});
+
+test('protection curve selectivity, grid impact and transformer loading', () => {
+  const D = { params: { name: 'EVSE 240kW', family: 'evse', std: 'gb', kw: 240, guns: 2, gunA: 250, moduleKw: 40, ess: false, busV: 750 }, devices: [{ id: 'SB1', tag: 'SB1' }, { id: 'SQ1', tag: 'SQ1' }] };
+  const r = calc.auditDesign(D, {
+    gridIkKa: 20, transformerKva: 1000, transformerZPct: 6,
+    upstreamPickupA: 400, upstreamTms: 0.4, downstreamPickupA: 400, downstreamTms: 0.1,
+    selectivityMarginSec: 0.2, thdPct: 4.8, unbalancePct: 1.5
+  });
+  const curve = r.results.find(x => x.id === 'PROT-CURVE');
+  assert.equal(curve.status, 'pass');
+  assert.match(String(curve.detail), /时间级差/);
+  const load = r.results.find(x => x.id === 'TRANSFORMER-LOAD');
+  assert.equal(load.status, 'pass');
+  assert.ok(Math.abs(parseFloat(load.value) - 26.32) < 0.1);
+  const scr = r.results.find(x => x.id === 'GRID-SCR');
+  assert.equal(scr.status, 'pass');
+  const voltage = r.results.find(x => x.id === 'GRID-VOLTAGE');
+  assert.equal(voltage.status, 'pass');
+  const pq = r.results.find(x => x.id === 'POWER-QUALITY');
+  assert.equal(pq.status, 'pass');
+});
+
+test('power quality fails above configured limit', () => {
+  const D = { params: { name: 'EVSE', family: 'evse', std: 'gb', kw: 120, guns: 1, gunA: 250, moduleKw: 30, ess: false, busV: 750 }, devices: [] };
+  const r = calc.auditDesign(D, { thdPct: 8, unbalancePct: 1, thdLimitPct: 5 });
+  const pq = r.results.find(x => x.id === 'POWER-QUALITY');
+  assert.equal(pq.status, 'fail');
+});
+
+test('LCOS calculation with cost data', () => {
+  const D = { params: { name: 'EVSE', family: 'evse', std: 'gb', kw: 240, guns: 2, gunA: 250, moduleKw: 40, ess: false, busV: 750 }, devices: [] };
+  const r = calc.auditDesign(D, {
+    capexYuan: 1000000, opexYuanPerYear: 50000, annualDischargeMwh: 1000,
+    projectYears: 10, discountRate: 0, degradationPct: 0, residualPct: 0,
+    targetLcosYuan: 0.2
+  });
+  const lcos = r.results.find(x => x.id === 'LIFE-LCOS');
+  assert.equal(lcos.status, 'pass');
+  assert.ok(Math.abs(parseFloat(lcos.value) - 0.15) < 0.001);
+  assert.match(String(lcos.detail), /年 OPEX/);
+});
+
+test('LCOS is unknown without cost data', () => {
+  const D = { params: { name: 'EVSE', family: 'evse', std: 'gb', kw: 240, guns: 2, gunA: 250, moduleKw: 40, ess: false, busV: 750 }, devices: [] };
+  const r = calc.auditDesign(D, {});
+  assert.equal(r.results.find(x => x.id === 'LIFE-LCOS').status, 'unknown');
+});
