@@ -1,0 +1,9 @@
+{
+  "_说明": "开发者手册库导入模板。在 BOM 面板点「导入手册库」选择本文件即可合并/覆盖。也可在控制台执行：EVSE_MANUAL_KB.load('/path/manual-db.json')。status 取值：ok(实测可达) / warn(待复核) / nohref(无公开手册,提供 hint 检索词)。同名 vendor 条目会覆盖内置记录。",
+  "充电功率模块": [
+    { "vendor": "英飞源", "title": "充电模块 R1000 说明书", "url": "https://example.com/infy-r1000.pdf", "status": "warn", "note": "替换为真实链接后改 status=ok" }
+  ],
+  "直流接触器": [
+    { "vendor": "宏发", "title": "高压直流接触器产品目录", "url": "https://www.hongfa.com/pro/product/category/relays", "status": "warn", "note": "示例条目" }
+  ]
+}

@@ -1,0 +1,2335 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>充电储能系统原理图 · 自动生成与在线编辑平台</title>
+<style>
+  html,body{margin:0;padding:0;height:100%;background:#0f1318;color:#e6eaf0;
+    font-family:"Helvetica Neue",Helvetica,"Microsoft YaHei","PingFang SC",sans-serif;-webkit-font-smoothing:antialiased}
+  *{box-sizing:border-box}
+  a{color:#5cc8ff;text-decoration:none}a:hover{color:#8fdcff}
+  #app{display:flex;flex-direction:column;height:100vh;min-height:600px}
+  .bar{display:flex;align-items:stretch;gap:16px;padding:0 14px 0 16px;height:48px;flex:0 0 48px;
+    background:linear-gradient(180deg,#171e26 0%,#12171d 100%);border-bottom:1px solid #232b34}
+  .brand{display:flex;align-items:center;gap:10px;flex:0 0 auto;padding-right:4px}
+  .logo{width:27px;height:27px;border-radius:8px;display:flex;align-items:center;justify-content:center;
+    font-size:10px;font-weight:800;color:#eaf7ff;letter-spacing:.02em;
+    background:linear-gradient(135deg,#2f6fdc 0%,#0e7c86 100%);
+    box-shadow:inset 0 0 0 1px rgba(180,230,255,.28),0 4px 14px rgba(30,92,200,.4)}
+  .brandtxt{display:flex;flex-direction:column;gap:2px;line-height:1.1;min-width:0}
+  .ttl{font-size:14px;font-weight:700;letter-spacing:.01em;white-space:nowrap}
+  .sub{font-size:9.5px;color:#6f7a87;letter-spacing:.1em;white-space:nowrap}
+  .badge{font-size:10px;color:#4d5763;border:1px solid #2b333d;border-radius:3px;padding:2px 6px}
+  .grp{display:flex;gap:2px;background:#0f1318;border:1px solid #262f39;border-radius:6px;padding:3px;flex:0 0 auto}
+  .grp button{border:0;border-radius:4px;padding:5px 11px;font-size:12px;cursor:pointer;background:transparent;color:#9aa5b1;font-family:inherit;white-space:nowrap}
+  .grp button.on{background:#1e5cc8;color:#fff}
+  .btn{background:#1c232b;border:1px solid #2b333d;color:#c8d1dc;border-radius:5px;padding:6px 10px;font-size:12px;cursor:pointer;font-family:inherit;white-space:nowrap}
+  .btn:hover{background:#232c36}
+  .btn.pri{background:#1e5cc8;border-color:#2f6fdc;color:#fff;font-weight:600}
+  .btn.sm{height:26px;padding:0 10px;font-size:11.5px;display:inline-flex;align-items:center;gap:4px}
+  .body{display:flex;flex:1;min-height:0}
+  .side{width:264px;flex:0 0 264px;background:#151a20;border-right:1px solid #232b34;overflow:auto;padding:14px}
+  .side.r{width:352px;flex:0 0 352px;border-right:0;border-left:1px solid #232b34;padding:0}
+  .lbl{font-size:11px;letter-spacing:.18em;color:#6f7a87;margin-bottom:10px}
+  label.f{display:block;margin-bottom:9px}
+  label.f span{display:block;font-size:11px;color:#8c96a3;margin-bottom:4px}
+  label.f input,label.f select{width:100%;background:#0f1318;border:1px solid #2b333d;color:#e6eaf0;
+    border-radius:5px;padding:6px 8px;font-size:12px;font-family:inherit}
+  .gen{width:100%;margin:6px 0 16px;background:#0e7c86;border:1px solid #12a0ad;color:#fff;
+    border-radius:6px;padding:9px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit}
+  .chips{display:flex;flex-wrap:wrap;gap:5px;margin-bottom:10px}
+  .chip{border:1px solid #2b333d;background:#0f1318;color:#5f6b78;border-radius:4px;padding:4px 7px;
+    font-size:10.5px;cursor:pointer;display:flex;align-items:center;gap:5px;font-family:inherit}
+  .chip.on{background:#1a2331;color:#dbe3ec}
+  .chip i{width:12px;height:3px;border-radius:2px;display:inline-block}
+  #cv{flex:1;min-height:0;overflow:hidden;position:relative;background:#0b0e12}
+  #stage{position:absolute;inset:0;background:#fff}
+  .devhit:hover{fill:rgba(14,165,233,.07)}
+  .pin:hover{fill:rgba(14,165,233,.55)}
+  .whit{cursor:move}
+  .status{height:28px;flex:0 0 28px;display:flex;align-items:center;gap:16px;padding:0 14px;
+    background:#151a20;border-top:1px solid #232b34;font-size:11px;color:#7c8794}
+  .sec{padding:14px;border-bottom:1px solid #232b34}
+  .kv{display:flex;gap:8px;padding:2px 0}
+  .kv b{flex:0 0 84px;color:#6f7a87;font-size:11px;font-weight:400}
+  .kv s{flex:1;color:#dbe3ec;font-size:11.5px;text-decoration:none;word-break:break-all}
+  .pr{display:flex;gap:6px;font-size:10.5px;padding:2px 0;border-bottom:1px solid #1a2027}
+  .bar2{height:4px;background:#1c232b;border-radius:2px;overflow:hidden}
+  .bar2 i{display:block;height:100%}
+  .ai{display:flex;gap:7px;padding:5px 0;border-bottom:1px solid #1c232b}
+  .kb{border:1px solid #232b34;border-radius:6px;margin-bottom:7px;overflow:hidden}
+  .kb>button{width:100%;text-align:left;border:0;background:#151a20;color:#dbe3ec;padding:7px 9px;
+    font-size:11.5px;cursor:pointer;display:flex;gap:7px;align-items:center;font-family:inherit}
+  .kb>button.on{background:#1a2331}
+  .kbb{padding:8px 9px;background:#11161c}
+  ::-webkit-scrollbar{width:9px;height:9px}
+  ::-webkit-scrollbar-thumb{background:#2c343d;border-radius:5px}
+  ::-webkit-scrollbar-track{background:#151a20}
+  /* v2.0.5 audit-fix: 左右面板可折叠 */
+  .side{transition:width .18s ease,flex-basis .18s ease;position:relative}
+  .side.collapsed{width:34px;flex:0 0 34px;padding:6px 4px;overflow:hidden}
+  .side.collapsed>*:not(.foldbtn):not(.foldlab){display:none}
+  .foldbtn{position:absolute;top:8px;right:6px;z-index:5;border:1px solid #2b333d;background:#1c232b;color:#9aa5b1;border-radius:4px;width:22px;height:22px;line-height:20px;text-align:center;cursor:pointer;font-size:12px;padding:0}
+  .foldbtn:hover{background:#232c36;color:#e6eaf0}
+  .side.r .foldbtn{right:auto;left:6px}
+  .side.collapsed .foldbtn{position:static;display:block;margin:0 auto}
+  .foldlab{display:none;writing-mode:vertical-rl;letter-spacing:.2em;color:#6f7a87;font-size:11px;margin:10px auto 0;white-space:nowrap}
+  .side.collapsed .foldlab{display:block}
+  /* v2.11 audit-fix: 右键菜单 */
+  .ctxmenu{position:fixed;z-index:99;background:#151a20;border:1px solid #2b333d;border-radius:6px;padding:10px 12px;min-width:250px;max-width:340px;font-size:12px;color:#c3ccd7;box-shadow:0 8px 28px rgba(0,0,0,.55)}
+  .ctxmenu h4{margin:0 0 7px;font-size:12px;color:#e6eaf0;letter-spacing:.06em}
+  .ctxmenu .row{display:flex;justify-content:space-between;gap:14px;line-height:1.75}
+  .ctxmenu .row b{color:#7c8794;font-weight:400;flex:0 0 auto}
+  .ctxmenu .row span{color:#c8d1dc;text-align:right;word-break:break-all}
+  .ctxmenu .acts{margin-top:9px;display:flex;gap:8px}
+  .ctxmenu .acts button{background:#1c232b;border:1px solid #2b333d;color:#c8d1dc;border-radius:5px;padding:5px 10px;font-size:12px;cursor:pointer;font-family:inherit}
+  .ctxmenu .acts button:hover{background:#232c36;color:#fff}
+  .q{background:#0f1318;border:1px solid #262f39;border-radius:6px;color:#e6eaf0;font-size:12px;padding:6px 10px 6px 28px;width:258px;outline:none;font-family:inherit;transition:border-color .15s,box-shadow .15s}
+  .q:focus{border-color:#2f6fdc;box-shadow:0 0 0 3px rgba(47,111,220,.18)}
+  #qcnt{flex:0 0 auto;white-space:nowrap}
+  /* v2.28: 工况功率流动画 */
+  @keyframes flowdash{to{stroke-dashoffset:-42}}
+  path.flowline{stroke-dasharray:14 8;animation:flowdash .9s linear infinite}
+  path.flowline.rev{animation-direction:reverse}
+  path.simdead{opacity:.16;filter:saturate(.25)}
+  .rtabs{display:flex;align-items:stretch;gap:2px;flex:1 1 auto;min-width:0;height:100%;
+    overflow-x:auto;overflow-y:hidden;scrollbar-width:none}
+  .rtabs::-webkit-scrollbar{display:none}
+  .rtab{position:relative;display:inline-flex;align-items:center;flex:0 0 auto;white-space:nowrap;
+    background:transparent;border:0;color:#94a0ad;border-radius:8px 8px 0 0;padding:0 13px;font-size:13px;
+    cursor:pointer;font-family:inherit;transition:color .15s,background .15s}
+  .rtab:hover{color:#e6eaf0;background:rgba(143,220,255,.07)}
+  .rtab.on{color:#bfeaff;font-weight:600;background:linear-gradient(180deg,rgba(47,111,220,.22),rgba(47,111,220,.02))}
+  .rtab.on::after{content:"";position:absolute;left:9px;right:9px;bottom:0;height:2px;border-radius:2px 2px 0 0;
+    background:linear-gradient(90deg,#2f6fdc,#22d3ee);box-shadow:0 0 12px rgba(34,211,238,.65)}
+  .rtab:focus-visible,.sheets button:focus-visible{outline:2px solid #2f6fdc;outline-offset:-2px}
+  .search{position:relative;display:flex;align-items:center;gap:6px;flex:0 0 auto;padding-left:9px}
+  .search::before{content:"";position:absolute;left:-9px;top:50%;transform:translateY(-50%);width:1px;height:24px;background:#262f39}
+  .sicon{position:absolute;left:18px;top:50%;width:10px;height:10px;border:1.5px solid #5f6b78;border-radius:50%;
+    transform:translateY(-60%);pointer-events:none}
+  .sicon::after{content:"";position:absolute;right:-4px;bottom:-3px;width:5px;height:1.5px;background:#5f6b78;
+    transform:rotate(45deg);border-radius:1px}
+  .ribbon{display:flex;align-items:center;gap:8px;padding:0 16px;height:44px;flex:0 0 44px;
+    background:#0f141a;border-bottom:1px solid #232b34;overflow-x:auto;overflow-y:hidden;scrollbar-width:none}
+  .ribbon::-webkit-scrollbar{display:none}
+  .rpane{display:none;align-items:center;gap:6px;flex-wrap:nowrap;white-space:nowrap}
+  .rpane.on{display:flex}
+  .rsep{width:1px;height:26px;background:#262f39;margin:0 5px;flex:0 0 1px}
+  .rlbl{font-size:10px;color:#5f6b78;letter-spacing:.08em;margin:0 2px;white-space:nowrap}
+  .ribbon .btn{height:30px;display:inline-flex;align-items:center;gap:5px;padding:0 11px}
+  .ribbon .chips{margin-bottom:0;flex-wrap:nowrap}
+  .sheetbar{display:flex;align-items:center;gap:10px;height:34px;flex:0 0 34px;padding:0 10px 0 12px;
+    background:#12171d;border-bottom:1px solid #232b34}
+  .sheets{display:flex;align-items:center;gap:5px;flex:1 1 auto;min-width:0;height:100%;
+    overflow-x:auto;overflow-y:hidden;scrollbar-width:thin;padding:0 2px}
+  .sheets::-webkit-scrollbar{height:5px}
+  .sheets::-webkit-scrollbar-thumb{background:#2c343d;border-radius:3px}
+  .sheets button{flex:0 0 auto;max-width:220px;height:25px;padding:0 12px;border:1px solid #232c36;border-radius:5px;
+    background:#161d25;color:#8d98a5;font-size:11.5px;font-family:inherit;cursor:pointer;white-space:nowrap;
+    overflow:hidden;text-overflow:ellipsis;transition:background .15s,color .15s,border-color .15s}
+  .sheets button:hover{background:#1b2330;color:#dbe3ec;border-color:#2b3644}
+  .sheets button.on{background:#1a2531;border-color:#2f6fdc;color:#bfeaff;font-weight:600;
+    box-shadow:inset 2px 0 0 #22d3ee,0 0 0 1px rgba(47,111,220,.18)}
+  .sheetacts{display:flex;align-items:center;gap:6px;flex:0 0 auto;padding-left:10px;border-left:1px solid #232b34}
+  /* V15: 顶部抽屉面板（原左右两栏收进来） */
+  .drawer{background:#151a20;border-bottom:1px solid #232b34;max-height:46vh;overflow:auto;padding:10px 16px 14px;flex:0 0 auto}
+  .dpane{display:none}
+  .dpane.on{display:block}
+  .dpane.on[data-dp="design"]{display:flex;gap:22px;align-items:flex-start}
+  .dcol{min-width:0}
+  .dpane[data-dp="lib"] #lib{column-width:250px;column-gap:20px}
+  .dpane[data-dp="lib"] #lib>div{break-inside:avoid}
+  .dpane #fields{display:flex;flex-wrap:wrap;gap:2px 18px}
+  .dpane #fields label.f{flex:0 0 200px}
+  #paneInsp{display:flex;gap:6px;align-items:flex-start;flex-wrap:wrap}
+  #paneInsp>.sec{flex:1 1 300px;min-width:270px;border-bottom:none;padding:4px 8px}
+  #paneInsp>div:last-child{flex:1.4 1 340px}
+  @media (max-width:1280px){
+    .bar{gap:10px}
+    .sub{display:none}
+    .q{width:200px}
+    .rtab{padding:0 11px;font-size:12.5px}
+    .sheets button{max-width:180px}
+  }
+  @media (max-width:1024px){
+    .brandtxt .ttl{font-size:12.5px}
+    .q{width:160px}
+    .rtab{padding:0 9px;font-size:12px}
+    .rlbl{display:none}
+  }
+  @media (max-width:820px){
+    .brandtxt{display:none}
+    .q{width:140px}
+  }
+</style>
+</head>
+<body>
+<div id="app">
+  <div class="bar">
+    <div class="brand">
+      <span class="logo" aria-hidden="true">EV</span>
+      <span class="brandtxt">
+        <span class="ttl">充电储能系统原理图</span>
+        <span class="sub">自动生成 · 在线可编辑平台</span>
+      </span>
+    </div>
+    <div class="rtabs" id="rtabs">
+      <button class="rtab on" data-rt="file">文件</button>
+      <button class="rtab" data-rt="design">设计输入</button>
+      <button class="rtab" data-rt="lib">元器件库</button>
+      <button class="rtab" data-rt="edit">编辑</button>
+      <button class="rtab" data-rt="view">视图</button>
+      <button class="rtab" data-rt="anim">动画仿真</button>
+      <button class="rtab" data-rt="export">导出</button>
+      <button class="rtab" data-rt="insp">属性/评分</button>
+      <button class="rtab" data-rt="bom">工程 BOM</button>
+      <button class="rtab" data-rt="ai">AI 工具</button>
+    </div>
+    <div class="search">
+      <span class="sicon" aria-hidden="true"></span>
+      <input id="q" class="q" title="Enter 跳转 · 再次 Enter 循环匹配" aria-label="搜索位号、网络、线号或跨页编号" placeholder="搜索位号 / 网络 / 线号 / 跨页" />
+      <span id="qcnt" class="badge"></span>
+    </div>
+  </div>
+
+  <div class="ribbon" id="ribbon">
+    <div class="rpane on" data-rp="file">
+      <button class="btn" id="bSavePrj" title="保存工程到浏览器并导出 JSON（Ctrl+S）">保存工程</button>
+      <button class="btn" id="bOpenPrj" title="打开工程 JSON 文件">打开工程</button>
+      <input type="file" id="prjFile" accept=".json,application/json" style="display:none">
+      <div class="rsep"></div>
+      <span class="rlbl">工程存取 · 支持 JSON 导入 / 导出</span>
+    </div>
+    <div class="rpane" data-rp="edit">
+      <button class="btn" id="bUndo">撤销</button>
+      <button class="btn" id="bRedo">重做</button>
+      <div class="rsep"></div>
+      <div class="grp" id="tools"></div>
+      <span class="rlbl" style="margin-left:8px">Delete 删除选中 · Ctrl+Z/Y 撤销重做</span>
+    </div>
+    <div class="rpane" data-rp="view">
+      <button class="btn" id="bFit">适应窗口</button>
+      <div class="rsep"></div>
+      <span class="rlbl">图层</span>
+      <div class="chips" id="layers"></div>
+      <div class="rsep"></div>
+      <span class="rlbl">显示</span>
+      <div class="chips" id="opts"></div>
+    </div>
+    <div class="rpane" data-rp="anim">
+      <div class="grp" id="flowg" title="工况功率流动画 + 通电仿真"></div>
+      <span class="rlbl" style="margin-left:8px">通电仿真模式下点击开关器件即可分/合闸</span>
+    </div>
+    <div class="rpane" data-rp="export">
+      <button class="btn pri" id="bSvg">导出 SVG</button>
+      <button class="btn" id="bJson">导出网表</button>
+      <button class="btn" id="bDxf" title="导出 DXF R12（可 AutoCAD/Eplan 导入）">DXF</button>
+      <button class="btn" id="bCsvNet" title="导出网表 CSV">CSV网表</button>
+      <button class="btn" id="bCsvBom" title="导出 BOM CSV">CSV-BOM</button>
+      <button class="btn" id="bPdf" title="打印为 PDF（另存）">打印PDF</button>
+      <div class="rsep"></div>
+      <button class="btn" id="bShare" title="把当前方案参数压进链接并复制">分享方案链接</button>
+    </div>
+    <div class="rpane" data-rp="ai">
+      <button class="btn" id="bAi">大模型设置</button>
+      <button class="btn" id="bCompNew" title="自定义元器件：手动定义引脚/形状，或上传图片/粘贴手册资料由 AI 自动生成符号" style="background:#7c2d12;border-color:#ea580c;color:#fff">🧩 新建元器件</button>
+      <button class="btn" id="bScope" title="工程示波器：测点理论波形">📈 示波器</button>
+    </div>
+  </div>
+
+  <div class="drawer" id="drawer" style="display:none">
+    <div class="dpane" data-dp="design">
+      <div class="dcol" style="flex:0 0 340px">
+        <div class="lbl">客户口述 → 参数（大模型识别）</div>
+        <textarea id="nlText" rows="4" placeholder="例：帮我做个双枪 240kW 液冷超充，带 200 度储能削峰填谷，国标，装在商业综合体地下车库"
+          style="width:100%;background:#0f1318;border:1px solid #2b333d;color:#e6eaf0;border-radius:5px;padding:7px;font-size:12px;font-family:inherit;resize:vertical"></textarea>
+        <button class="gen" id="bNl" style="background:#6d28d9;border-color:#7c3aed;margin:7px 0 6px">识别并填入参数</button>
+        <div id="nlOut" style="font-size:10.5px;color:#8c96a3;line-height:1.6;margin-bottom:6px"></div>
+      </div>
+      <div class="dcol" style="flex:0 0 300px">
+        <div class="lbl">典型方案（点击即载入）</div>
+        <div class="chips" id="presets"></div>
+      </div>
+      <div class="dcol" style="flex:1;min-width:320px">
+        <div class="lbl">设计输入</div>
+        <div id="fields"></div>
+        <button class="gen" id="bGen" style="max-width:360px">确定性重新生成</button>
+      </div>
+    </div>
+    <div class="dpane" data-dp="lib">
+      <div class="lbl">符号库（IEC 60617 / GB 4728 画法）· 点击条目后在画布点击放置，或直接拖到画布；🧩 新建 = 自定义元器件</div>
+      <div id="lib" style="font-size:11px;color:#7c8794;line-height:1.7"></div>
+    </div>
+    <div class="dpane" data-dp="insp">
+      <div id="paneInsp">
+      <div class="sec">
+        <div class="lbl">属性检查器</div>
+        <div id="insp" style="font-size:12px;color:#c3ccd7;line-height:1.75"></div>
+      </div>
+      <div class="sec">
+        <div style="display:flex;align-items:baseline;gap:10px;margin-bottom:10px">
+          <div class="lbl" style="margin:0">图纸优劣评分</div>
+          <div style="margin-left:auto;font-size:22px;font-weight:800;line-height:1" id="grade">—</div>
+          <div style="font-size:12px;color:#9aa5b1" id="total">0/100</div>
+        </div>
+        <div id="score"></div>
+      </div>
+      <div class="sec">
+        <div style="display:flex;align-items:baseline;gap:8px;margin-bottom:4px">
+          <div class="lbl" style="margin:0">厂家电路对比库</div>
+          <div style="margin-left:auto;font-size:10px;color:#5f6b78" id="kbMeta"></div>
+        </div>
+        <div style="font-size:10.5px;color:#6f7a87;margin-bottom:9px;line-height:1.6">
+          板级功能单元取舍知识库，已导出为 G 维度判定规则</div>
+        <div id="kb"></div>
+      </div>
+      <div style="padding:4px 8px">
+        <div class="lbl" id="ruleHdr">规则明细</div>
+        <div id="audit"></div>
+      </div>
+      </div>
+    </div>
+    <div class="dpane" data-dp="bom">
+      <div id="paneBom">
+        <div class="sec" style="border-bottom:none;padding:4px 8px">
+          <div style="display:flex;align-items:baseline;gap:8px;margin-bottom:8px">
+            <div class="lbl" style="margin:0">工程 BOM</div>
+            <div style="margin-left:auto;font-size:10px;color:#5f6b78" id="bomMeta"></div>
+          </div>
+          <div style="display:flex;gap:5px;margin-bottom:9px;max-width:560px">
+            <button class="btn" id="bBomAi" style="flex:1;background:#6d28d9;border-color:#7c3aed;color:#fff">AI 补全型号/厂家/手册</button>
+            <button class="btn" id="bBomCsv">导出 CSV</button>
+            <button class="btn" id="bBomKb" title="导入 JSON 手册库（EVSE_MANUAL_KB.merge 格式，参考 manual-db.example.json）">导入手册库</button>
+            <input type="file" id="kbFile" accept=".json,application/json" style="display:none">
+          </div>
+          <div style="font-size:10px;color:#6f7a87;line-height:1.6">数量与关键参数由设计模型计算得出，真实可追溯。型号仅到系列级、厂家为常见候选（非背书）。AI 补全内容标 <span style="color:#a78bfa">AI</span>，<b style="color:#e0a83a">必须人工核验</b>。</div>
+          <div id="bomProg" style="font-size:10.5px;color:#8c96a3;margin-top:7px"></div>
+        </div>
+        <div id="bom" style="padding:0 8px 12px"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="sheetbar">
+    <div class="sheets" id="sheets"></div>
+    <div class="sheetacts">
+      <button class="btn sm" id="bNew" title="新建空白电路图（图框尺寸/标题栏可自定义，自主画图）" style="background:#1d4ed8;border-color:#3b82f6;color:#fff">＋ 新建图纸</button>
+      <button class="btn sm" id="bAddSheet" title="给当前工程添加新的空白页">＋ 加页</button>
+    </div>
+  </div>
+
+  <div class="body">
+    <div style="flex:1;min-width:0;display:flex;flex-direction:column;background:#0b0e12">
+      <div id="cv"></div>
+      <div class="status">
+        <span id="st1"></span><span id="st2"></span><span id="st3"></span>
+        <span id="st4"></span><span id="st5"></span>
+        <span style="margin-left:auto;color:#9aa5b1" id="msg">正在装载引擎…</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="aiDlg" style="display:none;position:fixed;inset:0;background:rgba(6,9,13,.72);z-index:99;align-items:center;justify-content:center">
+  <div style="width:520px;max-width:94vw;background:#151a20;border:1px solid #2b333d;border-radius:10px;padding:20px">
+    <div style="font-size:14px;font-weight:700;margin-bottom:4px">大语言模型接入</div>
+    <div style="font-size:11px;color:#7c8794;line-height:1.6;margin-bottom:14px">
+      兼容 OpenAI <code>/chat/completions</code> 协议的任意服务：OpenAI · Azure · DeepSeek ·
+      通义千问（兼容模式）· 智谱 · Moonshot，或本地 Ollama / vLLM / LM Studio。<br>
+      <b style="color:#9aa5b1">Key 仅保存在本浏览器 localStorage，不上传任何第三方。</b>
+    </div>
+    <label class="f"><span>API 地址（Base URL，到 /v1 即可）</span>
+      <input id="aiUrl" type="text" placeholder="https://api.deepseek.com/v1"/></label>
+    <label class="f"><span>API Key</span>
+      <input id="aiKey" type="password" placeholder="sk-..."/></label>
+    <label class="f"><span>模型名</span>
+      <input id="aiModel" type="text" placeholder="deepseek-chat / gpt-4o-mini / qwen-plus"/></label>
+    <div style="font-size:10.5px;color:#6f7a87;line-height:1.6;margin:4px 0 14px">
+      ① 浏览器直连第三方 API 会受 CORS 限制；若提示跳约，请在自己服务器上做一个反代（README 含 Nginx 配置）。<br>
+      ② BOM 补全需要联网检索能力才能拿到真实手册链接；纯离线模型容易幻觉型号，请优先选带搜索工具的模型。
+    </div>
+    <div style="display:flex;gap:7px">
+      <button class="btn" id="aiTest">测试连通</button>
+      <span id="aiMsg" style="flex:1;font-size:11px;color:#8c96a3;align-self:center"></span>
+      <button class="btn" id="aiCancel">取消</button>
+      <button class="btn pri" id="aiSave">保存</button>
+    </div>
+  </div>
+</div>
+
+<!-- V13: 新建/加页图纸对话框（图框尺寸与标题栏可自定义） -->
+<div id="newDlg" style="display:none;position:fixed;inset:0;background:rgba(8,11,16,.6);z-index:60">
+  <div style="margin:7vh auto;width:470px;max-height:86vh;overflow:auto;background:#151b26;border:1px solid #2b3648;border-radius:12px;padding:18px 20px;color:#dbe4f0;box-shadow:0 18px 60px rgba(0,0,0,.5)">
+    <div style="font-weight:700;font-size:14px;margin-bottom:4px" id="ndHead">新建电路图图纸</div>
+    <div style="font-size:11px;color:#8c96a3;margin-bottom:12px">自主画图模式：从左侧元器件库点击或拖放放置器件，用「连线」工具在引脚间拉线；自动遵守 8px 净空 / 正交走线 / 跨越半圆规则并实时审计评分。</div>
+    <label class="f"><span>图框规格（1 mm = 4 px）</span><select id="ndPaper"></select></label>
+    <div style="display:flex;gap:8px">
+      <label class="f" style="flex:1"><span>图框宽 px</span><input id="ndW" type="number" min="400" max="8000" step="10"></label>
+      <label class="f" style="flex:1"><span>图框高 px</span><input id="ndH" type="number" min="300" max="6000" step="10"></label>
+    </div>
+    <label class="f"><span>项目名称</span><input id="ndProj" type="text" placeholder="如：某充电站直流桩主回路"></label>
+    <label class="f"><span>图名（本页标题）</span><input id="ndSheetTitle" type="text" placeholder="如：一次主回路"></label>
+    <div style="display:flex;gap:8px">
+      <label class="f" style="flex:1"><span>图号</span><input id="ndDwg" type="text" placeholder="CUSTOM-001"></label>
+      <label class="f" style="flex:1"><span>版本</span><input id="ndVer" type="text" placeholder="P01"></label>
+    </div>
+    <div style="display:flex;gap:8px">
+      <label class="f" style="flex:1"><span>编制</span><input id="ndAuthor" type="text"></label>
+      <label class="f" style="flex:1"><span>校核</span><input id="ndChecker" type="text"></label>
+      <label class="f" style="flex:1"><span>批准</span><input id="ndApprover" type="text"></label>
+    </div>
+    <div style="margin-top:14px;display:flex;gap:8px;justify-content:flex-end">
+      <button class="btn" id="ndCancel">取消</button>
+      <button class="btn pri" id="ndOK">创建</button>
+    </div>
+  </div>
+</div>
+<div id="compDlg" style="display:none;position:fixed;inset:0;background:rgba(8,11,16,.6);z-index:60">
+  <div style="margin:4vh auto;width:880px;max-height:92vh;overflow:auto;background:#151b26;border:1px solid #2b3648;border-radius:12px;padding:18px 20px;color:#dbe4f0;box-shadow:0 18px 60px rgba(0,0,0,.5)">
+    <div style="font-weight:700;font-size:14px;margin-bottom:4px" id="cdHead">新建自定义元器件</div>
+    <div style="font-size:11px;color:#8c96a3;margin-bottom:12px">定义位号前缀、名称、框体尺寸与各边引脚（引脚号/名称/电气域/方向），符号实时预览，保存到本浏览器后出现在左侧元件库「自定义」分组。也可上传芯片引脚图/原理图截图，或粘贴手册引脚定义文字，由大模型自动识别填充。</div>
+    <div style="display:flex;gap:16px">
+      <div style="flex:1;min-width:0">
+        <div style="display:flex;gap:8px">
+          <label class="f" style="width:96px"><span>位号前缀</span><input id="cdTag" type="text" placeholder="U" maxlength="6"></label>
+          <label class="f" style="flex:1"><span>元器件名称</span><input id="cdName" type="text" placeholder="如：充电控制板 / 网关芯片"></label>
+        </div>
+        <div style="display:flex;gap:8px">
+          <label class="f" style="flex:1"><span>框内标题（留空同名）</span><input id="cdTitle" type="text" placeholder="符号方框内显示的文字"></label>
+          <label class="f" style="width:96px"><span>框宽</span><input id="cdW" type="number" value="120" min="60" max="400" step="10"></label>
+          <label class="f" style="width:96px"><span>最小高度</span><input id="cdMinH" type="number" value="56" min="36" max="400" step="4"></label>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;margin:8px 0 5px">
+          <span style="font-size:11px;color:#8c96a3">引脚定义（数量不限，逐行填写）</span>
+          <button class="btn" id="cdAddPin" style="margin-left:auto;padding:3px 9px">＋ 添加引脚</button>
+          <button class="btn" id="cdAiImg" style="padding:3px 9px" title="上传芯片引脚图/原理图截图，AI 自动识别">🤖 AI 识图</button>
+          <input type="file" id="cdImgFile" accept="image/*" style="display:none">
+        </div>
+        <div style="display:flex;gap:4px;font-size:10px;color:#5f6b78;margin-bottom:3px;padding:0 2px">
+          <span style="width:52px">引脚号</span><span style="width:86px">名称</span><span style="width:56px">边</span><span style="width:70px">电气域</span><span style="width:56px">方向</span>
+        </div>
+        <div id="cdPins" style="max-height:240px;overflow:auto;border:1px solid #232b34;border-radius:6px;padding:6px"></div>
+        <div style="margin-top:8px">
+          <div style="font-size:11px;color:#8c96a3;margin-bottom:4px">或粘贴芯片手册引脚定义文字，AI 解析：</div>
+          <textarea id="cdAiText" rows="2" style="width:100%;background:#0f1318;border:1px solid #2b333d;color:#e6eaf0;border-radius:5px;padding:6px;font-size:11px;font-family:inherit" placeholder="如：Pin1 CAN_H 通信；Pin2 CAN_L 通信；Pin3 KL30 电源输入；Pin4 GND 接地…或直接粘贴手册引脚定义表"></textarea>
+          <button class="btn" id="cdAiTxt" style="margin-top:4px;padding:3px 9px">🤖 AI 解析文字</button>
+          <span id="cdAiMsg" style="font-size:10.5px;color:#8c96a3;margin-left:8px"></span>
+        </div>
+      </div>
+      <div style="flex:0 0 300px">
+        <div style="font-size:11px;color:#8c96a3;margin-bottom:4px">实时预览（符号按 1:1 生成）</div>
+        <div id="cdPreview" style="background:#0b0e12;border:1px solid #232b34;border-radius:6px;min-height:220px;display:flex;align-items:center;justify-content:center;overflow:auto"></div>
+        <div style="font-size:10px;color:#5f6b78;margin-top:6px;line-height:1.6">电气域决定连线颜色与审计归类：AC 交流 / DC 直流 / ESS 储能 / AUX 辅电 / CTL 控制 / COMM 通信 / SIG 信号 / PE 保护地。保存后在左侧库「自定义」分组点击即可放置，支持连线/审计/仿真/导出全链路。</div>
+      </div>
+    </div>
+    <div style="margin-top:14px;display:flex;gap:8px;justify-content:flex-end">
+      <button class="btn" id="cdCancel">取消</button>
+      <button class="btn" id="cdOK">保存到元件库</button>
+    </div>
+  </div>
+</div>
+
+<script src="evse-core.js"></script>
+<script src="evse-mwess-core.js"></script>
+<script src="evse-vendor-kb.js"></script>
+<script src="evse-geo.js"></script>
+<script src="evse-labelfix.js"></script>
+<script src="evse-render.js"></script>
+<script src="evse-sim.js"></script>
+<script src="evse-manual-kb.js"></script>
+  <script src="evse-bom.js"></script>
+<script src="evse-ai.js"></script>
+<script src="evse-export.js"></script>
+<div id="scopedw" style="display:none;position:fixed;right:10px;top:64px;width:420px;background:#12161c;border:1px solid #2b333d;border-radius:8px;padding:10px;z-index:60;box-shadow:0 10px 34px rgba(0,0,0,.55)">
+  <div style="display:flex;gap:6px;align-items:center;margin-bottom:6px;flex-wrap:wrap">
+    <b style="font-size:12px;color:#e6eaf0">工程示波器 · 理论波形</b>
+    <button class="btn" id="scPick">画布选测点</button>
+    <button class="btn" id="scPng">📷 抓图PNG</button>
+    <button class="btn" id="scClose" style="margin-left:auto">关闭</button>
+  </div>
+  <select id="scSeq" class="q" style="width:100%;margin-bottom:6px"></select>
+  <div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:6px">
+    <button class="btn" id="scA1">+直流母线电压</button>
+    <button class="btn" id="scA2">+充电电流</button>
+    <button class="btn" id="scA3">+导引CC/CP</button>
+    <button class="btn" id="scA4">+交流进线L1</button>
+    <span style="font-size:10px;color:#5f6b78;align-self:center">或「画布选测点」后点引脚（20px 自动吸附）</span>
+  </div>
+  <div id="scPts" style="font-size:10.5px;color:#8c96a3;margin-bottom:6px;line-height:1.7"></div>
+  <canvas id="scCv" width="800" height="440" style="width:100%;background:#0b0e12;border:1px solid #1c232b;border-radius:4px"></canvas>
+</div>
+<script>
+(function () {
+  'use strict';
+  var $ = function (id) { return document.getElementById(id); };
+  var esc = function (s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); };
+
+  var ST = {
+    sheet: 1, tool: 'sel', sel: null, msel: [], openKb: {}, flow: '', sim: false, SIM: null,
+    params: { name: '示范站 240kW 储能超充桩', family: 'evse', std: 'gb', kw: 240, guns: 2, gunA: 250, moduleKw: 40, ess: true, essKwh: 200, essClusters: 2, coupling: 'dc' },
+    opts: { pinNo: true, pinName: true, devName: true },
+    layers: { AC: 1, DC: 1, ESS: 1, AUX: 1, CTL: 1, COMM: 1, SAF: 1, PE: 1 }
+  };
+  var D = null, view = { x: 40, y: 40, k: .3 }, host, svgEl, world, sheetSize, hist = [], fut = [], drag = null, pending = null;
+
+  /* ---------- 生成 ---------- */
+  function viewOpts() {
+    var L = {}; Object.keys(ST.layers).forEach(function (k) { L[k] = !!ST.layers[k]; });
+    return { pinNo: ST.opts.pinNo, pinName: ST.opts.pinName, devName: ST.opts.devName, layers: L,
+      hiNet: ST.sel && (ST.sel.k === 'wire' || ST.sel.k === 'pin') ? ST.sel.net : null };
+  }
+  function generate(fit) {
+    var p = {}; Object.keys(ST.params).forEach(function (k) { p[k] = ST.params[k]; });
+    ['kw', 'guns', 'gunA', 'moduleKw', 'essKwh', 'essClusters'].forEach(function (k) { p[k] = +p[k] || 0; });
+    ['acdcKw', 'acdcCount', 'dcdcKw', 'dcdcCount', 'acIn', 'gunCount', 'gunV', 'gunA', 'busV', 'gunRated', 'essCab', 'essKwh', 'essPack', 'pmuCount', 'dcuCount'].forEach(function (k) { if (p[k] != null) p[k] = +p[k] || 0; });
+    p.guns = Math.max(1, Math.min(6, p.guns)); p.essClusters = Math.max(1, Math.min(4, p.essClusters));
+    var t0 = performance.now();
+    D = window.EVSE_GEO.generate(p);
+    if (!D || !D.devices || !D.devices.length) { msg('⚠ 生成了空设计（参数异常或引擎故障）——请 Ctrl+F5 强制刷新后重试'); }
+    hist = []; fut = []; ST.sel = null;
+    msg('卢继雄倾注心力制作');
+    paint(fit !== false); renderAll();
+  }
+  function msg(s) { $('msg').textContent = s; var me = $('msg'); if (me) me.style.color = ''; }
+  /* v231b: 全局错误可视化——静默失败变为红色横幅 */
+  window.addEventListener('error', function (ev) {
+    var me = document.getElementById('msg');
+    if (me) { me.textContent = '⚠ 脚本错误：' + (ev.message || '未知') + '（行 ' + (ev.lineno || '?') + '）——若页面空白请 Ctrl+F5 强制刷新'; me.style.color = '#ff6b5e'; }
+  });
+
+  /* ---------- 画布 ---------- */
+  /* v2.26: 拖放到画布 */
+  document.addEventListener('DOMContentLoaded', function () {
+    var cvh = $('cv');
+    if (!cvh) return;
+    cvh.addEventListener('dragover', function (e) { e.preventDefault(); });
+    cvh.addEventListener('drop', function (e) {
+      e.preventDefault();
+      var li = e.dataTransfer.getData('text/lib');
+      if (li === '' || li == null || !D) return;
+      var w0 = toWorld(e);
+      addLibDevice(+li, w0.x - 20, w0.y - 10);
+      pendingLib = -1; renderLib();
+    });
+  });
+  function paint(fit) {
+    if (!D) return;
+    var r = window.EVSE_RENDER.sheet(D, ST.sheet, viewOpts());
+    sheetSize = { w: r.w, h: r.h };
+    host.innerHTML = '<svg id="stage" width="100%" height="100%" font-family="Arial Narrow, Helvetica Neue, Helvetica, Microsoft YaHei, sans-serif"><g id="world">' + r.svg + '</g></svg>';
+    svgEl = host.querySelector('#stage'); world = host.querySelector('#world');
+    if (fit) doFit(); else applyView();
+    drawSel();
+    if (ST.sim) computeSim(); else if (ST.flow) applyFlow(); /* v2.28 / V13: 仿真优先 */
+    drawScopeMarks(); /* v2.33 */
+  }
+  function repaintWires() {
+    if (!world) return;
+    var g = world.querySelector('#lay-wires');
+    if (g) g.innerHTML = window.EVSE_RENDER.wiresSVG(D, ST.sheet, viewOpts());
+    drawSel();
+    if (ST.sim) applySim(); /* V13: 重绘后恢复带电/失电着色 */
+  }
+  function repaintDevs() {
+    if (!world) return;
+    var g = world.querySelector('#lay-devs');
+    if (g) g.innerHTML = D.devices.filter(function (x) { return x.sheet === ST.sheet && x.x != null; })
+      .map(function (x) { return window.EVSE_RENDER.devSVG(x, viewOpts()); }).join('');
+  }
+  function marqRect(dg) { /* v2.35 */
+    var x = Math.min(dg.x0, dg.x1), y = Math.min(dg.y0, dg.y1);
+    var w = Math.abs(dg.x1 - dg.x0), h = Math.abs(dg.y1 - dg.y0);
+    return '<rect x="' + x + '" y="' + y + '" width="' + w + '" height="' + h + '" fill="rgba(14,165,233,.08)" stroke="#0ea5e9" stroke-width="' + (1.4 / view.k) + '" stroke-dasharray="' + (5 / view.k) + ' ' + (4 / view.k) + '"/>';
+  }
+  function drawSel() {
+    var g = world && world.querySelector('#lay-sel'); if (!g) return;
+    var s = '', sel = ST.sel;
+    (ST.msel || []).forEach(function (mid) { /* v2.35 多选高亮 */
+      var md = D.map[mid]; if (!md || md.sheet !== ST.sheet) return;
+      s += '<rect x="' + (md.x - 10) + '" y="' + (md.y - 10) + '" width="' + (md.sym.w + 20) + '" height="' + (md.sym.h + 20) + '" fill="none" stroke="#38bdf8" stroke-width="1.2" stroke-dasharray="4 3" opacity=".85"/>';
+    });
+    if (sel && sel.k === 'dev') {
+      var dv = D.map[sel.id];
+      if (dv) s = '<rect x="' + (dv.x - 12) + '" y="' + (dv.y - 12) + '" width="' + (dv.sym.w + 24) + '" height="' + (dv.sym.h + 24) + '" fill="none" stroke="#0ea5e9" stroke-width="1.6" stroke-dasharray="6 4"/>';
+    } else if (sel && sel.k === 'pin' && sel.pt) {
+      s = '<circle cx="' + sel.pt.x + '" cy="' + sel.pt.y + '" r="6" fill="none" stroke="#0ea5e9" stroke-width="1.8"/>';
+    } else if (sel && sel.k === 'junc' && sel.pt) {
+      s = '<circle cx="' + sel.pt.x + '" cy="' + sel.pt.y + '" r="7" fill="none" stroke="#0ea5e9" stroke-width="2"/>'
+        + '<circle cx="' + sel.pt.x + '" cy="' + sel.pt.y + '" r="2.6" fill="#0ea5e9"/>';
+    } else if (sel && sel.k === 'label') {
+      var d2 = D.map[sel.dev];
+      if (d2 && d2.sym.tagAt) {
+        var o = d2.tagOff || { dx: 0, dy: 0 };
+        s = '<rect x="' + (d2.x + d2.sym.tagAt.x + o.dx - 30) + '" y="' + (d2.y + d2.sym.tagAt.y + o.dy - 12) + '" width="64" height="34" fill="none" stroke="#0ea5e9" stroke-width="1.2" stroke-dasharray="4 3"/>';
+      }
+    }
+    g.innerHTML = s;
+  }
+  function applyView() { if (world) world.setAttribute('transform', 'translate(' + view.x + ',' + view.y + ') scale(' + view.k + ')'); }
+  function doFit() {
+    if (!sheetSize) return;
+    var cw = host.clientWidth, ch = host.clientHeight;
+    if (cw < 60 || ch < 60) { requestAnimationFrame(function () { doFit(); }); return; }
+    var k = Math.max(.03, Math.min(6, Math.min((cw - 30) / sheetSize.w, (ch - 30) / sheetSize.h)));
+    view = { k: k, x: (cw - sheetSize.w * k) / 2, y: (ch - sheetSize.h * k) / 2 };
+    applyView();
+  }
+  function toWorld(e) {
+    var r = host.getBoundingClientRect();
+    return { x: (e.clientX - r.left - view.x) / view.k, y: (e.clientY - r.top - view.y) / view.k };
+  }
+
+  /* ---------- 历史 ---------- */
+  function snap() {
+    if (!D) return JSON.stringify({});
+    return JSON.stringify({
+      p: D.devices.map(function (x) { return [x.x, x.y, x.tagOff ? [x.tagOff.dx, x.tagOff.dy] : 0]; }),
+      w: D.wires.map(function (x) { return [x.pts, !!x.manual]; })
+    });
+  }
+  function pushHist() { hist.push(snap()); if (hist.length > 40) hist.shift(); fut = []; }
+  function restore(js) {
+    var o = JSON.parse(js);
+    D.devices.forEach(function (x, i) { var q = o.p[i]; if (q) { x.x = q[0]; x.y = q[1]; x.tagOff = q[2] ? { dx: q[2][0], dy: q[2][1] } : null; } });
+    D.wires.forEach(function (x, i) { var q = o.w[i]; if (q) { x.pts = q[0]; x.manual = q[1]; } });
+    window.EVSE_GEO.crossings(D); window.EVSE_GEO.audit(D);
+    paint(false); renderAll();
+  }
+
+  /* ---------- 交互 ---------- */
+  function netOfPin(dev, pin) {
+    return D.nets.filter(function (n) { return (n.a.d === dev && n.a.p === pin) || (n.b.d === dev && n.b.p === pin); })[0];
+  }
+  function otherEnd(n, dev, pin) {
+    var o = (n.a.d === dev && n.a.p === pin) ? n.b : n.a;
+    var dv = D.map[o.d], q = dv && window.EVSE_GEO.pinOf(dv, o.p);
+    return (dv ? dv.tag || dv.id : o.d) + ':' + (q && q.name ? q.name : o.p);
+  }
+  function onDown(e) {
+    if (!D) return;
+    var t = e.target.closest('[data-k]'), k = t && t.getAttribute('data-k'), w0 = toWorld(e);
+    if (scPick && e.button === 0) { /* v2.33: 示波器测点拾取（引脚直点或 20px 吸附） */
+      var hit2 = null;
+      if (k === 'pin') hit2 = t.getAttribute('data-id').split('/');
+      else {
+        var bp2 = null, bd2 = 20;
+        D.devices.forEach(function (dv3) {
+          if (dv3.sheet !== ST.sheet || dv3.x == null) return;
+          (dv3.sym.pins || []).forEach(function (pn4) {
+            var q3 = window.EVSE_GEO.pinAbs(D.map, { d: dv3.id, p: pn4.n });
+            if (!q3) return;
+            var dd3 = Math.hypot(q3.x - w0.x, q3.y - w0.y);
+            if (dd3 < bd2) { bd2 = dd3; bp2 = [dv3.id, pn4.n]; }
+          });
+        });
+        if (bp2) hit2 = bp2;
+      }
+      if (hit2) {
+        var dv2 = D.map[hit2[0]], pn3 = window.EVSE_GEO.pinOf(dv2, hit2[1]);
+        var nn3 = netOfPin(hit2[0], hit2[1]);
+        scPts.push({ dev: hit2[0], pin: hit2[1], net: nn3 ? nn3.id : '', netName: nn3 ? (nn3.name || nn3.id) : '', cls: (pn3 && pn3.k) || 'CTL', name: (pn3 && pn3.name) || hit2[1] });
+        renderScPts(); drawScope(); drawScopeMarks();
+        msg('测点 TP' + scPts.length + '：' + hit2[0] + ':' + ((pn3 && pn3.name) || hit2[1]) + (nn3 && nn3.name ? '（网 ' + nn3.name + '）' : '') + '　再点其他引脚可叠加');
+      } else msg('未命中引脚——请点引脚圆点或靠近引脚（20px 内自动吸附）');
+      e.preventDefault(); e.stopPropagation(); return;
+    }
+    if (pendingLib >= 0 && e.button === 0) { /* v2.26: 库放置 */
+      addLibDevice(pendingLib, w0.x - 20, w0.y - 10);
+      pendingLib = -1; renderLib();
+      e.preventDefault(); e.stopPropagation();
+      return;
+    }
+    if (ST.tool === 'wire' && !k && e.button === 0) { /* v2.27: 连线模式空白点击=引脚吸附或取消 */
+      var bestP = null, bestD = 14;
+      D.devices.forEach(function (dv) {
+        if (dv.sheet !== ST.sheet || dv.x == null) return;
+        (dv.sym.pins || []).forEach(function (pn2) {
+          var q2 = window.EVSE_GEO.pinAbs(D.map, { d: dv.id, p: pn2.n });
+          if (!q2) return;
+          var dd2 = Math.hypot(q2.x - w0.x, q2.y - w0.y);
+          if (dd2 < bestD) { bestD = dd2; bestP = [dv.id, pn2.n]; }
+        });
+      });
+      if (bestP) { pinPick(bestP[0], bestP[1]); drawPending(); return; }
+      if (pending) { pending = null; drawPending(); msg('连线已取消'); }
+      return;
+    }
+    if (e.button === 1 || ST.tool === 'pan') { /* v2.35: 平移视图 = 按住滑轮（中键） */
+      drag = { m: 'pan', sx: e.clientX, sy: e.clientY, vx: view.x, vy: view.y };
+      e.preventDefault();
+      return;
+    }
+    if (!k && e.button === 0 && ST.tool !== 'wire') { /* v2.35: 左键空白拖拽 = 框选 */
+      drag = { m: 'marq', x0: w0.x, y0: w0.y, x1: w0.x, y1: w0.y, add: e.ctrlKey || e.metaKey };
+      ST.sel = null; drawSel(); repaintWires(); renderInspector(); /* v2.38 清线条高亮 */
+      return;
+    }
+    if (k === 'pin') {
+      var pr = t.getAttribute('data-id').split('/'), dv = D.map[pr[0]];
+      var pn = window.EVSE_GEO.pinOf(dv, pr[1]), net = netOfPin(pr[0], pr[1]);
+      if (ST.tool === 'wire') { pinPick(pr[0], pr[1]); return; }
+      ST.sel = { k: 'pin', dev: pr[0], pin: pr[1], net: net && net.id, pt: window.EVSE_GEO.pinAbs(D.map, { d: pr[0], p: pr[1] }) }; /* V7-PIN2: 选中点=外伸腿尖 */
+      msg(pr[0] + ':' + (pn.name || pn.n) + ' → ' + (net ? otherEnd(net, pr[0], pr[1]) : '未接线'));
+      repaintWires(); renderInspector(); return;
+    }
+    if (k === 'dev') {
+      var id = t.getAttribute('data-id'), d3 = D.map[id];
+      if (e.ctrlKey || e.metaKey) { /* v2.35: Ctrl/⌘+点击 增减多选 */
+        var mi = ST.msel.indexOf(id);
+        if (mi >= 0) ST.msel.splice(mi, 1); else ST.msel.push(id);
+        ST.sel = { k: 'dev', id: id }; drawSel(); repaintWires(); renderInspector(); /* v2.38 */
+        msg('多选 ' + ST.msel.length + ' 个器件（Ctrl+点击增减 · 空白拖拽框选 · 拖选中件组移动）');
+        e.preventDefault(); e.stopPropagation(); return;
+      }
+      if (ST.msel.indexOf(id) < 0) ST.msel = [id];
+      pushHist();
+      drag = { m: 'dev', id: id, ids: ST.msel.slice(), offs: {}, orig: {}, ox: d3.x - w0.x, oy: d3.y - w0.y }; /* V7-PIN: orig 记录原位置 */
+      drag.ids.forEach(function (iid) { var dd = D.map[iid]; if (dd) { drag.offs[iid] = { ox: dd.x - w0.x, oy: dd.y - w0.y }; drag.orig[iid] = { x: dd.x, y: dd.y }; } });
+      ST.sel = { k: 'dev', id: id }; drawSel(); repaintWires(); renderInspector(); /* v2.38 */
+      msg(drag.ids.length > 1 ? '组拖动 ' + drag.ids.length + ' 个器件 —— 松开后相关连线自动重路由' : '拖动 ' + d3.tag + ' —— 松开后相关连线自动重路由'); return;
+    }
+    if (k === 'wire') {
+      var wid = t.getAttribute('data-id'), si = +t.getAttribute('data-seg');
+      var w = D.wires.filter(function (q) { return q.id === wid; })[0];
+      pushHist(); drag = { m: 'seg', id: wid, si: si };
+      var n2 = D.nets.filter(function (q) { return q.id === w.net; })[0];
+      ST.sel = { k: 'wire', id: wid, net: w.net, seg: si };
+      msg('线段可拖动，邻线自动挤推 · ' + (n2 ? n2.name : ''));
+      repaintWires(); renderInspector(); return;
+    }
+    if (k === 'junc') {
+      var ji = +t.getAttribute('data-id').slice(1);
+      pushHist(); drag = { m: 'junc', ji: ji };
+      var jj = D.junctions[ji];
+      ST.sel = { k: 'junc', ji: ji, pt: { x: jj.x, y: jj.y } };
+      drawSel(); repaintWires(); renderInspector(); /* v2.38 */
+      msg('拖动电气连接点 —— 汇聚于此的所有电气线一起移动，保持连接关系'); return;
+    }
+    if (k === 'label') {
+      var lid = t.getAttribute('data-id'), dev = lid.split('.')[0], d4 = D.map[dev];
+      pushHist();
+      drag = { m: 'label', dev: dev, ox: (d4.tagOff ? d4.tagOff.dx : 0) - w0.x, oy: (d4.tagOff ? d4.tagOff.dy : 0) - w0.y };
+      ST.sel = { k: 'label', dev: dev, id: lid }; drawSel(); repaintWires(); renderInspector(); /* v2.38 */
+      msg('位号 / 名称 / 规格文字可单独拖动');
+    }
+  }
+  function onMove(e) {
+    if (ST.tool === 'wire' && pending && !drag) { drawPending(toWorld(e)); return; }
+    if (!drag) return;
+    if (drag.m === 'pan') { view.x = drag.vx + (e.clientX - drag.sx); view.y = drag.vy + (e.clientY - drag.sy); applyView(); return; }
+    var w0 = toWorld(e);
+    if (drag.m === 'dev') {
+      (drag.ids || [drag.id]).forEach(function (iid) {
+        var dv = D.map[iid]; if (!dv) return;
+        var of = (drag.offs && drag.offs[iid]) || { ox: drag.ox, oy: drag.oy };
+        dv.x = Math.round((w0.x + of.ox) / 2) * 2; dv.y = Math.round((w0.y + of.oy) / 2) * 2;
+        var g = world.querySelector('[data-k="dev"][data-id="' + iid + '"]');
+        if (g) g.setAttribute('transform', 'translate(' + dv.x + ',' + dv.y + ')');
+      });
+      drawSel(); drag.moved = 1; return;
+    }
+    if (drag.m === 'marq') { /* v2.35 框选矩形 */
+      drag.x1 = w0.x; drag.y1 = w0.y; drag.moved = 1;
+      var gx = world.querySelector('#lay-sel');
+      if (gx) gx.innerHTML = marqRect(drag);
+      return;
+    }
+    if (drag.m === 'label') {
+      var d2 = D.map[drag.dev];
+      d2.tagOff = { dx: Math.round(w0.x + drag.ox), dy: Math.round(w0.y + drag.oy) };
+      repaintDevs(); drawSel(); drag.moved = 1; return;
+    }
+    if (drag.m === 'junc') {
+      var hit = window.EVSE_GEO.dragJunction(D, drag.ji, w0.x, w0.y);
+      if (hit.length) {
+        var jj = D.junctions[drag.ji];
+        if (ST.sel && ST.sel.k === 'junc') ST.sel.pt = { x: jj.x, y: jj.y };
+        repaintWires(); drag.moved = 1; drag.hit = hit.length;
+      }
+      return;
+    }
+    if (drag.m === 'seg') {
+      var w = D.wires.filter(function (q) { return q.id === drag.id; })[0]; if (!w) return;
+      var a = w.pts[drag.si], b = w.pts[drag.si + 1]; if (!a || !b) return;
+      var vert = Math.abs(a[0] - b[0]) < .01;
+      var moved = window.EVSE_GEO.dragSegment(D, drag.id, drag.si, vert ? w0.x : w0.y);
+      if (moved.length) { repaintWires(); drag.moved = 1; drag.pushed = moved.length - 1; }
+    }
+  }
+  function onUp() {
+    var dg = drag; drag = null;
+    if (!dg) return;
+    if (dg.m === 'marq') { /* v2.35 框选结算 */
+      if (!dg.moved) { if (!dg.add) { ST.msel = []; ST.sel = null; drawSel(); repaintWires(); renderInspector(); } return; } /* v2.38 */
+      var x0 = Math.min(dg.x0, dg.x1), x1 = Math.max(dg.x0, dg.x1);
+      var y0 = Math.min(dg.y0, dg.y1), y1 = Math.max(dg.y0, dg.y1);
+      var picked = [];
+      D.devices.forEach(function (dv) {
+        if (dv.sheet !== ST.sheet || dv.x == null) return;
+        if (dv.x + dv.sym.w >= x0 && dv.x <= x1 && dv.y + dv.sym.h >= y0 && dv.y <= y1) picked.push(dv.id);
+      });
+      ST.msel = dg.add ? ST.msel.concat(picked.filter(function (x) { return ST.msel.indexOf(x) < 0; })) : picked;
+      ST.sel = ST.msel.length === 1 ? { k: 'dev', id: ST.msel[0] } : null;
+      drawSel(); repaintWires(); renderInspector(); /* v2.38 */
+      msg('框选 ' + picked.length + ' 个器件' + (dg.add ? '（累加后共 ' + ST.msel.length + '）' : '') + '　拖任一选中件组移动 · Delete 组删除');
+      return;
+    }
+    if (!dg.moved && dg.m === 'dev' && ST.sim && window.EVSE_SIM) { /* V13: 通电仿真中点击开关器件 = 分合闸操作 */
+      var dvS = D.map[dg.id];
+      if (dvS && window.EVSE_SIM.isSwitchDev(dvS)) {
+        dvS.simOpen = !window.EVSE_SIM.effectiveOpen(dvS);
+        computeSim();
+        var dn = ST.SIM ? ST.SIM.liveCount : 0;
+        msg('⚡ ' + (dvS.tag || dvS.id) + (dvS.simOpen ? ' 已分闸（打开）' : ' 已合闸（投入）') + ' —— 全图带电网络 ' + dn + ' 条，功率流动画已即时更新');
+        return;
+      }
+    }
+    if (!dg.moved) return;
+    if (dg.m === 'dev') {
+      /* V7-PIN: 禁入校验——移动件本体不得压住其它器件的蓝色禁布框（body+12），违者回退 */
+      var KO = 8, badK = null; /* V7-PIN4: 与蓝框/PAD 同口径 */
+      (dg.ids || [dg.id]).forEach(function (iid) {
+        var mv = D.map[iid];
+        if (!mv || mv.x == null || mv.sym.isXref || mv.pwr) return;
+        D.devices.forEach(function (o) {
+          if (badK || o === mv || o.x == null || o.sym.isXref || o.pwr || o.sheet !== mv.sheet) return;
+          if (mv.x < o.x + o.sym.w + KO && mv.x + mv.sym.w + KO > o.x && mv.y < o.y + o.sym.h + KO && mv.y + mv.sym.h + KO > o.y) badK = { mv: mv, o: o };
+        });
+      });
+      if (badK) {
+        (dg.ids || [dg.id]).forEach(function (iid) { if (dg.orig && dg.orig[iid]) { D.map[iid].x = dg.orig[iid].x; D.map[iid].y = dg.orig[iid].y; } });
+        msg('已回退：' + (badK.mv.tag || badK.mv.id) + ' 不能进入 ' + (badK.o.tag || badK.o.id) + ' 的禁布区（蓝色外框）');
+        paint(false); renderAll(); return;
+      }
+      /* V7-FRAME-W: 禁布框不得压住异网走线（自身网络随后重路由，豁免） */
+      var badW = null;
+      (dg.ids || [dg.id]).forEach(function (iid) {
+        var mv = D.map[iid];
+        if (!mv || mv.x == null || mv.sym.isXref || mv.pwr) return;
+        var fx = mv.x - 8, fy = mv.y - 8, fw = mv.sym.w + 16, fh = mv.sym.h + 16;
+        D.wires.forEach(function (w) {
+          if (badW || w.sheet !== mv.sheet || !w.pts) return;
+          if (w.a && w.a.dev && (dg.ids || [dg.id]).indexOf(w.a.dev) >= 0) return;
+          if (w.b && w.b.dev && (dg.ids || [dg.id]).indexOf(w.b.dev) >= 0) return;
+          for (var si = 0; si + 1 < w.pts.length && !badW; si++) {
+            var mx = (w.pts[si][0] + w.pts[si + 1][0]) / 2, my = (w.pts[si][1] + w.pts[si + 1][1]) / 2;
+            if (mx > fx && mx < fx + fw && my > fy && my < fy + fh) badW = { mv: mv, w: w };
+          }
+        });
+      });
+      if (badW) {
+        (dg.ids || [dg.id]).forEach(function (iid) { if (dg.orig && dg.orig[iid]) { D.map[iid].x = dg.orig[iid].x; D.map[iid].y = dg.orig[iid].y; } });
+        msg('已回退：' + (badW.mv.tag || badW.mv.id) + ' 的禁布区压住现有走线 ' + badW.w.net + '（请先移线再移器件）');
+        paint(false); renderAll(); return;
+      }      window.EVSE_GEO.reroute(D, dg.ids || [dg.id]);
+      window.EVSE_GEO.snapEnds(D); window.EVSE_GEO.forceOrtho(D);
+      window.EVSE_GEO.detouch(D); /* V3-SJ: 异网脱粘 */
+      window.EVSE_GEO.crossings(D); window.EVSE_GEO.audit(D);
+      msg(dg.id + ' 已移动，相关网络已重路由'); paint(false); renderAll();
+    } else if (dg.m === 'junc') {
+      window.EVSE_GEO.snapEnds(D); window.EVSE_GEO.forceOrtho(D);
+      window.EVSE_GEO.crossings(D); window.EVSE_GEO.audit(D);
+      msg('连接点已移动，' + (dg.hit || 0) + ' 根电气线同步跟随'); renderAll();
+    } else if (dg.m === 'seg') {
+      window.EVSE_GEO.audit(D);
+      msg('线段已改道' + (dg.pushed ? '，挤推 ' + dg.pushed + ' 根邻线' : '')); renderAll();
+    }
+  }
+  /* v2.31 工程示波器：按工况序列绘制测点理论波形（非 SPICE，工程时序级） */
+  var SCSEQ = [
+    { id: 'chg', n: '充电全过程（待机→CC→CV→满充）', seg: [['M0', '待机', 2], ['CC', '恒流CC', 6], ['CV', '恒压CV', 6], ['M0', '满充/待机', 2]] },
+    { id: 'peak', n: '削峰填谷日（谷充·峰放）', seg: [['M0', '待机', 2], ['M1', '谷段充电', 4], ['M2', '峰段放电', 4], ['M2', '峰段放电2', 4], ['M0', '待机', 2]] },
+    { id: 'v2g', n: 'V2G 往返（车→网馈电）', seg: [['M0', '待机', 2], ['M4', 'V2G 馈网', 6], ['M0', '待机', 2]] },
+  ];
+  var scPts = [], scSeqId = 'chg', scPick = false;
+  function scVal(nm, seg, u) {
+    var m = seg[0];
+    if (/CC1|CC2|CP|GUIDE|导引/.test(nm)) {
+      if (m === 'M0') return 0.55;
+      if (m === 'CC' || m === 'M1') return 0.36;
+      if (m === 'CV') return 0.36 - 0.06 * u;
+      if (m === 'M2' || m === 'M4') return 0.36;
+      return 0.2;
+    }
+    if (/AC|L1|L2|L3|交流/.test(nm)) return 0.5 + 0.42 * Math.sin(u * Math.PI * 24);
+    if (/ESS|B\+|B-|PCS|储能/.test(nm)) {
+      if (m === 'M1') return 0.72; if (m === 'M2') return 0.28; if (m === 'M4') return 0.22; if (m === 'CC') return 0.62; if (m === 'CV') return 0.55;
+      return 0.5;
+    }
+    if (/TA|HALL|霍尔|电流|KF|ADC/.test(nm)) {
+      if (m === 'CC' || m === 'M1') return 0.8; if (m === 'CV') return 0.08 + 0.72 * Math.pow(1 - u, 1.7);
+      if (m === 'M2' || m === 'M4') return 0.25; return 0.03;
+    }
+    if (/DC\+|DC-|BUS|母线|V\+|V-|电压|U|-P$|-N$/.test(nm)) {
+      if (m === 'M0') return 0.95; if (m === 'CC' || m === 'M1') return 0.965; if (m === 'CV') return 0.965 + 0.03 * u;
+      if (m === 'M2') return 0.93; if (m === 'M4') return 0.95; return 0.97;
+    }
+    return 0.5 + 0.06 * Math.sin(u * Math.PI * 6);
+  }
+  var SCCOL = { AC: '#e08600', DC: '#1f5fc0', ESS: '#d42a2a', AUX: '#0e8f9f', CTL: '#7b3fe4', COMM: '#c81e78', SAF: '#ef4444', PE: '#17a34a' };
+  function drawScope() {
+    var cv = document.getElementById('scCv'); if (!cv) return;
+    var g = cv.getContext('2d'); var W = cv.width, H = cv.height;
+    g.clearRect(0, 0, W, H);
+    g.fillStyle = '#0b0e12'; g.fillRect(0, 0, W, H);
+    var seq = SCSEQ.filter(function (s) { return s.id === scSeqId; })[0] || SCSEQ[0];
+    var tot = seq.seg.reduce(function (a, s) { return a + s[2]; }, 0);
+    /* 网格 */
+    g.strokeStyle = '#1c232b'; g.lineWidth = 1;
+    for (var gx = 0; gx <= 10; gx++) { g.beginPath(); g.moveTo(gx * W / 10, 0); g.lineTo(gx * W / 10, H); g.stroke(); }
+    for (var gy = 0; gy <= 8; gy++) { g.beginPath(); g.moveTo(0, gy * H / 8); g.lineTo(W, gy * H / 8); g.stroke(); }
+    /* 段边界与标签 */
+    var x0 = 0;
+    g.font = '11px sans-serif';
+    seq.seg.forEach(function (s) {
+      var wpx = s[2] / tot * W;
+      g.strokeStyle = '#2b333d'; g.beginPath(); g.moveTo(x0, 0); g.lineTo(x0, H); g.stroke();
+      g.fillStyle = '#6f7a87'; g.fillText(s[1] + ' (' + s[2] + 'min)', x0 + 6, 14);
+      x0 += wpx;
+    });
+    /* 轨迹 */
+    scPts.forEach(function (pt, pi) {
+      var col = SCCOL[pt.cls] || '#8fdcff';
+      g.strokeStyle = col; g.lineWidth = 1.8; g.beginPath();
+      var xx = 0, first = true;
+      seq.seg.forEach(function (s) {
+        var wpx = s[2] / tot * W;
+        for (var st = 0; st <= 40; st++) {
+          var u = st / 40;
+          var v = scVal((pt.name + ' ' + pt.pin + ' ' + (pt.netName || pt.net)).toUpperCase(), s, u);
+          var X = xx + u * wpx, Y = H - (v * 0.8 + 0.1) * H;
+          if (first) { g.moveTo(X, Y); first = false; } else g.lineTo(X, Y);
+        }
+        xx += wpx;
+      });
+      g.stroke();
+      g.fillStyle = col; g.fillText('— ' + pt.dev + ':' + (pt.name || pt.pin), 8, 30 + pi * 14);
+    });
+    if (!scPts.length) { g.fillStyle = '#5f6b78'; g.fillText('点「画布选测点」后点击图中引脚/网络，即可叠加理论波形', 12, H / 2); }
+  }
+  function renderScPts() {
+    var h = document.getElementById('scPts'); if (!h) return;
+    h.innerHTML = scPts.map(function (p, i) {
+      return '<span style="color:' + (SCCOL[p.cls] || '#8fdcff') + '">●</span> ' + esc(p.dev + ':' + (p.name || p.pin)) + ' <span style="color:#5f6b78">[' + p.cls + ']</span> <a href="#" style="color:#d4756a" onclick="scDel(' + i + ');return false">×</a>　';
+    }).join('') || '（暂无测点）';
+  }
+  window.scDel = function (i) { scPts.splice(i, 1); renderScPts(); drawScope(); drawScopeMarks(); };
+  window.__LIB_CLEAR = function () { var q2 = $('libQ'); if (q2) q2.value = ''; renderLib(); };
+  window.renderLib = renderLib; /* v234b: 内联 oninput 需要全局可见 */
+  /* v2.33: 画布测点标记 TP1/TP2… */
+  function drawScopeMarks() {
+    if (!world || !D) return;
+    var old = document.getElementById('scMarks'); if (old) old.remove();
+    if (!scPts.length) return;
+    var NS = 'http://www.w3.org/2000/svg';
+    var g = document.createElementNS(NS, 'g'); g.id = 'scMarks';
+    scPts.forEach(function (pt, i) {
+      var q = window.EVSE_GEO.pinAbs(D.map, { d: pt.dev, p: pt.pin });
+      if (!q) return;
+      var col = SCCOL[pt.cls] || '#8fdcff';
+      var c = document.createElementNS(NS, 'circle');
+      c.setAttribute('cx', q.x); c.setAttribute('cy', q.y); c.setAttribute('r', 7 / view.k);
+      c.setAttribute('fill', 'none'); c.setAttribute('stroke', col); c.setAttribute('stroke-width', 2.2 / view.k);
+      g.appendChild(c);
+      var tx = document.createElementNS(NS, 'text');
+      tx.setAttribute('x', q.x + 9 / view.k); tx.setAttribute('y', q.y - 7 / view.k);
+      tx.setAttribute('font-size', 12 / view.k); tx.setAttribute('fill', col); tx.setAttribute('font-weight', '700');
+      tx.textContent = 'TP' + (i + 1);
+      g.appendChild(tx);
+    });
+    world.appendChild(g);
+  }
+  /* v2.33: 一键添加典型测点（按网络名匹配） */
+  function scAutoAdd(res, label) {
+    if (!D) return;
+    for (var ri = 0; ri < res.length; ri++) {
+      for (var i = 0; i < D.nets.length; i++) {
+        var nt = D.nets[i];
+        if (!nt.name || !res[ri].test(nt.name)) continue;
+        var ep = nt.a || nt.b; if (!ep) continue;
+        var dv = D.map[ep.d]; if (!dv) continue;
+        var pn = window.EVSE_GEO.pinOf(dv, ep.p);
+        scPts.push({ dev: ep.d, pin: ep.p, net: nt.id, netName: nt.name, cls: nt.cls || (pn && pn.k) || 'CTL', name: (pn && pn.name) || ep.p });
+        renderScPts(); drawScope(); drawScopeMarks();
+        msg('已加测点 TP' + scPts.length + '：' + nt.name + '（' + label + '）');
+        return;
+      }
+    }
+    msg('当前方案未找到「' + label + '」对应网络');
+  }
+  function drawPending(cur) {
+    if (!svgEl) return;
+    var g = svgEl.querySelector('#wprev-g');
+    if (!pending) { if (g) g.remove(); return; }
+    var dv = D.map[pending.dev];
+    var q = dv ? window.EVSE_GEO.pinAbs(D.map, { d: pending.dev, p: pending.pin }) : null;
+    if (!q) return;
+    if (!g) {
+      g = document.createElementNS(svgEl.namespaceURI, 'g');
+      g.setAttribute('id', 'wprev-g'); g.setAttribute('pointer-events', 'none');
+      (world || svgEl).appendChild(g);
+    }
+    var h = '';
+    h += '<circle cx="' + q.x + '" cy="' + q.y + '" r="6" fill="none" stroke="#0ea5e9" stroke-width="2"/>';
+    if (cur) h += '<line x1="' + q.x + '" y1="' + q.y + '" x2="' + cur.x + '" y2="' + cur.y + '" stroke="#0ea5e9" stroke-width="1.4" stroke-dasharray="6 4" opacity="0.85"/>';
+    g.innerHTML = h;
+  }
+  /* v2.28: 典型方案库 */
+  var PRESETS = [
+    { n: '120kW 单枪标充', p: { family: 'evse', std: 'gb', kw: 120, guns: 1, gunA: 250, moduleKw: 30, ess: false, essKwh: 100, essClusters: 1, coupling: 'dc' } },
+    { n: '240kW 双枪超充', p: { family: 'evse', std: 'gb', kw: 240, guns: 2, gunA: 250, moduleKw: 40, ess: false, essKwh: 100, essClusters: 1, coupling: 'dc' } },
+    { n: '240kW+200kWh 削峰', p: { family: 'evse', std: 'gb', kw: 240, guns: 2, gunA: 250, moduleKw: 40, ess: true, essKwh: 200, essClusters: 2, coupling: 'dc' } },
+    { n: '480kW 双枪分体', p: { family: 'evse', std: 'gb', kw: 480, guns: 2, gunA: 250, moduleKw: 40, ess: false, essKwh: 100, essClusters: 1, coupling: 'dc' } },
+    { n: '480kW+400kWh 储充', p: { family: 'evse', std: 'gb', kw: 480, guns: 2, gunA: 250, moduleKw: 40, ess: true, essKwh: 400, essClusters: 4, coupling: 'dc' } },
+    { n: '600kW 三枪重卡', p: { family: 'evse', std: 'gb', kw: 600, guns: 3, gunA: 250, moduleKw: 40, ess: false, essKwh: 100, essClusters: 1, coupling: 'dc' } },
+    { n: '欧标 CCS2 240kW', p: { family: 'evse', std: 'ccs2', kw: 240, guns: 2, gunA: 250, moduleKw: 40, ess: false, essKwh: 100, essClusters: 1, coupling: 'dc' } },
+    { n: '欧标+储能交流耦合', p: { family: 'evse', std: 'ccs2', kw: 240, guns: 2, gunA: 250, moduleKw: 40, ess: true, essKwh: 200, essClusters: 2, coupling: 'ac' } },
+    { n: '美标 CCS1 350kW', p: { family: 'evse', std: 'ccs1', kw: 350, guns: 2, gunA: 300, moduleKw: 50, ess: false, essKwh: 100, essClusters: 1, coupling: 'dc' } },
+    { n: '美标 NACS 500kW', p: { family: 'evse', std: 'nacs', kw: 500, guns: 2, gunA: 350, moduleKw: 50, ess: false, essKwh: 100, essClusters: 1, coupling: 'dc' } },
+    { n: '日标 CHAdeMO 100kW', p: { family: 'evse', std: 'chademo', kw: 100, guns: 1, gunA: 200, moduleKw: 30, ess: false, essKwh: 100, essClusters: 1, coupling: 'dc' } },
+    { n: '兆瓦极充·储能系统（6×AC/DC+24×DC/DC+2枪+2柜）', p: { family: 'mwess', name: '兆瓦极充·储能系统', acdcKw: 80, acdcCount: 6, dcdcKw: 80, dcdcCount: 24, acIn: 2, busV: 1500, gunCount: 2, gunV: 1500, gunA: 1500, gunRated: 800, essCab: 2, essKwh: 151.5, essPack: 4, pmuCount: 2, dcuCount: 2 } },
+  ];
+  function renderPresets() {
+    var h = $('presets'); if (!h) return;
+    h.innerHTML = PRESETS.map(function (pr, i) {
+      return '<button class="btn" style="padding:4px 8px;font-size:11px" data-p="' + i + '">' + esc(pr.n) + '</button>';
+    }).join('');
+    h.querySelectorAll('[data-p]').forEach(function (b) {
+      b.onclick = function () {
+        var pr = PRESETS[+b.getAttribute('data-p')];
+        dropOtherFamily(pr.p.family);
+        Object.keys(pr.p).forEach(function (k) { ST.params[k] = pr.p[k]; });
+        ST.params.name = pr.n + ' 示范站';
+        renderFields(); generate(true);
+        msg('已载入方案：' + pr.n);
+      };
+    });
+  }
+  /* v2.28: 工况功率流动画 */
+  var FLOWMODES = [['', '关'], ['M0', '待机'], ['M1', '充电中'], ['M2', '储能放电'], ['M4', 'V2G 馈网']];
+  var FLOWCLS = { M0: ['AUX', 'CTL'], M1: ['AC', 'DC', 'AUX', 'CTL', 'COMM'], M2: ['ESS', 'DC', 'AUX', 'CTL', 'COMM'], M4: ['AC', 'DC', 'ESS', 'AUX', 'CTL', 'COMM'] };
+  function renderFlow() {
+    var h = $('flowg'); if (!h) return;
+    h.innerHTML = '<button data-sim="1" class="' + (ST.sim ? 'on' : '') + '" title="通电仿真：点击任意断路器/接触器/隔离开关即可分合闸，全图即时显示带电状态与功率流动画" style="' + (ST.sim ? 'background:#0e7490;border-color:#22d3ee;color:#fff' : '') + '">⚡通电仿真</button>' + FLOWMODES.map(function (m) {
+      return '<button data-f="' + m[0] + '" class="' + (ST.flow === m[0] ? 'on' : '') + '" title="工况动画：按电气特性着色流动">⚡' + m[1] + '</button>';
+    }).join('');
+    var sb = h.querySelector('[data-sim]');
+    if (sb) sb.onclick = function () {
+      ST.sim = !ST.sim;
+      renderFlow();
+      if (ST.sim) { computeSim(); msg('⚡ 通电仿真已开启：源点 ' + (ST.SIM ? ST.SIM.srcCount : 0) + ' 个端子，带电网络 ' + (ST.SIM ? ST.SIM.liveCount : 0) + ' 条——点击开关器件分/合闸，动画即时更新；失电线路变灰'); }
+      else { ST.SIM = null; paint(false); msg('通电仿真已关闭'); }
+    };
+    h.querySelectorAll('[data-f]').forEach(function (b) {
+      b.onclick = function () { ST.flow = b.getAttribute('data-f'); renderFlow(); paint(false); };
+    });
+  }
+  /* ---------- V13: 通电仿真渲染（带电=流动动画按 BFS 层级定向；失电=变灰；开关分/合徽标） ---------- */
+  function computeSim() {
+    if (!D || !window.EVSE_SIM) return;
+    ST.SIM = window.EVSE_SIM.computeLive(D);
+    applySim();
+  }
+  function applySim() {
+    if (!svgEl || !world) return;
+    svgEl.querySelectorAll('path.flowline').forEach(function (p) { p.classList.remove('flowline'); p.classList.remove('rev'); });
+    svgEl.querySelectorAll('path.simdead').forEach(function (p) { p.classList.remove('simdead'); });
+    var old = world.querySelector('#lay-sim'); if (old) old.remove();
+    if (!ST.sim || !ST.SIM) return;
+    var SIM = ST.SIM;
+    var wById = {}; D.wires.forEach(function (q) { wById[q.id] = q; });
+    svgEl.querySelectorAll('path[data-k="wireview"]').forEach(function (p) {
+      var w = wById[p.getAttribute('data-id')];
+      if (!w) return;
+      if (SIM.liveNets[w.net]) { p.classList.add('flowline'); if (SIM.dirOf[w.id] === -1) p.classList.add('rev'); }
+      else p.classList.add('simdead');
+    });
+    var g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+    g.id = 'lay-sim';
+    var s = '';
+    SIM.switches.forEach(function (sw) {
+      var dv = D.map[sw.id];
+      if (!dv || dv.sheet !== ST.sheet) return;
+      var bx = dv.x + (dv.sym.w || 0) + 6, by = dv.y - 2;
+      s += '<circle cx="' + bx + '" cy="' + by + '" r="7.5" fill="' + (sw.open ? '#e5484d' : '#2f9e44') + '" stroke="#ffffff" stroke-width="1.1"/>';
+      s += '<text x="' + bx + '" y="' + (by + 3.2) + '" text-anchor="middle" font-size="8.5" font-weight="700" fill="#ffffff" style="pointer-events:none">' + (sw.open ? '分' : '合') + '</text>';
+    });
+    g.innerHTML = s;
+    world.appendChild(g);
+  }
+  function applyFlow() {
+    if (!svgEl) return;
+    svgEl.querySelectorAll('path.flowline').forEach(function (p) { p.classList.remove('flowline'); p.classList.remove('rev'); });
+    if (!ST.flow) return;
+    var act = FLOWCLS[ST.flow] || [];
+    svgEl.querySelectorAll('path[data-cls]').forEach(function (p) {
+      if (act.indexOf(p.getAttribute('data-cls')) >= 0) { p.classList.add('flowline'); if (ST.flow === 'M4') p.classList.add('rev'); }
+    });
+  }
+  /* v2.30: 实时单点 DRC——新网/新器件即时红圈标注 */
+  function liveDRC(netId) {
+    if (!world || !D || !svgEl) return 0;
+    var old = world.querySelector('#drc-g'); if (old) old.remove();
+    var w = D.wires.filter(function (q) { return q.net === netId; })[0];
+    if (!w) return 0;
+    var G = window.EVSE_GEO;
+    var mySegs = G.segsOf(w.pts);
+    var issues = [];
+    D.devices.forEach(function (dv) {
+      if (dv.sheet !== w.sheet || dv.x == null || dv.sym.isBus) return;
+      if (dv.id === w.a.d || dv.id === w.b.d) return;
+      var dd = G.devDims ? G.devDims(dv) : { w: dv.sym.w, h: dv.sym.h };
+      mySegs.forEach(function (s) {
+        if (G.hitRectOf(s, { x: dv.x, y: dv.y, w: dd.w, h: dd.h })) issues.push({ x: (s.x1 + s.x2) / 2, y: (s.y1 + s.y2) / 2, t: '穿越 ' + (dv.tag || dv.id) });
+      });
+    });
+    D.wires.forEach(function (o) {
+      if (o === w || o.sheet !== w.sheet) return;
+      G.segsOf(o.pts).forEach(function (s2) {
+        mySegs.forEach(function (s1) {
+          var v1 = Math.abs(s1.x1 - s1.x2) < 0.5, v2 = Math.abs(s2.x1 - s2.x2) < 0.5;
+          if (v1 === v2) {
+            var para = v1 ? Math.abs(s1.x1 - s2.x1) : Math.abs(s1.y1 - s2.y1);
+            if (para >= 6) return;
+            var lo1 = v1 ? Math.min(s1.y1, s1.y2) : Math.min(s1.x1, s1.x2), hi1 = v1 ? Math.max(s1.y1, s1.y2) : Math.max(s1.x1, s1.x2);
+            var lo2 = v1 ? Math.min(s2.y1, s2.y2) : Math.min(s2.x1, s2.x2), hi2 = v1 ? Math.max(s2.y1, s2.y2) : Math.max(s2.x1, s2.x2);
+            if (Math.min(hi1, hi2) - Math.max(lo1, lo2) > 4) issues.push({ x: (s1.x1 + s1.x2) / 2, y: (s1.y1 + s1.y2) / 2, t: '平行过近' });
+          } else {
+            var h = v1 ? s2 : s1, v = v1 ? s1 : s2;
+            var x = v.x1, y = h.y1;
+            if (x > Math.min(h.x1, h.x2) + 0.5 && x < Math.max(h.x1, h.x2) - 0.5 && y >= Math.min(v.y1, v.y2) - 0.5 && y <= Math.max(v.y1, v.y2) + 0.5) {
+              var hasHop = (D.hops || []).some(function (hp) { return Math.abs(hp.x - x) < 1 && Math.abs(hp.y - y) < 1; });
+              if (!hasHop) issues.push({ x: x, y: y, t: '异网相碰' });
+            }
+          }
+        });
+      });
+    });
+    if (!issues.length) return 0;
+    var g = document.createElementNS(svgEl.namespaceURI, 'g');
+    g.setAttribute('id', 'drc-g'); g.setAttribute('pointer-events', 'none');
+    var html = '';
+    issues.slice(0, 12).forEach(function (q) {
+      html += '<circle cx="' + q.x + '" cy="' + q.y + '" r="9" fill="none" stroke="#ef4444" stroke-width="2" stroke-dasharray="3 2"/>';
+    });
+    g.innerHTML = html;
+    world.appendChild(g);
+    return issues.length;
+  }
+  function pinPick(dev, pin) {
+    if (!pending) { pending = { dev: dev, pin: pin }; drawPending(); msg('起点 ' + dev + ':' + pin + ' —— 再点一个引脚完成连线（Esc 取消）'); return; }
+    if (pending.dev === dev && pending.pin === pin) { pending = null; drawPending(); msg('已取消'); return; }
+    var a = pending; pending = null; drawPending();
+    var A = D.map[a.dev], B = D.map[dev];
+    if (A.sheet !== B.sheet) { msg('跨页连接需用跨页连接符，不允许直连'); return; }
+    pushHist();
+    var pa = window.EVSE_GEO.pinOf(A, a.pin), pb = window.EVSE_GEO.pinOf(B, pin);
+    var cls = (pa.k === pb.k) ? pa.k : (pa.k === 'PE' || pb.k === 'PE' ? 'PE' : 'CTL');
+    var id = 'NX' + (D.nets.length + 1);
+    D.nets.push({ id: id, name: a.dev + ':' + a.pin + '→' + dev + ':' + pin, cls: cls,
+      a: { d: a.dev, p: a.pin }, b: { d: dev, p: pin }, manualNet: true });
+    D._ni = null;
+    window.EVSE_GEO.route(D); window.EVSE_GEO.crossings(D); window.EVSE_GEO.audit(D);
+    paint(false); renderAll();
+    var dq = liveDRC(id); /* v2.30 实时校验 */
+    msg('新增网络 ' + id + '（' + cls + '）：' + a.dev + ':' + a.pin + ' → ' + dev + ':' + pin + (dq ? ('　⚠ 实时DRC ' + dq + ' 处（红圈）') : '　✓ 实时DRC 通过'));
+  }
+  function onKey(e) {
+    if (!D) return;
+    if (e.key === 'Escape' && pending) { pending = null; drawPending(); msg('连线已取消'); return; } /* v2.27 */
+    if (e.key === 'Escape' && ST.msel && ST.msel.length) { ST.msel = []; drawSel(); renderInspector(); msg('已清除多选'); return; } /* v2.35 */
+    var mod = e.ctrlKey || e.metaKey;
+    if (mod && e.key.toLowerCase() === 'z') { e.preventDefault(); doUndo(); return; }
+    if (mod && e.key.toLowerCase() === 'y') { e.preventDefault(); doRedo(); return; }
+    if (mod && e.key.toLowerCase() === 's') { e.preventDefault(); savePrj(); return; } /* V13: Ctrl+S 保存工程 */
+    if ((e.key === 'Delete' || e.key === 'Backspace') && ST.msel && ST.msel.length > 1) { /* v2.35 组删除 */
+      if (e.target && /input|select|textarea/i.test(e.target.tagName)) return;
+      e.preventDefault(); pushHist();
+      var kill = {}; ST.msel.forEach(function (x) { kill[x] = 1; });
+      var kn = Object.keys(kill).length;
+      D.nets = D.nets.filter(function (nn) { return !kill[nn.a.d] && !kill[nn.b.d]; });
+      var keep2 = {}; D.nets.forEach(function (nn) { keep2[nn.id] = 1; });
+      D.wires = D.wires.filter(function (w) { return keep2[w.net]; });
+      D.devices = D.devices.filter(function (x) { return !kill[x.id]; });
+      ST.msel.forEach(function (x) { delete D.map[x]; });
+      ST.msel = [];
+      D._ni = null;
+      window.EVSE_GEO.crossings(D); window.EVSE_GEO.audit(D);
+      ST.sel = null; msg('已组删除 ' + kn + ' 个器件；网表与图纸同步更新'); paint(false); renderAll();
+      return;
+    }
+    var sel = ST.sel; if (!sel) return;
+    if (e.key === 'Delete' || e.key === 'Backspace') {
+      if (e.target && /input|select|textarea/i.test(e.target.tagName)) return;
+      e.preventDefault(); pushHist();
+      if (sel.k === 'wire') {
+        D.wires = D.wires.filter(function (w) { return w.id !== sel.id; });
+        D.nets = D.nets.filter(function (n) { return n.id !== sel.net; });
+      } else if (sel.k === 'dev') {
+        D.nets = D.nets.filter(function (n) { return n.a.d !== sel.id && n.b.d !== sel.id; });
+        var keep = {}; D.nets.forEach(function (n) { keep[n.id] = 1; });
+        D.wires = D.wires.filter(function (w) { return keep[w.net]; });
+        D.devices = D.devices.filter(function (x) { return x.id !== sel.id; });
+        delete D.map[sel.id];
+      }
+      D._ni = null;
+      window.EVSE_GEO.crossings(D); window.EVSE_GEO.audit(D);
+      ST.sel = null; msg('已删除；网表与图纸同步更新'); paint(false); renderAll();
+    }
+  }
+  function doUndo() { if (!hist.length) return; fut.push(snap()); restore(hist.pop()); msg('已撤销'); }
+  function doRedo() { if (!fut.length) return; hist.push(snap()); restore(fut.pop()); msg('已重做'); }
+
+  /* ---------- 导出 ---------- */
+  function dl(name, text, mime) {
+    var b = new Blob([text], { type: mime });
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(b); a.download = name;
+    document.body.appendChild(a); a.click();
+    setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 100);
+  }
+  function exportSvg() {
+    dl('EVSE-CONCEPT-10' + ST.sheet + '.svg', window.EVSE_RENDER.fullSVG(D, ST.sheet, viewOpts()), 'image/svg+xml');
+    msg('已导出 页' + ST.sheet + ' SVG');
+  }
+  function exportJson() {
+    var out = {
+      meta: { version: D.version, status: D.status, params: D.params, generated: new Date().toISOString() },
+      sheets: D.sheets.map(function (s) { return { no: s.no, title: s.title }; }),
+      devices: D.devices.filter(function (d) { return !d.sym.isXref; }).map(function (d) {
+        return { id: d.id, tag: d.tag, name: d.name, spec: d.spec, sheet: d.sheet, zone: d.zone,
+          x: d.x, y: d.y, pins: d.sym.pins.map(function (p) { return { n: p.n, name: p.name, domain: p.k, dir: p.t, side: p.d }; }) };
+      }),
+      nets: D.nets.map(function (n) {
+        return { id: n.id, name: n.name, cls: n.cls, from: n.a.d + ':' + n.a.p, to: n.b.d + ':' + n.b.p, wire: n.wire || null };
+      }),
+      audit: { total: D.audit.total, grade: D.audit.grade, score: D.audit.score,
+        items: D.audit.items.map(function (i) { return { id: i.id, cat: i.cat, title: i.title, ok: i.ok, level: i.level, detail: i.detail }; }) }
+    };
+    dl('EVSE-netlist.json', JSON.stringify(out, null, 2), 'application/json');
+    msg('已导出引脚级网表 JSON（' + out.nets.length + ' 条网络）');
+  }
+
+  /* ---------- V13: 新建图纸 / 自定义图框 / 工程存取（自主画图） ---------- */
+  var PAPERS = [
+    ['A3 横向 420×297', 1680, 1188], ['A3 纵向 297×420', 1188, 1680],
+    ['A2 横向 594×420', 2376, 1680], ['A2 纵向 420×594', 1680, 2376],
+    ['A1 横向 841×594', 3364, 2376], ['A1 纵向 594×841', 2376, 3364],
+    ['A0 横向 1189×841', 4756, 3364], ['A0 纵向 841×1189', 3364, 4756],
+    ['A4 横向 297×210', 1188, 840], ['A4 纵向 210×297', 840, 1188],
+    ['自定义（在下方输入宽高）', 1680, 1188]
+  ];
+  var ndMode = 'new';
+  function openNewDlg(mode) {
+    ndMode = mode;
+    $('ndHead').textContent = mode === 'add' ? '添加新页' : '新建电路图图纸';
+    $('ndOK').textContent = mode === 'add' ? '添加' : '创建';
+    var sel = $('ndPaper');
+    sel.innerHTML = PAPERS.map(function (p, i) { return '<option value="' + i + '">' + p[0] + '</option>'; }).join('');
+    sel.value = '0';
+    $('ndW').value = PAPERS[0][1]; $('ndH').value = PAPERS[0][2];
+    if (mode === 'add') { $('ndSheetTitle').value = '第 ' + ((D && D.sheets.length || 0) + 1) + ' 页'; }
+    else { $('ndProj').value = '我的自定义电路图'; $('ndDwg').value = 'CUSTOM-' + String(Date.now()).slice(-6); $('ndVer').value = 'P01'; $('ndSheetTitle').value = '一次主回路'; }
+    $('newDlg').style.display = 'block';
+  }
+  function ndPaperChange() { var i = +$('ndPaper').value; if (PAPERS[i]) { $('ndW').value = PAPERS[i][1]; $('ndH').value = PAPERS[i][2]; } }
+  function readNewDlg() {
+    var w = Math.round(+$('ndW').value), h = Math.round(+$('ndH').value);
+    if (!(w >= 400 && w <= 8000 && h >= 300 && h <= 6000)) { msg('⚠ 图框尺寸无效（宽 400–8000，高 300–6000 px）'); return null; }
+    return { w: w, h: h, proj: ($('ndProj').value || '').trim(), sheetTitle: ($('ndSheetTitle').value || '').trim(),
+      dwg: ($('ndDwg').value || '').trim(), ver: ($('ndVer').value || '').trim(),
+      author: ($('ndAuthor').value || '').trim(), checker: ($('ndChecker').value || '').trim(), approver: ($('ndApprover').value || '').trim() };
+  }
+  function makeSheetObj(no, cfg) {
+    return { no: no, id: 'S' + no, title: (cfg.sheetTitle || ('自定义回路 · 页' + no)) + ' · 自定义图纸', frame: { x: 60, y: 60, w: cfg.w, h: cfg.h } };
+  }
+  function blankDesign(cfg) {
+    var p = {}; Object.keys(ST.params).forEach(function (k) { p[k] = ST.params[k]; });
+    p.name = cfg.proj || '自定义电路图'; p.custom = true;
+    p.tb = { dwgNo: cfg.dwg || 'CUSTOM-001', ver: cfg.ver || 'P01', author: cfg.author, checker: cfg.checker, approver: cfg.approver, status: 'CUSTOM_DRAFT' };
+    var d0 = { version: 'custom-1.0', params: p, modCount: 0, modShown: 0, acA: 0,
+      sheets: [makeSheetObj(1, cfg)], devices: [], nets: [], wires: [], junctions: [], boxes: [], hops: [], map: {}, status: 'CUSTOM_DRAFT' };
+    window.EVSE_GEO.crossings(d0); window.EVSE_GEO.audit(d0);
+    return d0;
+  }
+  function newBlank(cfg) {
+    D = blankDesign(cfg);
+    hist = []; fut = []; ST.sel = null; ST.msel = []; ST.sheet = 1;
+    paint(true); renderAll();
+    try { localStorage.setItem('evse_prj_last', packPrj()); } catch (e) {}
+    msg('已新建空白图纸（图框 ' + cfg.w + '×' + cfg.h + ' px）——左侧库点击或拖放放置器件；「连线」工具点两个引脚成网；右键器件可旋转/删除；Ctrl+S 保存工程');
+  }
+  function addSheetDo(cfg) {
+    if (!D) return;
+    var no = D.sheets.length + 1;
+    D.sheets.push(makeSheetObj(no, cfg));
+    ST.sheet = no; ST.sel = null;
+    paint(true); renderAll();
+    msg('已添加页 ' + no + '（图框 ' + cfg.w + '×' + cfg.h + ' px）');
+  }
+  function packPrj() {
+    return JSON.stringify({ app: 'evse-schematic-project', v: 1, saved: new Date().toISOString(),
+      D: { version: D.version, status: D.status, params: D.params, sheets: D.sheets, devices: D.devices, nets: D.nets, wires: D.wires, junctions: D.junctions || [], boxes: D.boxes || [], hops: D.hops || [] } });
+  }
+  function savePrj() {
+    if (!D) return;
+    var s = packPrj();
+    try { localStorage.setItem('evse_prj_last', s); } catch (e) {}
+    dl('EVSE工程-' + ((D.params && D.params.name) || '未命名') + '.json', s, 'application/json');
+    msg('工程已保存到浏览器并导出 JSON（' + D.devices.length + ' 器件 / ' + D.nets.length + ' 网络 / ' + D.sheets.length + ' 页）');
+  }
+  function loadPrjStr(str) {
+    var o = JSON.parse(str), dd = o && o.D ? o.D : o;
+    if (!dd || !dd.sheets || !dd.devices) throw new Error('不是有效的工程文件');
+    dd.map = {}; dd.devices.forEach(function (x) { dd.map[x.id] = x; });
+    dd.nets = dd.nets || []; dd.wires = dd.wires || []; dd.junctions = dd.junctions || []; dd.boxes = dd.boxes || []; dd.hops = dd.hops || [];
+    dd.sheets.forEach(function (s) { if (!s.frame) s.frame = { x: 60, y: 60, w: 1680, h: 1188 }; });
+    dd._ni = null;
+    D = dd; hist = []; fut = []; ST.sel = null; ST.msel = []; ST.sheet = 1;
+    window.EVSE_GEO.crossings(D); window.EVSE_GEO.audit(D);
+    paint(true); renderAll();
+    msg('已打开工程：' + ((D.params && D.params.name) || '') + '（' + D.devices.length + ' 器件 / ' + D.nets.length + ' 网络 / ' + D.sheets.length + ' 页）');
+  }
+
+  /* ---------- 面板渲染 ---------- */
+  var FIELDS_HEAD = [
+    { k: 'name', t: '项目名称', kind: 'text' },
+    { k: 'family', t: '方案类型', kind: 'sel', o: [['evse', '充电桩（直流快充 / 储充一体）'], ['mwess', '兆瓦储能 · 极充系统（6×AC/DC + 24×DC/DC + 双枪 + 双储能柜）']] }
+  ];
+  var FIELDS_EVSE = [
+    { k: 'std', t: '充电标准（接口 · 协议）', kind: 'sel', o: [['gb', '国标 GB/T — 20234.3 接口 + GB/T 27930 CAN'], ['ccs2', '欧标 CCS2 — IEC 62196-3 FF + DIN 70121 / ISO 15118'], ['ccs1', '美标 CCS1 — IEC 62196-3 EE + SAE J1772 / ISO 15118'], ['nacs', '美标 NACS — SAE J3400 五触点 + ISO 15118 PLC'], ['chademo', '日标 CHAdeMO — 10 针 + CAN（车辆主导）']] },
+    { k: 'kw', t: '额定输出功率 kW', kind: 'num' },
+    { k: 'guns', t: '充电枪数量（1–6）', kind: 'num' },
+    { k: 'gunA', t: '单枪额定电流 A', kind: 'num' },
+    { k: 'moduleKw', t: '功率模块单台 kW', kind: 'num' },
+    { k: 'ess', t: '配置储能', kind: 'sel', o: [['1', '是（储充一体）'], ['0', '否（纯直流桩）']], bool: 1 },
+    { k: 'essKwh', t: '储能容量 kWh', kind: 'num' },
+    { k: 'essClusters', t: '电池簇数（1–4）', kind: 'num' },
+    { k: 'coupling', t: '储能耦合方式', kind: 'sel', o: [['dc', '直流耦合（双向 DC/DC）'], ['ac', '交流耦合（PCS）']] }
+  ];
+  var FIELDS_MWESS = [
+    { k: 'acdcKw', t: 'AC/DC 单台 kW', kind: 'num' },
+    { k: 'acdcCount', t: 'AC/DC 台数', kind: 'sel', o: [['2', '2 台（1 组）'], ['4', '4 台（2 组）'], ['6', '6 台（3 组）']] },
+    { k: 'dcdcKw', t: '双向 DC/DC 单台 kW', kind: 'num' },
+    { k: 'dcdcCount', t: 'DC/DC 台数（固定）', kind: 'num', fixed: true },
+    { k: 'acIn', t: '交流进线数（固定）', kind: 'num', fixed: true },
+    { k: 'busV', t: '直流母线电压 V（固定）', kind: 'num', fixed: true },
+    { k: 'gunCount', t: '充电枪数（固定）', kind: 'num', fixed: true },
+    { k: 'gunV', t: '枪额定电压 V（固定）', kind: 'num', fixed: true },
+    { k: 'gunA', t: '枪峰值电流 A（固定）', kind: 'num', fixed: true },
+    { k: 'gunRated', t: '枪熔断器额定 A（固定）', kind: 'num', fixed: true },
+    { k: 'essCab', t: '储能柜数（固定）', kind: 'num', fixed: true },
+    { k: 'essKwh', t: '单柜容量 kWh（固定）', kind: 'num', fixed: true },
+    { k: 'essPack', t: '单柜电池簇数（固定）', kind: 'num', fixed: true },
+    { k: 'pmuCount', t: 'PMU 数（固定）', kind: 'num', fixed: true },
+    { k: 'dcuCount', t: 'DCU 数（固定）', kind: 'num', fixed: true }
+  ];
+  var MWESS_PK = ['acdcKw', 'acdcCount', 'dcdcKw', 'dcdcCount', 'acIn', 'busV', 'gunCount', 'gunV', 'gunRated', 'essCab', 'essPack', 'pmuCount', 'dcuCount'];
+  var EVSE_PK = ['std', 'kw', 'guns', 'moduleKw', 'ess', 'essClusters', 'coupling'];
+  function dropOtherFamily(fam) { (fam === 'mwess' ? EVSE_PK : MWESS_PK).forEach(function (k) { delete ST.params[k]; }); }
+  function curFields() { return FIELDS_HEAD.concat(ST.params.family === 'mwess' ? FIELDS_MWESS : FIELDS_EVSE); }
+  function renderFields() {
+    if (ST.params.family === 'mwess' && window.EVSE_MWESS) ST.params = Object.assign(ST.params, window.EVSE_MWESS.normalize(ST.params));
+    $('fields').innerHTML = curFields().map(function (f) {
+      var v = ST.params[f.k];
+      if (f.bool) v = v ? '1' : '0';
+      var ctl = f.kind === 'sel'
+        ? '<select data-k="' + f.k + '">' + f.o.map(function (o) {
+            return '<option value="' + o[0] + '"' + (String(v) === o[0] ? ' selected' : '') + '>' + esc(o[1]) + '</option>';
+          }).join('') + '</select>'
+        : '<input type="' + (f.kind === 'num' ? 'number' : 'text') + '" data-k="' + f.k + '" value="' + esc(v) + '"' + (f.fixed ? ' disabled aria-disabled="true"' : '') + '/>';
+      return '<label class="f"><span>' + esc(f.t) + '</span>' + ctl + '</label>';
+    }).join('');
+    $('fields').querySelectorAll('[data-k]').forEach(function (el) {
+      el.addEventListener('change', function () {
+        var k = el.getAttribute('data-k'), f = curFields().filter(function (q) { return q.k === k; })[0];
+        ST.params[k] = f.bool ? el.value === '1' : el.value;
+        if (k === 'family') { dropOtherFamily(ST.params.family); renderFields(); } /* 切换方案类型 → 清残留参数并重绘表单 */
+      });
+    });
+  }
+  function renderTabs() {
+    var sb = $('sheets');
+    sb.innerHTML = (D ? D.sheets : []).map(function (s) {
+      return '<button data-s="' + s.no + '" class="' + (s.no === ST.sheet ? 'on' : '') + '">页 ' + s.no + ' · ' + esc(String(s.title).split('·')[0].trim()) + '</button>';
+    }).join('');
+    sb.querySelectorAll('[data-s]').forEach(function (b) {
+      var s = (D ? D.sheets : []).filter(function (q) { return q.no === +b.getAttribute('data-s'); })[0];
+      if (s) b.title = '页 ' + s.no + ' · ' + String(s.title);
+      b.onclick = function () { ST.sheet = +b.getAttribute('data-s'); ST.sel = null; paint(true); renderAll(); };
+    });
+    var on = sb.querySelector('.on');
+    if (on) {
+      var cr = sb.getBoundingClientRect(), br = on.getBoundingClientRect();
+      if (br.left < cr.left) sb.scrollLeft -= (cr.left - br.left + 6);
+      else if (br.right > cr.right) sb.scrollLeft += (br.right - cr.right + 6);
+    }
+    var TL = [['sel', '选择/拖动', '点选器件、连线、位号；拖动即改图'], ['wire', '连线', '依次点两个引脚，pin→pin 建立网络'], ['pan', '平移', '拖动画布']];
+    $('tools').innerHTML = TL.map(function (t) {
+      return '<button data-t="' + t[0] + '" title="' + esc(t[2]) + '" class="' + (ST.tool === t[0] ? 'on' : '') + '">' + t[1] + '</button>';
+    }).join('');
+    $('tools').querySelectorAll('[data-t]').forEach(function (b) {
+      b.onclick = function () { ST.tool = b.getAttribute('data-t'); pending = null; renderTabs(); msg(b.title); };
+    });
+  }
+  function renderChips() {
+    var C = window.EVSE_CORE.NETC;
+    $('layers').innerHTML = Object.keys(C).map(function (k) {
+      return '<button class="chip ' + (ST.layers[k] ? 'on' : '') + '" data-l="' + k + '"><i style="background:' + C[k].color + '"></i>' + esc(C[k].name.replace('保护接地 PE', 'PE')) + '</button>';
+    }).join('');
+    $('layers').querySelectorAll('[data-l]').forEach(function (b) {
+      b.onclick = function () { var k = b.getAttribute('data-l'); ST.layers[k] = ST.layers[k] ? 0 : 1; renderChips(); repaintWires(); };
+    });
+    var O = [['pinNo', '引脚号'], ['pinName', '端子名'], ['devName', '器件名/规格']];
+    $('opts').innerHTML = O.map(function (o) {
+      return '<button class="chip ' + (ST.opts[o[0]] ? 'on' : '') + '" data-o="' + o[0] + '">' + o[1] + '</button>';
+    }).join('');
+    $('opts').querySelectorAll('[data-o]').forEach(function (b) {
+      b.onclick = function () { var k = b.getAttribute('data-o'); ST.opts[k] = !ST.opts[k]; renderChips(); paint(false); };
+    });
+  }
+  /* v2.26 audit-fix: 元器件库——目录/放置/删除 */
+  var LIBCAT = (function () {
+    var C = window.EVSE_CORE;
+    var box = function (t, l, rr) { return C.makeBox(Object.assign({ w: 110, minH: 56, title: t }, l, rr || {})); };
+    return [
+      /* 无源元件 */
+      { g: '无源元件', tag: 'RS', name: '电阻', make: function () { return C.makeRes({ name: '电阻', r: '100Ω' }); } },
+      { g: '无源元件', tag: 'RS', name: '泄放电阻（铝壳）', make: function () { return C.makeRes({ name: '泄放电阻', r: '400Ω/500W' }); } },
+      { g: '无源元件', tag: 'C', name: '电容（直流支撑）', make: function () { return C.S.cap(); } },
+      { g: '无源元件', tag: 'L', name: '电感/滤波线圈', make: function () { return C.S.ind(); } },
+      { g: '无源元件', tag: 'FU', name: '熔断器', make: function () { return C.makeFuse({ name: '熔断器', i: '32A' }); } },
+      /* 半导体 */
+      { g: '半导体', tag: 'V', name: '二极管', make: function () { return C.S.diode(); } },
+      { g: '半导体', tag: 'UR', name: '整流桥', make: function () { return C.S.bridge(); } },
+      { g: '半导体', tag: 'HL', name: 'LED 指示灯（器件级）', make: function () { return C.S.led(); } },
+      /* 机电与控制 */
+      { g: '机电与控制', tag: 'KA', name: '中间继电器', make: function () { return C.S.relay(); } },
+      { g: '机电与控制', tag: 'KT', name: '时间继电器', make: function () { return C.S.trelay(); } },
+      { g: '机电与控制', tag: 'BT', name: '温控器 PT100', make: function () { return C.S.tc(); } },
+      { g: '机电与控制', tag: 'MF', name: '风机/电机', make: function () { return C.S.motor(); } },
+      { g: '机电与控制', tag: 'HL', name: '指示灯', make: function () { return C.S.lamp(); } },
+      { g: '机电与控制', tag: 'SB', name: '急停按钮', make: function () { return C.S.estop(); } },
+      { g: '机电与控制', tag: 'SQ', name: '门开关', make: function () { return C.S.posSwitch(); } },
+      { g: '机电与控制', tag: 'BL', name: '电子锁', make: function () { return C.S.lock(); } },
+      /* 保护 */
+      { g: '保护', tag: 'QF', name: '断路器 3P', make: function () { return C.makeSwitch({ name: '断路器', poles: 3, i: '63A' }); } },
+      { g: '保护', tag: 'QF', name: '断路器 4P', make: function () { return C.makeSwitch({ name: '断路器', poles: 4, i: '100A' }); } },
+      { g: '保护', tag: 'FV', name: '电涌保护 SPD', make: function () { return C.S.spd(); } },
+      { g: '保护', tag: 'RCM', name: '剩余电流监测', make: function () { return C.S.rcm(); } },
+      { g: '保护', tag: 'FE', name: 'EMC 前置', make: function () { return C.S.emcFront(); } },
+      { g: '保护', tag: 'RI', name: '绝缘监测 IMD', make: function () { return C.S.imd(); } },
+      { g: '保护', tag: 'KC', name: '粘连检测', make: function () { return C.S.stickDet(); } },
+      { g: '保护', tag: 'SC', name: '短路检测', make: function () { return C.S.scDet(); } },
+      { g: '保护', tag: 'PED', name: 'PE 检测', make: function () { return C.S.peDet(); } },
+      /* 计量 */
+      { g: '计量', tag: 'PJ', name: '交流电能表', make: function () { return C.S.meterAC(); } },
+      { g: '计量', tag: 'PJ', name: '直流电能表', make: function () { return C.S.meterDC(); } },
+      { g: '计量', tag: 'TA', name: '霍尔电流传感器', make: function () { return C.S.hall(); } },
+      { g: '计量', tag: 'PW', name: '功率表', make: function () { return box('功率表', { left: [{ n: '1', name: 'U', k: 'DC', t: 'in' }, { n: '2', name: 'I', k: 'DC', t: 'in' }], right: [{ n: '3', name: '485', k: 'COMM', t: 'bi' }] }); } },
+      { g: '计量', tag: 'TM', name: '温度巡检仪', make: function () { return box('温度巡检', { left: [{ n: '1', name: 'T1', k: 'CTL', t: 'in' }, { n: '2', name: 'T2', k: 'CTL', t: 'in' }], right: [{ n: '3', name: '485', k: 'COMM', t: 'bi' }] }); } },
+      /* 控制与通信 */
+      { g: '控制与通信', tag: 'GD', name: '控制导引', make: function () { return C.S.guide(); } },
+      { g: '控制与通信', tag: 'A', name: 'CCU/PLC 主控', make: function () { return box('CCU 主控', { left: [{ n: '1', name: 'CAN1', k: 'COMM', t: 'bi' }, { n: '2', name: 'CAN2', k: 'COMM', t: 'bi' }, { n: '3', name: 'DI', k: 'CTL', t: 'in' }], right: [{ n: '4', name: 'DO', k: 'CTL', t: 'out' }, { n: '5', name: 'ETH', k: 'COMM', t: 'bi' }] }); } },
+      { g: '控制与通信', tag: 'SW', name: '网络交换机', make: function () { return box('交换机', { left: [{ n: '1', name: 'P1', k: 'COMM', t: 'bi' }, { n: '2', name: 'P2', k: 'COMM', t: 'bi' }], right: [{ n: '3', name: 'P3', k: 'COMM', t: 'bi' }, { n: '4', name: 'P4', k: 'COMM', t: 'bi' }] }); } },
+      { g: '控制与通信', tag: 'GW', name: '计费网关', make: function () { return box('计费网关', { left: [{ n: '1', name: '485', k: 'COMM', t: 'bi' }], right: [{ n: '2', name: '4G/ETH', k: 'COMM', t: 'bi' }] }); } },
+      { g: '控制与通信', tag: 'A', name: 'BMS 主控', make: function () { return box('BMS 主控', { left: [{ n: '1', name: 'CAN', k: 'COMM', t: 'bi' }, { n: '2', name: '采样', k: 'CTL', t: 'in' }], right: [{ n: '3', name: '继电器', k: 'CTL', t: 'out' }] }); } },
+      { g: '控制与通信', tag: 'HMI', name: 'HMI 触摸屏', make: function () { return box('HMI', { left: [{ n: '1', name: 'ETH', k: 'COMM', t: 'bi' }], right: [{ n: '2', name: 'RFID', k: 'COMM', t: 'bi' }] }); } },
+      /* 电源 */
+      { g: '电源', tag: 'GB', name: '电池簇', make: function () { return C.S.battery(); } },
+      { g: '电源', tag: 'PCS', name: 'PCS 双向变流', make: function () { return box('PCS', { left: [{ n: '1', name: 'AC', k: 'AC', t: 'bi' }], right: [{ n: '2', name: 'DC+', k: 'DC', t: 'bi' }, { n: '3', name: 'DC-', k: 'DC', t: 'bi' }] }); } },
+      { g: '电源', tag: 'U', name: 'DC/DC 模块', make: function () { return box('DC/DC', { left: [{ n: '1', name: 'AC', k: 'AC', t: 'in' }], right: [{ n: '2', name: 'DC+', k: 'DC', t: 'out' }, { n: '3', name: 'DC-', k: 'DC', t: 'out' }] }); } },
+      { g: '电源', tag: 'UPS', name: 'UPS 不间断', make: function () { return box('UPS', { left: [{ n: '1', name: 'AC in', k: 'AC', t: 'in' }], right: [{ n: '2', name: 'AC out', k: 'AC', t: 'out' }] }); } },
+      { g: '电源', tag: 'T', name: '辅助电源 24V', make: function () { return box('AC/DC 24V', { left: [{ n: '1', name: 'L', k: 'AC', t: 'in' }, { n: '2', name: 'N', k: 'AC', t: 'in' }], right: [{ n: '3', name: '24V+', k: 'AUX', t: 'out' }, { n: '4', name: '0V', k: 'AUX', t: 'out' }] }); } },
+      /* 连接与辅助 */
+      { g: '连接与辅助', tag: 'XT', name: '端子排 6 位', make: function () { return C.S.termStrip(['1', '2', '3', '4', '5', '6']); } },
+      { g: '连接与辅助', tag: 'WB', name: '母排 4 线', make: function () { return C.makeBus({ bars: [{ name: 'L1', k: 'AC' }, { name: 'L2', k: 'AC' }, { name: 'L3', k: 'AC' }, { name: 'N', k: 'AC' }], taps: [] }); } },
+      { g: '连接与辅助', tag: 'PE', name: '保护接地', make: function () { return C.S.earth(); } },
+      { g: '连接与辅助', tag: 'XR', name: '跨页符', make: function () { return C.S.xref('→手工指派', 'E'); } },
+      { g: '连接与辅助', tag: 'PF', name: '电源旗标 24V+', make: function () { return C.S.pwrflag('24V+', 'W'); } },
+      { g: '连接与辅助', tag: 'XS', name: '充电枪 GB', make: function () { return C.S.gun('gb', ['DC+', 'DC-', 'PE', 'S+', 'S-', 'CC1', 'CC2']); } },
+      { g: '连接与辅助', tag: 'XS', name: '充电枪 CCS2', make: function () { return C.S.gun('ccs2', ['DC+', 'DC-', 'PE', 'CP', 'PP']); } },
+      { g: '连接与辅助', tag: 'XS', name: '充电枪 CCS1（美标）', make: function () { return C.S.gun('ccs1', ['DC+', 'DC-', 'PE', 'CP', 'PP']); } },
+      { g: '连接与辅助', tag: 'XS', name: '充电枪 NACS（J3400）', make: function () { return C.S.gun('nacs', ['DC+', 'DC-', 'PE', 'CP', 'PP']); } },
+      { g: '连接与辅助', tag: 'XS', name: '充电枪 CHAdeMO（日标）', make: function () { return C.S.gun('chademo', ['DC+', 'DC-', 'PE', 'CP', 'CAN_H', 'CAN_L']); } },
+      { g: '自定义', tag: 'U', name: '功能框 1进1出', make: function () { return C.makeBox({ w: 120, minH: 64, title: '自定义单元', left: [{ n: '1', name: 'IN', k: 'CTL', t: 'in' }], right: [{ n: '2', name: 'OUT', k: 'CTL', t: 'out' }] }); } },
+    ];
+  })();
+  var pendingLib = -1;
+  function nextTag(prefix) {
+    var mx = 0;
+    D.devices.forEach(function (x) {
+      var m = new RegExp('^' + prefix + '(\\d+)$').exec(x.tag || '');
+      if (m) mx = Math.max(mx, +m[1]);
+    });
+    return prefix + (mx + 1);
+  }
+  function addLibDevice(idx, wx, wy) {
+    var pre = LIBCAT[idx];
+    if (!pre) return;
+    var sym;
+    try { sym = pre.make(); } catch (e) { msg('符号构造失败: ' + e.message); return; }
+    if (!sym) return;
+    pushHist();
+    var id = 'LU' + (D.devices.length + 1);
+    while (D.map[id]) id += 'x';
+    var tag = nextTag(pre.tag);
+    var dev = { id: id, sheet: ST.sheet, zone: 'ZX', tag: tag, name: pre.name, spec: '库放置', sym: sym, x: Math.round(wx), y: Math.round(wy), lib: true };
+    D.devices.push(dev); D.map[id] = dev;
+    if (D.boxes) D.boxes.push({ sheet: dev.sheet, x: dev.x - 2, y: dev.y - 2, w: (sym.w || 20) + 4, h: (sym.h || 20) + 4, kind: 'body', id: id });
+    paint(false); renderAll();
+    var ovl = D.devices.filter(function (o) {
+      if (o === dev || o.sheet !== dev.sheet || o.x == null) return false;
+      var ow = o.sym.w || 20, oh = o.sym.h || 20;
+      return o.x < dev.x + (sym.w || 20) && dev.x < o.x + ow && o.y < dev.y + (sym.h || 20) && dev.y < o.y + oh;
+    });
+    msg('已放置 ' + tag + '（' + pre.name + '）于页 ' + ST.sheet + '——用连线工具从引脚拉线，右键可旋转/删除' + (ovl.length ? ('　⚠ 与 ' + ovl.map(function (o) { return o.tag || o.id; }).join('/') + ' 重叠，请拖开') : ''));
+  }
+  function deleteDevice(id) {
+    pushHist();
+    var killNets = {};
+    D.nets.forEach(function (nn) { if (nn.a.d === id || nn.b.d === id) killNets[nn.id] = 1; });
+    D.nets = D.nets.filter(function (nn) { return !killNets[nn.id]; });
+    D.wires = D.wires.filter(function (w) { return !killNets[w.net]; });
+    D.devices = D.devices.filter(function (x) { return x.id !== id; });
+    delete D.map[id];
+    if (D.boxes) D.boxes = D.boxes.filter(function (b) { return b.id !== id; });
+    window.EVSE_GEO.crossings(D);
+    ST.sel = null;
+    paint(false); renderAll();
+    msg('已删除器件 ' + id + ' 及其连线');
+  }
+  window.pendingLibEsc = function () { if (pendingLib >= 0) { pendingLib = -1; renderLib(); msg('已取消放置'); } };
+  window.__LIB_PICK = function (idx) {
+    pendingLib = (pendingLib === idx) ? -1 : idx;
+    renderLib();
+    msg(pendingLib >= 0 ? ('在画布点击放置：' + LIBCAT[idx].name + '（Esc 取消）') : '已取消放置');
+  };
+
+  /* ---------- V14: 自定义元器件（手动定义引脚 / 自由框体形状 / AI 识图或文字生成） ---------- */
+  var CD_EDIT = -1, cdPins = [];
+  var KDOMS = ['AC', 'DC', 'ESS', 'AUX', 'CTL', 'COMM', 'SIG', 'PE'];
+  function customStore() { try { return JSON.parse(localStorage.getItem('evse.customLib') || '[]'); } catch (e) { return []; } }
+  function customSave(arr) { try { localStorage.setItem('evse.customLib', JSON.stringify(arr)); } catch (e) { msg('保存失败：浏览器本地存储不可用 ' + e.message); } }
+  function rebuildCustomLib() {
+    for (var i = LIBCAT.length - 1; i >= 0; i--) if (LIBCAT[i].custom != null) LIBCAT.splice(i, 1);
+    customStore().forEach(function (spec, ci) {
+      LIBCAT.push({ g: '自定义', tag: spec.tag || 'U', name: spec.name || '自定义器件', custom: ci, spec: spec, make: function (sp) { return function () { return window.EVSE_CORE.makeBox(sp); }; }(spec) });
+    });
+    renderLib();
+  }
+  function cdSpec() {
+    var by = { left: [], right: [], top: [], bottom: [] };
+    cdPins.forEach(function (p) { (by[p.side] || by.right).push({ n: p.n, name: p.name, k: p.k, t: p.t }); });
+    return {
+      tag: ($('cdTag').value || '').trim() || 'U', name: ($('cdName').value || '').trim() || '自定义器件',
+      title: ($('cdTitle').value || '').trim() || (($('cdName').value || '').trim() || '自定义'),
+      w: Math.max(60, +$('cdW').value || 120), minH: Math.max(36, +$('cdMinH').value || 56),
+      left: by.left, right: by.right, top: by.top, bottom: by.bottom
+    };
+  }
+  function cdPreview() {
+    var box = $('cdPreview'); if (!box) return;
+    var spec = cdSpec(), sym;
+    try { sym = window.EVSE_CORE.makeBox(spec); } catch (e) { box.innerHTML = '<span style="color:#f87171;font-size:11px">符号构造失败：' + esc(e.message) + '</span>'; return; }
+    var W = sym.w + 140, H = sym.h + 90;
+    var s = '<svg width="' + W + '" height="' + H + '" viewBox="' + (-50) + ' ' + (-38) + ' ' + W + ' ' + H + '" xmlns="http://www.w3.org/2000/svg">';
+    (sym.draw || []).forEach(function (g) {
+      if (g[0] === 'R') s += '<rect x="' + g[1] + '" y="' + g[2] + '" width="' + g[3] + '" height="' + g[4] + '" rx="' + (g[5] || 0) + '" fill="none" stroke="#c8d1dc" stroke-width="1.6"/>';
+      else if (g[0] === 'L') s += '<line x1="' + g[1] + '" y1="' + g[2] + '" x2="' + g[3] + '" y2="' + g[4] + '" stroke="#c8d1dc" stroke-width="' + (g[5] || 1.4) + '"/>';
+      else if (g[0] === 'T') s += '<text x="' + g[1] + '" y="' + g[2] + '" font-size="' + g[4] + '" fill="#dbe4f0" text-anchor="' + (g[5] === 'm' ? 'middle' : (g[5] === 'e' ? 'end' : 'start')) + '" font-family="inherit">' + esc(g[3]) + '</text>';
+      else if (g[0] === 'C') s += '<circle cx="' + g[1] + '" cy="' + g[2] + '" r="' + g[3] + '" fill="#0b0e12" stroke="#c8d1dc" stroke-width="1.2"/>';
+      else if (g[0] === 'P') s += '<path d="' + g[1] + '" fill="none" stroke="#c8d1dc" stroke-width="1.4"/>';
+    });
+    (sym.pins || []).forEach(function (p) {
+      s += '<circle cx="' + p.x + '" cy="' + p.y + '" r="2.4" fill="#8fdcff"/>';
+      var tx = p.x + (p.d === 'W' ? -6 : (p.d === 'E' ? 6 : 0));
+      var ty = p.y + (p.d === 'N' ? -7 : (p.d === 'S' ? 12 : 3.5));
+      var anc = p.d === 'W' ? 'end' : (p.d === 'E' ? 'start' : 'middle');
+      s += '<text x="' + tx + '" y="' + ty + '" font-size="9" fill="#7dd3fc" text-anchor="' + anc + '">' + esc(p.name || p.n) + '</text>';
+    });
+    s += '</svg>';
+    box.innerHTML = s;
+  }
+  function cdRenderPins() {
+    var h = '';
+    if (!cdPins.length) h = '<div style="color:#5f6b78;font-size:11px;padding:8px">暂无引脚——点「＋ 添加引脚」逐个定义，或用 AI 识图/解析文字自动生成</div>';
+    cdPins.forEach(function (p, i) {
+      var mk = function (cls, opts, cur) { return '<select class="q ' + cls + '" style="padding:3px 2px;font-size:11px">' + opts.map(function (o) { return '<option value="' + o + '"' + (o === cur ? ' selected' : '') + '>' + o + '</option>'; }).join('') + '</select>'; };
+      h += '<div style="display:flex;gap:4px;margin-bottom:4px;align-items:center" data-i="' + i + '">'
+        + '<input class="q cd-n" style="width:52px;padding:3px 6px;font-size:11px" value="' + esc(p.n) + '" placeholder="脚号">'
+        + '<input class="q cd-name" style="width:86px;padding:3px 6px;font-size:11px" value="' + esc(p.name) + '" placeholder="名称">'
+        + mk('cd-side', ['left', 'right', 'top', 'bottom'], p.side)
+        + mk('cd-k', KDOMS, p.k)
+        + mk('cd-t', ['in', 'out', 'bi'], p.t)
+        + '<button class="btn cd-del" style="padding:1px 7px;color:#f87171;margin-left:auto" title="删除此引脚">✕</button></div>';
+    });
+    $('cdPins').innerHTML = h;
+    $('cdPins').querySelectorAll('div[data-i]').forEach(function (row) {
+      var i = +row.getAttribute('data-i');
+      row.querySelector('.cd-n').oninput = function () { cdPins[i].n = this.value; };
+      row.querySelector('.cd-name').oninput = function () { cdPins[i].name = this.value; cdPreview(); };
+      row.querySelector('.cd-side').onchange = function () { cdPins[i].side = this.value; cdPreview(); };
+      row.querySelector('.cd-k').onchange = function () { cdPins[i].k = this.value; };
+      row.querySelector('.cd-t').onchange = function () { cdPins[i].t = this.value; };
+      row.querySelector('.cd-del').onclick = function () { cdPins.splice(i, 1); cdRenderPins(); cdPreview(); };
+    });
+  }
+  function cdLoadSpec(spec) {
+    $('cdTag').value = spec.tag || 'U'; $('cdName').value = spec.name || ''; $('cdTitle').value = spec.title || '';
+    $('cdW').value = spec.w || 120; $('cdMinH').value = spec.minH || 56;
+    cdPins = [];
+    ['left', 'right', 'top', 'bottom'].forEach(function (sd) {
+      (spec[sd] || []).forEach(function (p) { cdPins.push({ n: String(p.n || ''), name: String(p.name || ''), side: sd, k: KDOMS.indexOf(p.k) >= 0 ? p.k : 'CTL', t: ['in', 'out', 'bi'].indexOf(p.t) >= 0 ? p.t : 'bi' }); });
+    });
+    if (!cdPins.length) cdPins = [{ n: '1', name: 'IN', side: 'left', k: 'CTL', t: 'in' }, { n: '2', name: 'OUT', side: 'right', k: 'CTL', t: 'out' }];
+    cdRenderPins(); cdPreview();
+  }
+  window.__CUSTOM_NEW = function () { CD_EDIT = -1; $('cdHead').textContent = '新建自定义元器件'; $('cdAiMsg').textContent = ''; $('cdAiText').value = ''; cdLoadSpec({}); $('compDlg').style.display = 'block'; };
+  window.__CUSTOM_EDIT = function (idx) {
+    var e = LIBCAT[idx]; if (!e || e.custom == null) return;
+    CD_EDIT = e.custom; $('cdHead').textContent = '编辑自定义元器件：' + e.name; $('cdAiMsg').textContent = '';
+    cdLoadSpec(e.spec || customStore()[e.custom] || {}); $('compDlg').style.display = 'block';
+  };
+  window.__CUSTOM_DEL = function (idx) {
+    var e = LIBCAT[idx]; if (!e || e.custom == null) return;
+    if (!confirm('删除自定义元器件「' + e.name + '」？（已放置到图纸上的实例不受影响）')) return;
+    var arr = customStore(); arr.splice(e.custom, 1); customSave(arr); rebuildCustomLib(); msg('已删除自定义元器件 ' + e.name);
+  };
+  var CD_PROMPT = function (what) { return '你是电气原理图符号助手。请从' + what + '中提取元器件符号定义，只输出一个 JSON 对象（禁止 markdown 代码块和其它文字）：{"name":"元器件名称","tag":"位号前缀大写字母","title":"框内标题","w":框宽整数60到400,"pins":[{"n":"引脚号","name":"引脚名","side":"left或right或top或bottom","k":"AC或DC或ESS或AUX或CTL或COMM或SIG或PE","t":"in或out或bi"}]}。规则：电源输入放 left，功率/通信输出放 right，接地 PE 放 bottom；引脚数量与名称严格按资料，不得臆造；k 为电气域判断，t 为信号方向判断。'; };
+  async function cdAiCall(content) {
+    if (!window.EVSE_AI || !EVSE_AI.ready()) { $('cdAiMsg').textContent = '⚠ 请先在「AI 工具 → 大模型设置」配置接口地址 / Key / 模型（识图需模型支持视觉）'; return; }
+    $('cdAiMsg').textContent = '🤖 AI 识别中，请稍候…';
+    try {
+      var r = await EVSE_AI.chat([{ role: 'user', content: content }], { timeout: 120000 });
+      var t = String(r).replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/, '');
+      var i0 = t.indexOf('{'), i1 = t.lastIndexOf('}');
+      if (i0 < 0 || i1 <= i0) throw new Error('AI 未返回 JSON：' + t.slice(0, 80));
+      var j = JSON.parse(t.slice(i0, i1 + 1));
+      if (j.tag) $('cdTag').value = String(j.tag).replace(/[^A-Za-z]/g, '').slice(0, 6) || 'U';
+      if (j.name) $('cdName').value = String(j.name).slice(0, 30);
+      if (j.title) $('cdTitle').value = String(j.title).slice(0, 30);
+      if (j.w) $('cdW').value = Math.min(400, Math.max(60, +j.w || 120));
+      var sides = { left: 1, right: 1, top: 1, bottom: 1 };
+      cdPins = (j.pins || []).map(function (p, i2) {
+        return { n: String(p.n || p.num || (i2 + 1)), name: String(p.name || p.n || ''), side: sides[p.side] ? p.side : 'right', k: KDOMS.indexOf(p.k) >= 0 ? p.k : 'CTL', t: ['in', 'out', 'bi'].indexOf(p.t) >= 0 ? p.t : 'bi' };
+      });
+      cdRenderPins(); cdPreview();
+      $('cdAiMsg').textContent = '✔ 已识别 ' + cdPins.length + ' 个引脚，请逐个核对修正后保存';
+    } catch (e) {
+      $('cdAiMsg').textContent = '识别失败：' + e.message + (/HTTP 4\d\d/.test(String(e.message)) ? '（当前模型可能不支持图片，可改用文字粘贴解析）' : '');
+    }
+  }
+  async function cdAiImage(file) {
+    try {
+      var dataUrl = await new Promise(function (res, rej) { var fr = new FileReader(); fr.onload = function () { res(fr.result); }; fr.onerror = function () { rej(new Error('读图失败')); }; fr.readAsDataURL(file); });
+      await cdAiCall([{ type: 'text', text: CD_PROMPT('图片') }, { type: 'image_url', image_url: { url: dataUrl } }]);
+    } catch (e) { $('cdAiMsg').textContent = '读取图片失败：' + e.message; }
+  }
+  $('cdAddPin').onclick = function () { cdPins.push({ n: String(cdPins.length + 1), name: '', side: 'right', k: 'CTL', t: 'bi' }); cdRenderPins(); cdPreview(); };
+  $('cdCancel').onclick = function () { $('compDlg').style.display = 'none'; };
+  $('cdAiImg').onclick = function () { $('cdImgFile').click(); };
+  $('cdImgFile').onchange = function () { var f = this.files && this.files[0]; this.value = ''; if (f) cdAiImage(f); };
+  $('cdAiTxt').onclick = function () {
+    var txt = ($('cdAiText').value || '').trim();
+    if (!txt) { $('cdAiMsg').textContent = '请先粘贴引脚文字描述'; return; }
+    cdAiCall([{ type: 'text', text: CD_PROMPT('资料') + '\n\n资料：\n' + txt.slice(0, 6000) }]);
+  };
+  $('cdOK').onclick = function () {
+    var spec = cdSpec();
+    if (!($('cdName').value || '').trim()) { msg('请填写元器件名称'); return; }
+    if (!spec.left.length && !spec.right.length && !spec.top.length && !spec.bottom.length) { msg('至少需要一个引脚'); return; }
+    var arr = customStore();
+    if (CD_EDIT >= 0 && CD_EDIT < arr.length) arr[CD_EDIT] = spec; else arr.push(spec);
+    customSave(arr); rebuildCustomLib();
+    $('compDlg').style.display = 'none';
+    msg('自定义元器件「' + spec.name + '」已保存（共 ' + (spec.left.length + spec.right.length + spec.top.length + spec.bottom.length) + ' 引脚），左侧元件库「自定义」分组点击即可放置' + (CD_EDIT >= 0 ? '' : '；支持连线/审计/仿真/导出全链路'));
+    CD_EDIT = -1;
+  };
+  ['cdTag', 'cdName', 'cdTitle', 'cdW', 'cdMinH'].forEach(function (id) { $(id).oninput = function () { cdPreview(); }; });
+  rebuildCustomLib();
+
+  /* ---------- V14/V15: Word 式 ribbon 标签栏 + 抽屉面板 ---------- */
+  var RIB_DRAWER = { design: 1, lib: 1, insp: 1, bom: 1 };
+  var ribCur = '', drawerOpen = false;
+  function switchRibbon(name, toggle, forceOpen) {
+    var isD = !!RIB_DRAWER[name];
+    if (forceOpen != null) drawerOpen = !!forceOpen && isD;
+    else if (isD && toggle && ribCur === name && drawerOpen) drawerOpen = false;
+    else if (isD) drawerOpen = true;
+    else drawerOpen = false;
+    ribCur = name;
+    document.querySelectorAll('#rtabs .rtab').forEach(function (b) { b.classList.toggle('on', b.getAttribute('data-rt') === name); });
+    document.querySelectorAll('#ribbon .rpane').forEach(function (p) { p.classList.toggle('on', !isD && p.getAttribute('data-rp') === name); });
+    var rb = $('ribbon');
+    if (rb) rb.style.display = isD ? 'none' : '';
+    var dw = $('drawer');
+    if (dw) {
+      dw.style.display = drawerOpen ? '' : 'none';
+      document.querySelectorAll('#drawer .dpane').forEach(function (p) { p.classList.toggle('on', drawerOpen && p.getAttribute('data-dp') === name); });
+    }
+    try { localStorage.setItem('evse.ribbon', name); localStorage.setItem('evse.drawer', drawerOpen ? '1' : '0'); } catch (e) {}
+  }
+  document.querySelectorAll('#rtabs .rtab').forEach(function (b) { b.onclick = function () { switchRibbon(b.getAttribute('data-rt'), true); }; });
+  switchRibbon((function () { try { return localStorage.getItem('evse.ribbon') || 'file'; } catch (e) { return 'file'; } })(), false,
+    (function () { try { return localStorage.getItem('evse.drawer') === '1'; } catch (e) { return false; } })());
+  ['rtabs', 'sheets'].forEach(function (id) {
+    var el = $(id);
+    if (!el) return;
+    el.addEventListener('wheel', function (e) {
+      if (Math.abs(e.deltaY) > Math.abs(e.deltaX) && el.scrollWidth > el.clientWidth) {
+        el.scrollLeft += e.deltaY;
+        e.preventDefault();
+      }
+    }, { passive: false });
+  });
+  $('bCompNew').onclick = function () { window.__CUSTOM_NEW(); };
+
+  function renderLib() {
+    if (!D) return;
+    var q = (($('libQ') && $('libQ').value) || '').trim().toLowerCase();
+    var html = '<div style="display:flex;gap:5px;margin-bottom:6px"><input id="libQ" class="q" style="flex:1;min-width:0" placeholder="搜索 ' + LIBCAT.length + ' 项元器件（名称/位号/分类）…" value="' + esc(q) + '" oninput="renderLib()"><button class="btn" style="flex:0 0 auto;padding:4px 9px" title="新建自定义元器件：手动定义引脚或 AI 识图生成" onclick="window.__CUSTOM_NEW()">🧩 新建</button></div>';
+    var groups = {}, matched = 0;
+    LIBCAT.forEach(function (pre, idx) {
+      if (q && (pre.name + pre.tag + pre.g).toLowerCase().indexOf(q) < 0) return;
+      matched++;
+      (groups[pre.g] = groups[pre.g] || []).push({ pre: pre, idx: idx });
+    });
+    if (q && !matched) { /* v2.36: 无匹配直接显示全部，不让用户多点一下 */
+      html += '<div style="padding:6px;border:1px dashed #3a4552;border-radius:4px;margin:6px 0;color:#8c96a3;font-size:11px">没有匹配「' + esc(q) + '」，已直接显示全部 ' + LIBCAT.length + ' 项</div>';
+      groups = {};
+      LIBCAT.forEach(function (pre, idx) { (groups[pre.g] = groups[pre.g] || []).push({ pre: pre, idx: idx }); });
+    }
+    Object.keys(groups).forEach(function (gk) {
+      html += '<div style="font-size:10px;color:#6f7a87;letter-spacing:.15em;margin:8px 0 3px">' + esc(gk) + '</div>';
+      groups[gk].forEach(function (it) {
+        var on = pendingLib === it.idx;
+        html += '<div class="libitem" draggable="true" data-lib="' + it.idx + '" style="display:flex;justify-content:space-between;gap:8px;padding:4px 6px;border:1px solid ' + (on ? '#2f6fdc' : '#1c232b') + ';border-radius:4px;margin-bottom:3px;cursor:pointer;background:' + (on ? '#12233d' : '#0f1318') + '"'
+          + ' onclick="window.__LIB_PICK(' + it.idx + ')" title="点击后在画布放置；也可直接拖到画布">'
+          + '<span style="color:' + (on ? '#8fdcff' : '#c3ccd7') + '">' + esc(it.pre.name) + '</span>'
+          + '<span style="color:#5f6b78;flex:0 0 auto;font-size:10px;display:flex;gap:3px;align-items:center">' + esc(it.pre.tag)
+          + (it.pre.custom != null ? '<button class="btn" style="padding:0 5px;font-size:10px;line-height:16px" title="编辑此自定义元器件" onclick="event.stopPropagation();window.__CUSTOM_EDIT(' + it.idx + ')">✎</button><button class="btn" style="padding:0 5px;font-size:10px;line-height:16px;color:#f87171" title="删除此自定义元器件" onclick="event.stopPropagation();window.__CUSTOM_DEL(' + it.idx + ')">✕</button>' : '')
+          + '</span></div>';
+      });
+    });
+    html += '<div style="font-size:10px;color:#6f7a87;letter-spacing:.15em;margin:10px 0 3px">在用清单</div>';
+    var g = {};
+    D.devices.forEach(function (x) {
+      if (x.sym.isXref || x.pwr) return;
+      var key = x.name.replace(/\s*\d+\s*$/, '').replace(/^(枪|簇)\d+\s*/, '$1n ');
+      g[key] = (g[key] || 0) + 1;
+    });
+    html += Object.keys(g).sort().map(function (k) {
+      return '<div style="display:flex;justify-content:space-between;gap:8px;padding:3px 0;border-bottom:1px solid #1c232b">'
+        + '<span style="color:#c3ccd7">' + esc(k) + '</span><span style="color:#5f6b78;flex:0 0 auto">×' + g[k] + '</span></div>';
+    }).join('');
+    $('lib').innerHTML = html;
+    /* 拖放支持 */
+    $('lib').querySelectorAll('.libitem').forEach(function (el) {
+      el.addEventListener('dragstart', function (e) { e.dataTransfer.setData('text/lib', el.getAttribute('data-lib')); });
+    });
+  }
+  function renderStatus() {
+    if (!D) return;
+    var A = D.audit, xr = D.devices.filter(function (x) { return x.sym.isXref; }).length;
+    $('st1').textContent = '器件 ' + (D.devices.length - xr) + ' + ' + xr + ' 跨页符';
+    $('st2').textContent = '物理端子 ' + A.stats.pins;
+    $('st3').textContent = '网络 ' + D.nets.length;
+    $('st4').textContent = '走线段 ' + A.stats.segs;
+    $('st5').textContent = '跨越 ' + A.stats.hops + ' · 结点 ' + A.stats.junc;
+  }
+  function renderInspector() {
+    var C = window.EVSE_CORE.NETC, sel = ST.sel, h = '';
+    if (!D || !sel) {
+      if (ST.msel && ST.msel.length > 1) {
+        h = '<div style="font-size:13px;font-weight:700;color:#fff;margin-bottom:2px">已选 ' + ST.msel.length + ' 个器件</div>'
+          + '<div style="color:#8fdcff;font-size:11px;line-height:1.9">' + ST.msel.map(function (x) { var dd = D.map[x]; return dd ? dd.tag : x; }).join('、') + '</div>'
+          + '<div style="color:#7c8794;font-size:11px;margin-top:6px">拖任一选中件=组移动 · Delete=组删除 · Esc/点空白=清除</div>';
+        $('insp').innerHTML = h; return;
+      }
+      h = '<div style="font-size:13px;font-weight:700;color:#fff;margin-bottom:2px">未选中</div>'
+        + '<div style="color:#7c8794;font-size:11px">左键点选器件（Ctrl+点击多选 · 空白拖拽框选）；按住滑轮平移、滚轮缩放；拖动器件/线段改图；Delete 删除，Ctrl+Z 撤销。</div>';
+      $('insp').innerHTML = h; return;
+    }
+    var title = '', sub = '', rows = [], pins = null;
+    if (sel.k === 'dev') {
+      var dv = D.map[sel.id];
+      title = dv.tag + ' · ' + dv.name; sub = 'ID ' + dv.id + ' · 页 ' + dv.sheet + ' · 分区 ' + dv.zone;
+      rows = [['规格/档位', (dv.spec || '—') + '（RFQ_REQUIRED）'], ['坐标', Math.round(dv.x) + ', ' + Math.round(dv.y)],
+        ['外形', dv.sym.w + ' × ' + dv.sym.h], ['端子数', dv.sym.pins.length]];
+      pins = dv.sym.pins.map(function (p) {
+        var n = netOfPin(dv.id, p.n);
+        return { n: p.n, name: p.name || p.n, to: n ? otherEnd(n, dv.id, p.n) + '  [' + n.cls + ']' : '悬空',
+          color: n ? C[n.cls].color : '#e0a83a' };
+      });
+    } else if (sel.k === 'wire') {
+      var w = D.wires.filter(function (q) { return q.id === sel.id; })[0];
+      var n = D.nets.filter(function (q) { return q.id === sel.net; })[0];
+      if (w && n) {
+        var aD = D.map[n.a.d], bD = D.map[n.b.d];
+        var aP = aD && window.EVSE_GEO.pinOf(aD, n.a.p), bP = bD && window.EVSE_GEO.pinOf(bD, n.b.p);
+        title = '连线 ' + n.name; sub = '网络类别 ' + n.cls + ' · ' + C[n.cls].name;
+        rows = [
+          ['起点', (aD ? aD.tag || aD.id : n.a.d) + ' 端子 ' + n.a.p + (aP && aP.name ? '（' + aP.name + '）' : '')],
+          ['终点', (bD ? bD.tag || bD.id : n.b.d) + ' 端子 ' + n.b.p + (bP && bP.name ? '（' + bP.name + '）' : '')],
+          ['拐点', (w.pts.length - 2) + ' 个 · ' + (w.pts.length - 1) + ' 段'],
+          ['选中段', '第 ' + (sel.seg + 1) + ' 段（可拖动，邻线自动挤推）'],
+          ['布线来源', w.manual ? '人工改道 MANUAL' : '自动布线 ' + (w.via || 'AUTO')],
+          ['导线', n.wire || '按载流量与敷设方式另行选型']
+        ];
+      }
+    } else if (sel.k === 'pin') {
+      var d5 = D.map[sel.dev], p5 = d5 && window.EVSE_GEO.pinOf(d5, sel.pin);
+      if (d5 && p5) {
+        var n5 = netOfPin(d5.id, p5.n);
+        title = d5.tag + ' : ' + (p5.name || p5.n);
+        sub = '物理端子 ' + p5.n + ' · 能量域 ' + p5.k + ' · 方向 ' + p5.t;
+        rows = [['对端', n5 ? otherEnd(n5, d5.id, p5.n) : '悬空（DRC B01 告警）'],
+          ['网络', n5 ? n5.name + ' [' + n5.cls + ']' : '—'],
+          ['出线方向', p5.d], ['坐标', Math.round(d5.x + p5.x) + ', ' + Math.round(d5.y + p5.y)]];
+      }
+    } else if (sel.k === 'junc') {
+      var jj = D.junctions[sel.ji];
+      var atj = [];
+      if (jj) D.wires.forEach(function (w) {
+        if (w.sheet !== jj.sheet) return;
+        w.pts.forEach(function (p) {
+          if (Math.abs(p[0] - jj.x) < 1.5 && Math.abs(p[1] - jj.y) < 1.5 && atj.indexOf(w) < 0) atj.push(w);
+        });
+      });
+      title = '电气连接点 J' + sel.ji;
+      sub = '实心结点 · 真实电气连接（区别于半圆跳线）';
+      rows = [['坐标', Math.round(jj.x) + ', ' + Math.round(jj.y)],
+        ['汇聚电气线', atj.length + ' 根'],
+        ['所属网络', atj.map(function (w) { return w.net; }).join('、') || '—'],
+        ['操作', '可直接拖动，所有汇聚电气线一起移动并保持正交']];
+    } else if (sel.k === 'label') {
+      var d6 = D.map[sel.dev];
+      title = '文字对象 ' + sel.id; sub = '位号 / 名称 / 规格标注，可独立拖动';
+      rows = d6 ? [['所属器件', d6.tag + ' ' + d6.name],
+        ['偏移', d6.tagOff ? d6.tagOff.dx + ', ' + d6.tagOff.dy : '0, 0（自动避让位）']] : [];
+    }
+    h = '<div style="font-size:13px;font-weight:700;color:#fff;margin-bottom:2px">' + esc(title) + '</div>'
+      + '<div style="color:#7c8794;font-size:11px;margin-bottom:9px">' + esc(sub) + '</div>'
+      + rows.map(function (r) { return '<div class="kv"><b>' + esc(r[0]) + '</b><s>' + esc(r[1]) + '</s></div>'; }).join('');
+    if (pins) {
+      h += '<div style="margin-top:10px;border-top:1px solid #1f272f;padding-top:8px">'
+        + '<div style="font-size:10.5px;color:#6f7a87;margin-bottom:5px">引脚 → 对端（点对点可追溯）</div>'
+        + pins.map(function (p) {
+          return '<div class="pr"><span style="flex:0 0 30px;color:#5f6b78">' + esc(p.n) + '</span>'
+            + '<span style="flex:0 0 60px;color:#e6eaf0">' + esc(p.name) + '</span>'
+            + '<span style="flex:1;color:' + p.color + '">' + esc(p.to) + '</span></div>';
+        }).join('') + '</div>';
+    }
+    $('insp').innerHTML = h;
+  }
+  function renderScore() {
+    if (!D) return;
+    var A = D.audit;
+    $('grade').textContent = A.grade;
+    $('grade').style.color = A.total >= 88 ? '#17A34A' : A.total >= 78 ? '#E08600' : '#D42A2A';
+    $('total').textContent = A.total + '/100';
+    $('score').innerHTML = A.score.map(function (x) {
+      var r = x.got / x.weight;
+      return '<div style="margin-bottom:7px"><div style="display:flex;font-size:10.5px;color:#a7b1bd;margin-bottom:3px">'
+        + '<span style="flex:1">' + esc(x.name) + '</span><span style="color:#6f7a87">' + x.got + ' / ' + x.weight + '（' + x.pass + '/' + x.total + '）</span></div>'
+        + '<div class="bar2"><i style="width:' + Math.round(r * 100) + '%;background:'
+        + (r > .95 ? '#17A34A' : r > .7 ? '#E08600' : '#D42A2A') + '"></i></div></div>';
+    }).join('');
+    var fail = A.items.filter(function (i) { return !i.ok; });
+    $('ruleHdr').textContent = '规则明细（' + fail.length + ' 项待改进 / 共 ' + A.items.length + ' 项）';
+    $('audit').innerHTML = A.items.slice().sort(function (a, b) { return (a.ok ? 1 : 0) - (b.ok ? 1 : 0); }).map(function (i) {
+      var c = i.ok ? '#17A34A' : (i.level === 'error' ? '#D42A2A' : '#E08600');
+      return '<div class="ai"><span style="flex:0 0 14px;color:' + c + ';font-size:11px">'
+        + (i.ok ? '✓' : (i.level === 'error' ? '✕' : '!')) + '</span><span style="flex:1;min-width:0">'
+        + '<span style="display:block;font-size:11.5px;color:#dbe3ec">' + esc(i.title) + '</span>'
+        + '<span style="display:block;font-size:10.5px;color:#6f7a87;margin-top:1px">' + esc(i.id) + ' · ' + esc(i.detail) + '</span>'
+        + '</span></div>';
+    }).join('');
+  }
+  function renderKb() {
+    var KB = window.EVSE_VENDOR_KB; if (!KB) return;
+    $('kbMeta').textContent = KB.VENDORS.length + ' 家 · ' + KB.BLOCKS.length + ' 单元 · ' + KB.allRules().length + ' 条规则';
+    $('kb').innerHTML = KB.BLOCKS.map(function (b) {
+      var open = !!ST.openKb[b.id], inner = '';
+      if (open) {
+        inner = '<div class="kbb"><div style="font-size:10.5px;color:#8c96a3;margin-bottom:7px">作用：' + esc(b.role) + '</div>'
+          + b.variants.slice().sort(function (m, n) { return n.score - m.score; }).map(function (v) {
+            var c = v.score >= 5 ? '#17A34A' : v.score >= 4 ? '#8aa63a' : v.score >= 3 ? '#E08600' : '#D42A2A';
+            return '<div style="border-left:2px solid ' + c + ';padding-left:8px;margin-bottom:8px">'
+              + '<div style="font-size:11px;color:#e6eaf0;line-height:1.45">' + esc(v.t) + '</div>'
+              + '<div style="font-size:10px;color:#7c8794;margin:2px 0">' + esc(v.who.join('、')) + ' · '
+              + '★'.repeat(v.score) + '☆'.repeat(5 - v.score) + '</div>'
+              + '<div style="font-size:10px;color:#63b37a;line-height:1.5">优 ' + esc(v.pro.join('；')) + '</div>'
+              + '<div style="font-size:10px;color:#d08a4a;line-height:1.5">劣 ' + esc(v.con.join('；')) + '</div></div>';
+          }).join('')
+          + '<div style="border-top:1px solid #1f272f;padding-top:6px">'
+          + b.rules.map(function (r) {
+            return '<div style="display:flex;gap:6px;font-size:10.5px;padding:3px 0">'
+              + '<span style="flex:0 0 auto;color:' + (r.level === 'BLOCKING' ? '#D42A2A' : '#E08600') + ';font-weight:700">' + esc(r.id) + '</span>'
+              + '<span style="flex:1;color:#c3ccd7;line-height:1.5">' + esc(r.text) + '</span></div>';
+          }).join('') + '</div></div>';
+      }
+      return '<div class="kb"><button data-b="' + b.id + '" class="' + (open ? 'on' : '') + '">'
+        + '<span style="flex:1">' + esc(b.name) + '</span>'
+        + '<span style="font-size:10px;color:#7c8794">' + b.variants.length + ' 种做法</span>'
+        + '<span style="font-size:10px;color:' + (b.must ? '#D42A2A' : '#6f7a87') + '">' + (b.must ? '必备' : '可选') + '</span>'
+        + '</button>' + inner + '</div>';
+    }).join('');
+    $('kb').querySelectorAll('[data-b]').forEach(function (btn) {
+      btn.onclick = function () { var k = btn.getAttribute('data-b'); ST.openKb[k] = !ST.openKb[k]; renderKb(); };
+    });
+  }
+  /* ---------- BOM ---------- */
+  var BOM = null, aiRows = {};
+  function buildBom() {
+    if (!D || !window.EVSE_BOM) return;
+    BOM = window.EVSE_BOM.build(D);
+    BOM.rows.forEach(function (r, i) { if (aiRows[i]) r.ai = aiRows[i]; });
+    renderBom();
+  }
+  function renderBom() {
+    if (!BOM) return;
+    var tot = BOM.rows.reduce(function (a, r) { return a + r.qty; }, 0);
+    $('bomMeta').textContent = BOM.rows.length + ' 项 / ' + tot + ' 件';
+    var cur = '', h = '';
+    BOM.rows.forEach(function (r, i) {
+      if (r.cat !== cur) {
+        cur = r.cat;
+        h += '<div style="font-size:11px;font-weight:700;color:#8fdcff;margin:14px 0 6px;padding-bottom:3px;border-bottom:1px solid #232b34">' + esc(cur) + '</div>';
+      }
+      var ai = r.ai;
+      var model = (ai && ai.model) || r.model;
+      var vend = (ai && ai.vendor) || r.vendors.join(' / ');
+      var doc = window.EVSE_BOM.docLabel(r);
+var docHtml = '';
+if (doc.url) {
+  var alts = (doc.alt && doc.alt.length > 1) ? doc.alt.map(function (a) { return '<a href="' + a.url + '" target="_blank" style="color:#5cc8ff;font-size:10px">' + a.vendor + '</a>'; }).join(' ') : '';
+  var warnMark = doc.warn ? ' <span title="' + esc(doc.hint || '链接待人工复核') + '" style="color:#e0a83a;font-size:9.5px;border:1px solid #e0a83a;border-radius:2px;padding:0 3px;cursor:help">待复核</span>' : '';
+  docHtml = '<a href="' + doc.url + '" target="_blank" style="color:' + (doc.warn ? '#e0a83a' : '#5cc8ff') + ';font-size:11px">' + doc.text + '</a>' + warnMark + (alts ? ' <span style="font-size:10px;color:#555">|</span> ' + alts : '');
+} else if (doc.hint) {
+  docHtml = '<span title="' + esc(doc.hint) + '" style="color:#8a6d4f;font-size:10px;cursor:help">' + doc.text + '（无公开手册）</span>';
+} else { docHtml = '<span style="color:#555;font-size:10px">' + doc.text + '</span>'; }
+      var badge = ai ? '<span style="color:' + (ai.conf === 'high' ? '#63b37a' : ai.conf === 'med' ? '#e0a83a' : '#d4756a')
+        + ';font-size:9px;border:1px solid currentColor;border-radius:2px;padding:0 3px;margin-left:4px">AI·' + ai.conf + '</span>' : '';
+      h += '<div style="border:1px solid #232b34;border-radius:5px;padding:7px 8px;margin-bottom:6px;background:#11161c">'
+        + '<div style="display:flex;gap:6px;align-items:baseline;margin-bottom:3px">'
+        + '<span style="flex:1;font-size:11.5px;color:#fff;font-weight:600">' + esc(r.name) + badge + '</span>'
+        + '<span style="font-size:11px;color:#8fdcff;font-weight:700">×' + r.qty + '</span></div>'
+        + '<div class="kv"><b>型号参考</b><s>' + esc(model) + '</s></div>'
+        + '<div class="kv"><b>推荐厂家</b><s>' + esc(vend) + '</s></div>'
+        + '<div class="kv"><b>关键参数</b><s>' + esc(r.params + (ai && ai.params ? '；' + ai.params : '')) + '</s></div>'
+        + '<div class="kv"><b>位号</b><s style="color:#7c8794;font-size:10.5px">' + esc(r.tags.join(' ')) + '</s></div>'
+        + '<div class="kv"><b>说明</b><s style="color:#a7b1bd;font-size:10.5px">' + esc((ai && ai.note) ? ai.note : r.note) + '</s></div>'
+        + '<div class="kv"><b>手册</b><s>' + (doc.url
+          ? '<a href="' + esc(doc.url) + '" target="_blank" rel="noopener" style="font-size:10.5px">' + esc(doc.text) + ' ↗</a>'
+            + (doc.ai ? '<span style="color:#a78bfa;font-size:9.5px"> AI 提供·需核验</span>' : '<span style="color:#6f7a87;font-size:9.5px"> 原厂·按型号检索</span>')
+          : '<span style="color:#8a93a0;font-size:10.5px">' + esc(doc.text) + '</span>') + '</s></div>'
+        + '</div>';
+    });
+    h += '<div style="font-size:10px;color:#6f7a87;line-height:1.6;margin-top:12px;padding-top:8px;border-top:1px solid #232b34">'
+      + '全部条目 RFQ_REQUIRED。型号参考仅到系列级，推荐厂家为该品类常见候选、非推荐背书、非授权关系。'
+      + 'AI 补全内容标注置信度，<b style="color:#e0a83a">型号与手册链接必须人工核验后方可询价</b>。</div>';
+    $('bom').innerHTML = h;
+  }
+  async function bomAi() {
+    if (!BOM) return;
+    if (!window.EVSE_AI.ready()) { openAi(); $('aiMsg').textContent = '先配置大模型再补全 BOM'; return; }
+    var b = $('bBomAi'); b.disabled = true; b.textContent = 'AI 补全中…';
+    $('bomProg').textContent = '正在请求大模型…';
+    try {
+      var res = await window.EVSE_AI.enrichBOM(BOM.rows, function (done, all, err) {
+        $('bomProg').textContent = '已处理 ' + done + ' / ' + all + (err ? ' · 出错：' + err : '');
+      });
+      aiRows = res;
+      BOM.rows.forEach(function (r, i) { r.ai = res[i] || null; });
+      var n = Object.keys(res).length;
+      $('bomProg').textContent = n ? '已补全 ' + n + ' 项（标 AI 者需人工核验）' : '未获得有效返回，检查模型是否支持 JSON 输出';
+      renderBom();
+    } catch (e) {
+      $('bomProg').textContent = '失败：' + e.message;
+    }
+    b.disabled = false; b.textContent = 'AI 补全型号/厂家/手册';
+  }
+  function exportCsv() {
+    if (!BOM) return;
+    dl('EVSE-BOM.csv', window.EVSE_BOM.toCSV(BOM, D), 'text/csv;charset=utf-8');
+    msg('已导出 BOM CSV（' + BOM.rows.length + ' 项）');
+  }
+  /* V8-MANUAL: 手册库导入（开发者传入；格式见 manual-db.example.json） */
+  var kbFile = document.getElementById('kbFile');
+  if (kbFile) kbFile.addEventListener('change', function () {
+    var f = kbFile.files && kbFile.files[0];
+    if (!f) return;
+    var rd = new FileReader();
+    rd.onload = function () {
+      try {
+        var j = JSON.parse(rd.result);
+        var kb = window.EVSE_MANUAL_KB;
+        if (!kb || !kb.merge) { msg('手册库模块未加载（evse-manual-kb.js）'); return; }
+        var cnt = kb.merge(j);
+        msg('手册库导入成功：新增/覆盖 ' + cnt + ' 条（' + (kb.version ? kb.version().cats : '?') + ' 品类）');
+        buildBom();
+      } catch (e) { msg('手册库 JSON 解析失败：' + e.message); }
+    };
+    rd.readAsText(f);
+  });
+  var bKb = document.getElementById('bBomKb');
+  if (bKb) bKb.onclick = function () { if (kbFile) kbFile.click(); };
+
+  /* ---------- 大模型设置 ---------- */
+  function openAi() {
+    var c = window.EVSE_AI.cfg();
+    $('aiUrl').value = c.url; $('aiKey').value = c.key; $('aiModel').value = c.model;
+    $('aiMsg').textContent = '';
+    $('aiDlg').style.display = 'flex';
+  }
+  async function nlParse() {
+    var t = $('nlText').value.trim();
+    if (!t) { $('nlOut').textContent = '请先描述项目需求'; return; }
+    if (!window.EVSE_AI.ready()) { openAi(); $('aiMsg').textContent = '先配置大模型再识别'; return; }
+    var b = $('bNl'); b.disabled = true; b.textContent = '识别中…';
+    $('nlOut').textContent = '正在请求大模型…';
+    try {
+      var r = await window.EVSE_AI.parseParams(t);
+      Object.keys(r.params).forEach(function (k) { ST.params[k] = r.params[k]; });
+      renderFields();
+      var a = r.assumptions.length
+        ? '<div style="color:#e0a83a;margin-top:4px">AI 补的假设（请核对）：</div><ul style="margin:3px 0 0;padding-left:16px">'
+          + r.assumptions.map(function (s) { return '<li>' + esc(s) + '</li>'; }).join('') + '</ul>'
+        : '';
+      $('nlOut').innerHTML = '<span style="color:#63b37a">✓ 已填入左侧参数</span>' + a
+        + '<div style="margin-top:5px;color:#7c8794">核对无误后点「确定性重新生成」。</div>';
+    } catch (e) {
+      $('nlOut').innerHTML = '<span style="color:#d4756a">识别失败：' + esc(e.message) + '</span>';
+    }
+    b.disabled = false; b.textContent = '识别并填入参数';
+  }
+
+  function renderAll() { renderTabs(); renderChips(); renderLib(); renderStatus(); renderInspector(); renderScore(); renderKb(); buildBom(); }
+
+  /* ---------- 启动 ---------- */
+  function boot() {
+    if (!window.EVSE_CORE || !window.EVSE_GEO || !window.EVSE_RENDER) { setTimeout(boot, 60); return; }
+    host = $('cv');
+    /* v2.28: URL 方案参数解析（#c=<encodeURIComponent(JSON)>） */
+    try {
+      var hm = /#c=([^&]+)/.exec(location.hash || '');
+      if (hm) {
+        var po = JSON.parse(decodeURIComponent(hm[1]));
+        Object.keys(po).forEach(function (k) { ST.params[k] = po[k]; });
+        setTimeout(function () { msg('已从分享链接载入方案：' + (po.name || '')); }, 300);
+      }
+    } catch (e) {}
+    renderFields();
+    renderPresets(); renderFlow();
+    /* v2.31 示波器接线 */
+    var scSel = document.getElementById('scSeq');
+    if (!scSel) { console.warn('scopedw missing'); } else {
+    scSel.innerHTML = SCSEQ.map(function (s) { return '<option value="' + s.id + '">' + esc(s.n) + '</option>'; }).join('');
+    scSel.onchange = function () { scSeqId = scSel.value; drawScope(); };
+    document.getElementById('bScope').onclick = function () {
+      var dw = document.getElementById('scopedw');
+      dw.style.display = dw.style.display === 'none' ? 'block' : 'none';
+      if (dw.style.display === 'block') { renderScPts(); drawScope(); }
+    };
+    document.getElementById('scPick').onclick = function () {
+      scPick = !scPick;
+      this.style.background = scPick ? '#1e5cc8' : '';
+      this.style.color = scPick ? '#fff' : '';
+      msg(scPick ? '示波器选点模式：点击图中引脚加入测点（再点按钮退出）' : '已退出选点');
+    };
+    document.getElementById('scClose').onclick = function () { document.getElementById('scopedw').style.display = 'none'; scPick = false; };
+    document.getElementById('scPng').onclick = function () {
+      var cv = document.getElementById('scCv');
+      var a2 = document.createElement('a');
+      a2.download = 'scope-' + scSeqId + '-' + Date.now() + '.png';
+      a2.href = cv.toDataURL('image/png');
+      a2.click();
+      msg('示波器抓图已导出 PNG');
+    };
+    document.getElementById('scA1').onclick = function () { scAutoAdd([/DC-M1-P/, /ESS-B1-BUS-P/, /DC-.*-P$/], '直流母线电压'); };
+    document.getElementById('scA2').onclick = function () { scAutoAdd([/DC-FU1-TA1/, /CTL-TA1-OUT/], '充电电流'); };
+    document.getElementById('scA3').onclick = function () { scAutoAdd([/CTL-G1-CC1/, /COMM-G1-CP/, /CC1|CP/], '导引信号'); };
+    document.getElementById('scA4').onclick = function () { scAutoAdd([/AC-IN-L1/, /AC-.*-L1$/], '交流进线'); };
+    }
+    $('bShare').onclick = function () {
+      var u = location.origin + location.pathname + '#c=' + encodeURIComponent(JSON.stringify(ST.params));
+      try { history.replaceState(null, '', '#c=' + encodeURIComponent(JSON.stringify(ST.params))); } catch (e) {}
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(u).then(function () { msg('方案链接已复制，发给同事一键还原：' + u.substring(0, 60) + '…'); }, function () { prompt('复制方案链接', u); });
+      } else prompt('复制方案链接', u);
+    };
+    $('bGen').onclick = function () { if (D && D.params && D.params.custom && !window.confirm('当前为自定义图纸：重新生成将用左侧参数方案覆盖画布（未保存内容会丢失，已保存的工程文件不受影响）。继续？')) return; generate(true); };
+  $('bNew').onclick = function () { openNewDlg('new'); };
+  $('bAddSheet').onclick = function () { openNewDlg('add'); };
+  $('bSavePrj').onclick = savePrj;
+  $('bOpenPrj').onclick = function () { $('prjFile').click(); };
+  $('prjFile').addEventListener('change', function (e) {
+    var f = e.target.files && e.target.files[0]; if (!f) return;
+    var rd = new FileReader();
+    rd.onload = function () { try { loadPrjStr(String(rd.result)); } catch (err) { msg('⚠ 工程打开失败：' + err.message); } };
+    rd.readAsText(f, 'utf-8');
+    e.target.value = '';
+  });
+  $('ndCancel').onclick = function () { $('newDlg').style.display = 'none'; };
+  $('ndPaper').addEventListener('change', ndPaperChange);
+  $('ndOK').onclick = function () {
+    var cfg = readNewDlg(); if (!cfg) return;
+    $('newDlg').style.display = 'none';
+    if (ndMode === 'add' && D) { addSheetDo(cfg); } else { newBlank(cfg); }
+  };
+    $('bFit').onclick = doFit;
+    $('bUndo').onclick = doUndo;
+    $('bRedo').onclick = doRedo;
+    $('bSvg').onclick = exportSvg;
+    $('bJson').onclick = exportJson;
+    $('bDxf').onclick = function () { var ex = window.EVSE_EXPORT; if (ex) ex.exportDXFNow(); };
+    $('bCsvNet').onclick = function () { var ex = window.EVSE_EXPORT; if (ex) ex.exportCSVNow(); };
+    $('bCsvBom').onclick = function () { var ex = window.EVSE_EXPORT; if (ex) ex.exportBOMCSVNow(); };
+    $('bPdf').onclick = function () { var ex = window.EVSE_EXPORT; if (ex) ex.printPDF(); };
+    $('bAi').onclick = openAi;
+    $('bNl').onclick = nlParse;
+    $('bBomAi').onclick = bomAi;
+    $('bBomCsv').onclick = exportCsv;
+    $('aiCancel').onclick = function () { $('aiDlg').style.display = 'none'; };
+    $('aiSave').onclick = function () {
+      window.EVSE_AI.cfg({ url: $('aiUrl').value.trim(), key: $('aiKey').value.trim(), model: $('aiModel').value.trim() });
+      $('aiDlg').style.display = 'none'; msg('大模型配置已保存到本浏览器');
+    };
+    $('aiTest').onclick = async function () {
+      window.EVSE_AI.cfg({ url: $('aiUrl').value.trim(), key: $('aiKey').value.trim(), model: $('aiModel').value.trim() });
+      $('aiMsg').textContent = '测试中…'; $('aiMsg').style.color = '#8c96a3';
+      try {
+        var r = await window.EVSE_AI.test();
+        $('aiMsg').textContent = '✓ 连通 ' + r.ms + 'ms · 回复「' + r.reply + '」';
+        $('aiMsg').style.color = '#63b37a';
+      } catch (e) {
+        $('aiMsg').textContent = '✕ ' + e.message; $('aiMsg').style.color = '#d4756a';
+      }
+    };
+    $('aiDlg').addEventListener('click', function (e) { if (e.target === $('aiDlg')) $('aiDlg').style.display = 'none'; });
+    /* V15: 属性/BOM 切换已移到 ribbon 标签（insp/bom 抽屉），原栏内小标签删除 */
+    host.addEventListener('wheel', function (e) {
+      e.preventDefault();
+      var r = host.getBoundingClientRect(), mx = e.clientX - r.left, my = e.clientY - r.top;
+      var f = e.deltaY < 0 ? 1.12 : 1 / 1.12, k2 = Math.max(.06, Math.min(6, view.k * f));
+      view.x = mx - (mx - view.x) * (k2 / view.k);
+      view.y = my - (my - view.y) * (k2 / view.k);
+      view.k = k2; applyView(); msg('缩放 ' + Math.round(k2 * 100) + '%');
+    }, { passive: false });
+    host.addEventListener('pointerdown', onDown);
+    host.addEventListener('contextmenu', function (e) { e.preventDefault(); });
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
+    window.__EVSE_D = function () { return D; }; /* v2.11: 右键菜单用 */
+        window.__EVSE_AIENRICH = function () { /* v2.23: BOM AI 手册链接回填 */
+      (async function () {
+      var out = {}; /* 闭包捕获 */
+      var D = window.__EVSE_D ? window.__EVSE_D() : null;
+      if (!D) { alert('请先生成图纸'); return; }
+      var ai = window.EVSE_AI;
+      if (!ai || !ai.ready()) { alert('未配置大模型：请在右栏 >> 大模型配置 中填写 API 地址与 Key。\n\n支持 OpenAI / DeepSeek / 通义千问 / 本地 Ollama。'); return; }
+      var rows = window.EVSE_BOM.build(D).rows;
+      if (!rows || !rows.length) { alert('BOM 为空'); return; }
+      var btn = document.getElementById('btnAI'); if (btn) btn.disabled = true;
+      var msgEl = document.getElementById('msg') || alert;
+      if (typeof msgEl === 'object') msgEl.textContent = 'AI 正在搜索手册链接… 0/' + rows.length;
+      out = await ai.enrichBOM(rows, function (done, total, err) {
+        if (typeof msgEl === 'object') msgEl.textContent = err ? ('AI 请求失败：' + err) : ('AI 已完成 ' + done + '/' + total);
+        if (done >= total || err) {
+          if (btn) btn.disabled = false;
+          /* 回填结果到 BOM 面板 */
+          var tbody = document.querySelector('#bomTab table tbody');
+          if (!tbody) return;
+          Object.keys(out).forEach(function (i) {
+            var r = out[i];
+            var tr = tbody.children[i];
+            if (tr && r.doc) {
+              var td = tr.querySelector('td:last-child');
+              if (td) td.innerHTML = '<a href="' + r.doc + '" target="_blank" title="' + (r.vendor || 'AI推荐') + '">📄 AI推荐</a>';
+            }
+          });
+        }
+      });
+      })();
+    };
+    window.__EVSE_JUMP = function (sheet, x, y) { /* v2.12: 搜索跳转 */
+      ST.sheet = sheet; paint(false);
+      view.k = Math.max(view.k, 1.2);
+      view.x = host.clientWidth / 2 - view.k * x;
+      view.y = host.clientHeight / 2 - view.k * y;
+      applyView(); renderAll();
+      var rr = document.createElementNS(svgEl.namespaceURI, 'rect');
+      rr.setAttribute('x', x - 45); rr.setAttribute('y', y - 32);
+      rr.setAttribute('width', 90); rr.setAttribute('height', 64);
+      rr.setAttribute('fill', 'none'); rr.setAttribute('stroke', '#f59e0b');
+      rr.setAttribute('stroke-width', 2.5); rr.setAttribute('stroke-dasharray', '6 4');
+      world.appendChild(rr);
+      setTimeout(function () { rr.remove(); }, 2600);
+    };
+    window.__EVSE_REFRESH = function () { paint(false); renderAll(); };
+    window.addEventListener('keydown', onKey);
+    if (window.ResizeObserver) {
+      var lw = 0, lh = 0;
+      new ResizeObserver(function () {
+        var w = host.clientWidth, h = host.clientHeight;
+        if (w < 60 || h < 60) return;
+        if (Math.abs(w - lw) < 4 && Math.abs(h - lh) < 4) return;
+        lw = w; lh = h; doFit();
+      }).observe(host);
+    }
+    generate(true);
+  }
+  boot();
+})();
+</script>
+<script>
+/* v2.0.5 audit-fix: 面板折叠 */
+(function () {
+  window.toggleSide = function (btn) {
+    var el = btn.parentElement;
+    el.classList.toggle('collapsed');
+    var c = el.classList.contains('collapsed');
+    btn.textContent = (btn.getAttribute('data-side') === 'L') ? (c ? '⟩' : '⟨') : (c ? '⟨' : '⟩');
+    try { localStorage.setItem('evse-fold-' + btn.getAttribute('data-side'), c ? '1' : '0'); } catch (e) {}
+    window.dispatchEvent(new Event('resize'));
+  };
+  document.addEventListener('click', function (e) {
+    var b = e.target && e.target.closest ? e.target.closest('.foldbtn') : null;
+    if (b) window.toggleSide(b);
+  });
+  document.addEventListener('DOMContentLoaded', function () {
+    ['L', 'R'].forEach(function (k) {
+      var v = null; try { v = localStorage.getItem('evse-fold-' + k); } catch (e) {}
+      if (v === '1') { var b = document.querySelector('.foldbtn[data-side="' + k + '"]'); if (b) window.toggleSide(b); }
+    });
+  });
+})();
+</script>
+<script>
+/* v2.11 audit-fix: 右键菜单——基本信息 + 90° 旋转（旋转后相连网络自动重路由，线不断开） */
+(function () {
+  var menu = null;
+  function close() { if (menu) { menu.remove(); menu = null; } }
+  function row(k, v) { return '<div class="row"><b>' + k + '</b><span>' + v + '</span></div>'; }
+  function netsOfPin(D, devId, pinN) {
+    var out = [];
+    D.nets.forEach(function (nn) { if ((nn.a.d === devId && nn.a.p === pinN) || (nn.b.d === devId && nn.b.p === pinN)) out.push(nn.name || nn.id); });
+    return out;
+  }
+  function devRows(D, d) {
+    var kind = d.xref ? '跨页连接符' : (d.pwr ? '电源旗标(' + d.pwr + ')' : '器件');
+    var s = row('类型', kind) + row('位号', d.tag || d.id) + row('名称', d.name || '-') + row('规格', d.spec || '-');
+    if (d.xrefTag) s += row('跨页编号', d.xrefTag + '（两页同名）'); /* v2.12 */
+    if (d.xrefLabel) s += row('跨页指向', d.xrefLabel.replace('→', '第').replace('/', '页 /')); /* v2.11b */
+    s += row('页', '第' + d.sheet + '页') + row('位置', Math.round(d.x) + ', ' + Math.round(d.y)) + row('旋转', (d.rot || 0) + '°');
+    var pins = d.sym.pins.map(function (p) { return p.n + '→' + (netsOfPin(D, d.id, p.n).join(',') || '未接'); });
+    s += row('引脚/网络', pins.slice(0, 6).join('；') + (pins.length > 6 ? ' …共' + pins.length : ''));
+    return s;
+  }
+  function wireRows(D, w) {
+    var nn = D.nets.filter(function (q) { return q.id === w.net; })[0] || {};
+    var L = 0; for (var i = 1; i < w.pts.length; i++) L += Math.abs(w.pts[i][0] - w.pts[i - 1][0]) + Math.abs(w.pts[i][1] - w.pts[i - 1][1]);
+    return row('线号', w.wno || '-') + row('网络', nn.name || w.net) + row('电气特性', w.cls) + row('页', '第' + w.sheet + '页') +
+      row('起点', w.a.d + ':' + w.a.p) + row('终点', w.b.d + ':' + w.b.p) +
+      row('长度/拐点', Math.round(L) + ' / ' + Math.max(0, w.pts.length - 2)) + row('布线来源', w.via || '-');
+  }
+  function show(e, html, acts) {
+    close();
+    menu = document.createElement('div');
+    menu.className = 'ctxmenu';
+    menu.innerHTML = html;
+    if (acts) {
+      var bar = document.createElement('div'); bar.className = 'acts';
+      acts.forEach(function (a) { var b = document.createElement('button'); b.textContent = a.t; b.onclick = a.f; bar.appendChild(b); });
+      menu.appendChild(bar);
+    }
+    document.body.appendChild(menu);
+    var mw = menu.offsetWidth, mh = menu.offsetHeight;
+    menu.style.left = Math.min(e.clientX, window.innerWidth - mw - 8) + 'px';
+    menu.style.top = Math.min(e.clientY, window.innerHeight - mh - 8) + 'px';
+  }
+  document.addEventListener('contextmenu', function (e) {
+    var D = window.__EVSE_D && window.__EVSE_D();
+    var t = e.target && e.target.closest ? e.target.closest('[data-k]') : null;
+    if (!D || !t) { close(); return; }
+    e.preventDefault();
+    var k = t.getAttribute('data-k'), id = t.getAttribute('data-id') || '';
+    if (k === 'dev') {
+      var d = D.map[id];
+      if (!d) return;
+      show(e, '<h4>元器件 · ' + (d.tag || d.id) + '</h4>' + devRows(D, d), [
+        { t: '重走此器件连线', f: function () {
+            window.EVSE_GEO.rerouteDevice(D, id);
+            window.EVSE_GEO.audit(D);
+            window.__EVSE_REFRESH(); close();
+          } },
+        { t: '删除此器件', f: function () { deleteDevice(id); close(); } },
+        { t: '旋转 90°', f: function () {
+            window.EVSE_GEO.rotateDev(D, id);
+            window.EVSE_GEO.reroute(D, [id]);
+            window.EVSE_GEO.snapEnds(D); window.EVSE_GEO.forceOrtho(D);
+            window.EVSE_GEO.crossings(D); window.EVSE_GEO.audit(D);
+            window.__EVSE_REFRESH(); close();
+          } },
+        { t: '关闭', f: close }
+      ]);
+    } else if (k === 'wire') {
+      var w = D.wires.filter(function (q) { return q.id === id; })[0];
+      if (!w) return;
+      show(e, '<h4>连线 · ' + id + '</h4>' + wireRows(D, w), [{ t: '关闭', f: close }]);
+    } else if (k === 'pin') {
+      var pp = id.split('/');
+      var dv = D.map[pp[0]];
+      if (!dv) return;
+      show(e, '<h4>引脚 · ' + id + '</h4>' + row('所属器件', dv.tag || dv.id) + row('引脚名', pp[1]) + row('网络', netsOfPin(D, pp[0], pp[1]).join(',') || '未接'), [{ t: '关闭', f: close }]);
+    } else { close(); }
+  });
+  document.addEventListener('click', function (e) { if (menu && !(e.target.closest && e.target.closest('.ctxmenu'))) close(); });
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape') { close(); if (window.pendingLibEsc) window.pendingLibEsc(); } });
+  window.addEventListener('wheel', close, { passive: true });
+})();
+</script>
+<script>
+/* v2.12 audit-fix: 顶栏搜索——线号/网络/位号/跨页编号，Enter 跨页跳转定位 */
+(function () {
+  var hits = [], idx = -1, lastQ = '';
+  function collect() {
+    var D = window.__EVSE_D(); if (!D) return [];
+    var out = [];
+    D.devices.forEach(function (d) {
+      var texts = [d.tag, d.id, d.name, d.spec, d.xrefTag, d.xrefLabel].filter(Boolean);
+      var mid = { x: d.x + (d.sym.w || 0) / 2, y: d.y + (d.sym.h || 0) / 2 };
+      out.push({ sheet: d.sheet, x: mid.x, y: mid.y, texts: texts, label: (d.tag || d.id) + ' p' + d.sheet });
+    });
+    D.wires.forEach(function (w) {
+      var mid = w.pts[Math.floor(w.pts.length / 2)];
+      var nn = D.nets.filter(function (q) { return q.id === w.net; })[0] || {};
+      out.push({ sheet: w.sheet, x: mid[0], y: mid[1], texts: [w.wno, w.net, nn.name].filter(Boolean), label: (w.wno || w.id) + ' p' + w.sheet });
+    });
+    return out;
+  }
+  function run(cycle) {
+    var q = (document.getElementById('q').value || '').trim().toUpperCase();
+    var cnt = document.getElementById('qcnt');
+    if (!q) { cnt.textContent = ''; hits = []; idx = -1; return; }
+    if (q !== lastQ || !cycle) { lastQ = q; hits = collect().filter(function (t) { return t.texts.some(function (s) { return String(s).toUpperCase().indexOf(q) >= 0; }); }); idx = -1; }
+    if (!hits.length) { cnt.textContent = '0 匹配'; return; }
+    idx = (idx + 1) % hits.length;
+    var t = hits[idx];
+    cnt.textContent = (idx + 1) + '/' + hits.length + ' ' + t.label;
+    window.__EVSE_JUMP(t.sheet, t.x, t.y);
+  }
+  document.addEventListener('DOMContentLoaded', function () {
+    var el = document.getElementById('q');
+    if (!el) return;
+    el.addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); run(true); } e.stopPropagation(); });
+    el.addEventListener('input', function () { document.getElementById('qcnt').textContent = ''; lastQ = '__reset__'; });
+  });
+})();
+</script>
+
+</body>
+</html>

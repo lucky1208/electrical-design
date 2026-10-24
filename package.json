@@ -1,0 +1,13 @@
+{
+  "name": "deploy",
+  "version": "1.0.0",
+  "description": "自托管部署包。**纯静态、零依赖、零构建、可离线运行** —— 没有 npm、没有打包器、没有 CDN、没有后端。",
+  "main": "evse-ai.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs"
+}

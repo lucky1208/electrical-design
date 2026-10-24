@@ -1,0 +1,974 @@
+{
+  "generatedAt": "2026-10-20T13:39:55.034Z",
+  "params": {
+    "family": "mwess",
+    "name": "兆瓦极充 · 储能系统",
+    "std": "GB",
+    "acdcKw": 80,
+    "acdcCount": 6,
+    "dcdcKw": 80,
+    "dcdcCount": 24,
+    "acIn": 2,
+    "gunCount": 2,
+    "gunV": 1500,
+    "gunA": 1500,
+    "gunRated": 800,
+    "busV": 1500,
+    "essCab": 2,
+    "essKwh": 151.5,
+    "essPack": 4,
+    "pmuCount": 2,
+    "dcuCount": 2,
+    "ccuCount": 2
+  },
+  "status": "CONCEPT_DRAFT—PROFESSIONAL_REVIEW_REQUIRED",
+  "sheets": [
+    {
+      "no": 1,
+      "id": "AC",
+      "title": "交流进线与 AC/DC 功率级",
+      "frame": {
+        "x": 60,
+        "y": 60,
+        "w": 6180,
+        "h": 2240
+      }
+    },
+    {
+      "no": 2,
+      "id": "DC",
+      "title": "DC/DC 模块阵列与直流母线",
+      "frame": {
+        "x": 60,
+        "y": 60,
+        "w": 5100,
+        "h": 4820
+      }
+    },
+    {
+      "no": 3,
+      "id": "GUN",
+      "title": "直流出线与液冷充电枪",
+      "frame": {
+        "x": 60,
+        "y": 60,
+        "w": 5680,
+        "h": 2060
+      }
+    },
+    {
+      "no": 4,
+      "id": "ESS1",
+      "title": "储能柜 1（电池簇 + BCU/BMU + 预充）",
+      "frame": {
+        "x": 60,
+        "y": 60,
+        "w": 3400,
+        "h": 2000
+      }
+    },
+    {
+      "no": 5,
+      "id": "ESS2",
+      "title": "储能柜 2（电池簇 + BCU/BMU + 预充）",
+      "frame": {
+        "x": 60,
+        "y": 60,
+        "w": 3400,
+        "h": 2000
+      }
+    },
+    {
+      "no": 6,
+      "id": "CTL",
+      "title": "二次回路与通信",
+      "frame": {
+        "x": 60,
+        "y": 60,
+        "w": 4660,
+        "h": 4040
+      }
+    },
+    {
+      "no": 7,
+      "id": "MATRIX",
+      "title": "AC/DC 与 DC/DC 功率投切矩阵",
+      "frame": {
+        "x": 60,
+        "y": 60,
+        "w": 5220,
+        "h": 2160
+      }
+    }
+  ],
+  "counts": {
+    "devices": 861,
+    "nets": 1152,
+    "wires": 1152,
+    "pins": 1958
+  },
+  "audit": {
+    "items": [
+      {
+        "cat": "A",
+        "id": "A01",
+        "title": "交流进线具备隔离 / 断路 / 浪涌 / 剩余电流四要素",
+        "ok": true,
+        "detail": "QS1/QF1/FV1/RCM1",
+        "level": "pass"
+      },
+      {
+        "cat": "A",
+        "id": "A02",
+        "title": "直流母线配置绝缘监测与电流采样",
+        "ok": true,
+        "detail": "RI1 + TA1/TA2 储能支路电流传感器",
+        "level": "pass"
+      },
+      {
+        "cat": "A",
+        "id": "A03",
+        "title": "交流计量 + 双枪直流电能计量",
+        "ok": true,
+        "detail": "PJ1 + PG1/PG2（逐枪串联电流计量）",
+        "level": "pass"
+      },
+      {
+        "cat": "A",
+        "id": "A04",
+        "title": "母线泄放回路",
+        "ok": true,
+        "detail": "K0 + RS0",
+        "level": "pass"
+      },
+      {
+        "cat": "A",
+        "id": "A05",
+        "title": "每枪独立快熔 + 正/负极直流接触器 + 电子锁 + 连接器",
+        "ok": true,
+        "detail": "2 把枪：FG/KGP/KGN/YL/XG/CCU 齐备",
+        "level": "pass"
+      },
+      {
+        "cat": "A",
+        "id": "A06",
+        "title": "每柜熔断 + 主正/主负分断 + 预充单元",
+        "ok": true,
+        "detail": "QFB(2P ±)+FU+KMP / KMR+RR 预充",
+        "level": "pass"
+      },
+      {
+        "cat": "A",
+        "id": "A07",
+        "title": "储能经开关/变换受控并入母线，不直接搭接",
+        "ok": true,
+        "detail": "柜内 QFB/FU/KMP 受控并入；AC/DC 经 KB 投切供电",
+        "level": "pass"
+      },
+      {
+        "cat": "A",
+        "id": "A08",
+        "title": "储能 BMS 主控在图",
+        "ok": true,
+        "detail": "BCU1/BCU2 + BMU + 电池插箱（1P100S×4 串联）",
+        "level": "pass"
+      },
+      {
+        "cat": "A",
+        "id": "A09",
+        "title": "控制辅源与主回路辅源分列接线",
+        "ok": true,
+        "detail": "T1 控制24V / T2 主回路24V，正负端均已接线",
+        "level": "pass"
+      },
+      {
+        "cat": "A",
+        "id": "A10",
+        "title": "急停硬线联锁 + 门禁 + 安全继电器",
+        "ok": true,
+        "detail": "SB1/SQ1→SR1→充电与储能安全使能",
+        "level": "pass"
+      },
+      {
+        "cat": "A",
+        "id": "A11",
+        "title": "热管理单元在图",
+        "ok": true,
+        "detail": "MF1 风机",
+        "level": "pass"
+      },
+      {
+        "cat": "A",
+        "id": "A12",
+        "title": "保护接地排与等电位",
+        "ok": true,
+        "detail": "PE1",
+        "level": "pass"
+      },
+      {
+        "cat": "B",
+        "id": "B01",
+        "title": "无悬空引脚（每个端子都有归属网络）",
+        "ok": true,
+        "detail": "全部端子已接线",
+        "level": "pass"
+      },
+      {
+        "cat": "B",
+        "id": "B02",
+        "title": "每条网络两端均落在具名物理端子上",
+        "ok": true,
+        "detail": "1152 条网络全部 pin→pin 可追溯",
+        "level": "pass"
+      },
+      {
+        "cat": "B",
+        "id": "B03",
+        "title": "信号回路点对点（不共用干线）",
+        "ok": true,
+        "detail": "控制/通信/安全回路均为点对点",
+        "level": "pass"
+      },
+      {
+        "cat": "B",
+        "id": "B04",
+        "title": "跨页信号成对连接符闭合（→页/器件:引脚）",
+        "ok": true,
+        "detail": "340 组跨页信号，标注含目标页/器件/引脚",
+        "level": "pass"
+      },
+      {
+        "cat": "C",
+        "id": "C01",
+        "title": "全部走线正交（无斜线）",
+        "ok": true,
+        "detail": "4532 段全部水平/垂直",
+        "level": "pass"
+      },
+      {
+        "cat": "C",
+        "id": "C02",
+        "title": "走线不穿越器件本体",
+        "ok": true,
+        "detail": "0 段穿越",
+        "level": "pass"
+      },
+      {
+        "cat": "C",
+        "id": "C03",
+        "title": "正交交叉一律画半圆跨越（不连接）",
+        "ok": true,
+        "detail": "5760 处跨越由统一后处理生成，与绘制顺序无关",
+        "level": "pass"
+      },
+      {
+        "cat": "C",
+        "id": "C04",
+        "title": "真实连接点画实心结点",
+        "ok": true,
+        "detail": "177 个结点",
+        "level": "pass"
+      },
+      {
+        "cat": "C",
+        "id": "C05",
+        "title": "平行走线间距 ≥ 8（含共线重叠）",
+        "ok": false,
+        "detail": "20 对过近/重叠",
+        "level": "error"
+      },
+      {
+        "cat": "C",
+        "id": "C06",
+        "title": "走线端点落在栅格上",
+        "ok": true,
+        "detail": "全部对齐",
+        "level": "pass"
+      },
+      {
+        "cat": "C",
+        "id": "C11",
+        "title": "走线避开器件外框外扩 6px 净空区（端子外引段除外）",
+        "ok": false,
+        "detail": "152 条线进入器件外框外扩 6px 净空区（非器件本体穿越）",
+        "level": "warn"
+      },
+      {
+        "cat": "C",
+        "id": "C10",
+        "title": "走线端点终结在真实物理端子上",
+        "ok": true,
+        "detail": "2304 个端点全部钉在端子上",
+        "level": "pass"
+      },
+      {
+        "cat": "C",
+        "id": "C07",
+        "title": "器件框 / 跨页符 / 标注文字互不重叠堆积（含器件与自身标注）",
+        "ok": true,
+        "detail": "181 个占位框全部分离",
+        "level": "pass"
+      },
+      {
+        "cat": "C",
+        "id": "C09",
+        "title": "符号内部文字（标题/副标题/引脚名/注释）不重叠",
+        "ok": true,
+        "detail": "861 个符号内部文字全部分离",
+        "level": "pass"
+      },
+      {
+        "cat": "C",
+        "id": "C08",
+        "title": "走线不压标注文字与跨页符",
+        "ok": false,
+        "detail": "5 段压住文字（需挤线或移动文字）",
+        "level": "warn"
+      },
+      {
+        "cat": "D",
+        "id": "D01",
+        "title": "平均拐点数 ≤ 4（原理图审美：短直、少拐）",
+        "ok": true,
+        "detail": "平均 3.03 个拐点 / 条",
+        "level": "pass"
+      },
+      {
+        "cat": "D",
+        "id": "D02",
+        "title": "按功能分区且分页（一次 / 二次分离）",
+        "ok": true,
+        "detail": "7 页：1.交流进线与 AC/DC 功率级 / 2.DC/DC 模块阵列与直流母线 / 3.直流出线与液冷充电枪 / 4.储能柜 1（电池簇 + BCU/BMU + 预充） / 5.储能柜 2（电池簇 + BCU/BMU + 预充） / 6.二次回路与通信 / 7.AC/DC 与 DC/DC 功率投切矩阵",
+        "level": "pass"
+      },
+      {
+        "cat": "D",
+        "id": "D03",
+        "title": "母排分相绘制（L1/L2/L3/N、DC+/DC- 独立成线）",
+        "ok": true,
+        "detail": "LIB-R11：交流 4 相独立母排，直流双极独立母排",
+        "level": "pass"
+      },
+      {
+        "cat": "D",
+        "id": "D04",
+        "title": "走线总长受控",
+        "ok": true,
+        "detail": "合计 959.8k 单位，4532 段",
+        "level": "pass"
+      },
+      {
+        "cat": "E",
+        "id": "E01",
+        "title": "开关类器件带功能标记（隔离=短横 / 断路器=× / 接触器=半圆）",
+        "ok": true,
+        "detail": "QS1 隔离、QF1/QF2 断路器、KM/K* 接触器",
+        "level": "pass"
+      },
+      {
+        "cat": "E",
+        "id": "E02",
+        "title": "变换器用矩形 + 对角线 + ∼/= 标记",
+        "ok": true,
+        "detail": "充电模块、开关电源、DC/DC、PCS",
+        "level": "pass"
+      },
+      {
+        "cat": "E",
+        "id": "E03",
+        "title": "熔断器进线侧粗实线；电阻/电池/接地/灯/电机按 IEC 画法",
+        "ok": true,
+        "detail": "快熔 aR/gR 标记粗线",
+        "level": "pass"
+      },
+      {
+        "cat": "E",
+        "id": "E04",
+        "title": "全部符号来自受控符号库（非 SVG 描图）",
+        "ok": true,
+        "detail": "861 个器件实例，1958 个物理端子",
+        "level": "pass"
+      },
+      {
+        "cat": "E",
+        "id": "E05",
+        "title": "符号库标准符合性需专业复核（不自动声明合规）",
+        "ok": true,
+        "detail": "状态：REFERENCE_ONLY — SYMBOL_LIBRARY_TO_BE_VERIFIED",
+        "level": "info"
+      },
+      {
+        "cat": "F",
+        "id": "F01",
+        "title": "图框 / 图号 / 修订 / 状态 / 签署栏齐备",
+        "ok": true,
+        "detail": "ISO 7200 参考栏位，签署人 UNASSIGNED",
+        "level": "pass"
+      },
+      {
+        "cat": "F",
+        "id": "F02",
+        "title": "线型图例 + 设备明细表遍历全部位号",
+        "ok": true,
+        "detail": "181 项",
+        "level": "pass"
+      },
+      {
+        "cat": "F",
+        "id": "F03",
+        "title": "输出状态标注为方案级概念草图",
+        "ok": true,
+        "detail": "CONCEPT_DRAFT—PROFESSIONAL_REVIEW_REQUIRED",
+        "level": "pass"
+      },
+      {
+        "cat": "F",
+        "id": "F04",
+        "title": "器件档位标 RFQ_REQUIRED，不作为报价",
+        "ok": true,
+        "detail": "全部 spec 为标称序列档位",
+        "level": "pass"
+      },
+      {
+        "cat": "G",
+        "id": "G01",
+        "title": "合闸前输出短路 / 绝缘检测单元在图",
+        "ok": true,
+        "detail": "已覆盖：RI1 · 最优范式：双继电器 + 隔离驱动（检测完即断开，不参与能量传输）（普诺德） · 直流桩由 IMD 承担绝缘检测；交流桩需独立输出短路检测（普诺德双继电器范式）",
+        "level": "pass"
+      },
+      {
+        "cat": "G",
+        "id": "G02",
+        "title": "接触器粘连（触点熔焊）检测单元在图",
+        "ok": true,
+        "detail": "已覆盖：KF1/KF2 · 最优范式：防浪涌电容 + 阻容分压 + ADC 采样（小鹏） · 每个输出接触器两极都需覆盖；仅辅助触点反馈不等于粘连检测",
+        "level": "pass"
+      },
+      {
+        "cat": "G",
+        "id": "G03",
+        "title": "PE 有效性检测通道在图且送控制器",
+        "ok": true,
+        "detail": "已覆盖：PEC1 · 最优范式：差分放大精密检测（双运放隔离）（普诺德） · 差分放大精密检测为优",
+        "level": "pass"
+      },
+      {
+        "cat": "G",
+        "id": "G04",
+        "title": "线圈续流 / 钳位回路在图",
+        "ok": true,
+        "detail": "46 个线圈均已画续流二极管（阴极朝 A1）",
+        "level": "pass"
+      },
+      {
+        "cat": "G",
+        "id": "G05",
+        "title": "导引发生级（CP / CC）在图",
+        "ok": true,
+        "detail": "已覆盖：CCU1/CCU2 · 最优范式：运放 + 三极管图腾柱（万邦） · GB 为 CC1/CC2 + S± CAN；CCS 为 CP PWM/PLC；必须有 ±12V 钳位与限流",
+        "level": "pass"
+      },
+      {
+        "cat": "G",
+        "id": "G06",
+        "title": "导引检测级在图并送控制器",
+        "ok": true,
+        "detail": "已覆盖：CCU1/CCU2 · 最优范式：运放跟随 + 电阻分压（线性采样）（公牛） · 需能区分车辆状态档位；仅峰值检测判不出占空比异常",
+        "level": "pass"
+      },
+      {
+        "cat": "G",
+        "id": "G07",
+        "title": "车辆二极管存在检测在图",
+        "ok": true,
+        "detail": "已覆盖：CCU1/CCU2 · 最优范式：双运放精密滞回比较（深圳佳诺） · 防止用电阻假冒车辆；直流桩另由 BMS 握手交叉验证",
+        "level": "pass"
+      },
+      {
+        "cat": "G",
+        "id": "G08",
+        "title": "漏电保护硬线切除路径在图",
+        "ok": true,
+        "detail": "已覆盖：RCM1 · 最优范式：专用漏电保护模块 + 硬线切除（深圳佳诺/普诺德/小鹏） · 动作不得依赖软件",
+        "level": "pass"
+      },
+      {
+        "cat": "G",
+        "id": "G09",
+        "title": "辅助电源隔离且 24V/12V 分列",
+        "ok": true,
+        "detail": "已覆盖：T1/T2 · 最优范式：双路反激式辅助电源（普诺德/小鹏） · 安全回路宜由冗余辅源供电",
+        "level": "pass"
+      },
+      {
+        "cat": "G",
+        "id": "G10",
+        "title": "泄放回路在图",
+        "ok": true,
+        "detail": "已覆盖：K0/RS0 · 最优范式：泄放电阻 + 泄放接触器（EN科技） · 阻值按电容量核算",
+        "level": "pass"
+      },
+      {
+        "cat": "G",
+        "id": "G11",
+        "title": "进线 EMC：差模(X)+共模(Y)+压敏+GDT 齐备",
+        "ok": true,
+        "detail": "已覆盖：FE1/FV1 · 最优范式：NTC + 共差模(VRY+VRX) + (CX+CY) + 压敏 + 3500V GDT（EN科技） · 缺 Y 电容即判不合格（科大智能方案实证风险）；串联共模扣在 SPD/滤波模块规格内",
+        "level": "pass"
+      }
+    ],
+    "score": [
+      {
+        "id": "A",
+        "name": "完整性（单元与必备器件）",
+        "weight": 22,
+        "got": 22,
+        "pass": 12,
+        "total": 12
+      },
+      {
+        "id": "B",
+        "name": "连接明确性（引脚级可追溯）",
+        "weight": 18,
+        "got": 18,
+        "pass": 4,
+        "total": 4
+      },
+      {
+        "id": "C",
+        "name": "制图规范（正交/跨越/间距/避让）",
+        "weight": 18,
+        "got": 13.1,
+        "pass": 8,
+        "total": 11
+      },
+      {
+        "id": "D",
+        "name": "可读性（分区/走线经济性）",
+        "weight": 10,
+        "got": 10,
+        "pass": 4,
+        "total": 4
+      },
+      {
+        "id": "E",
+        "name": "符号规范（IEC 60617 / GB 4728 画法）",
+        "weight": 8,
+        "got": 8,
+        "pass": 4,
+        "total": 4
+      },
+      {
+        "id": "F",
+        "name": "文档控制（图框/编号/签署/边界）",
+        "weight": 8,
+        "got": 8,
+        "pass": 4,
+        "total": 4
+      },
+      {
+        "id": "G",
+        "name": "功能安全检测单元（厂家对比库导出）",
+        "weight": 16,
+        "got": 16,
+        "pass": 11,
+        "total": 11
+      }
+    ],
+    "total": 95.1,
+    "grade": "B",
+    "blocking": [
+      {
+        "cat": "C",
+        "id": "C05",
+        "title": "平行走线间距 ≥ 8（含共线重叠）",
+        "ok": false,
+        "detail": "20 对过近/重叠",
+        "level": "error"
+      }
+    ],
+    "rubric": [
+      {
+        "id": "A",
+        "name": "完整性（单元与必备器件）",
+        "weight": 22
+      },
+      {
+        "id": "B",
+        "name": "连接明确性（引脚级可追溯）",
+        "weight": 18
+      },
+      {
+        "id": "C",
+        "name": "制图规范（正交/跨越/间距/避让）",
+        "weight": 18
+      },
+      {
+        "id": "D",
+        "name": "可读性（分区/走线经济性）",
+        "weight": 10
+      },
+      {
+        "id": "E",
+        "name": "符号规范（IEC 60617 / GB 4728 画法）",
+        "weight": 8
+      },
+      {
+        "id": "F",
+        "name": "文档控制（图框/编号/签署/边界）",
+        "weight": 8
+      },
+      {
+        "id": "G",
+        "name": "功能安全检测单元（厂家对比库导出）",
+        "weight": 16
+      }
+    ],
+    "stats": {
+      "segs": 4532,
+      "bends": 3489,
+      "len": 959775,
+      "hops": 5760,
+      "junc": 177,
+      "pins": 1958
+    }
+  },
+  "badPins": [],
+  "frameCheck": {
+    "pagesChecked": 7,
+    "pagesClear": 7,
+    "results": [
+      {
+        "sheet": 1,
+        "id": "AC",
+        "frame": {
+          "left": 60,
+          "top": 60,
+          "right": 6240,
+          "bottom": 2300
+        },
+        "wireBounds": {
+          "minX": 260,
+          "minY": 189,
+          "maxX": 4584,
+          "maxY": 1942
+        },
+        "wireSegments": 749,
+        "outsideWireSegments": 0,
+        "ok": true
+      },
+      {
+        "sheet": 2,
+        "id": "DC",
+        "frame": {
+          "left": 60,
+          "top": 60,
+          "right": 5160,
+          "bottom": 4880
+        },
+        "wireBounds": {
+          "minX": 134,
+          "minY": 117,
+          "maxX": 3532,
+          "maxY": 4624
+        },
+        "wireSegments": 1266,
+        "outsideWireSegments": 0,
+        "ok": true
+      },
+      {
+        "sheet": 3,
+        "id": "GUN",
+        "frame": {
+          "left": 60,
+          "top": 60,
+          "right": 5740,
+          "bottom": 2120
+        },
+        "wireBounds": {
+          "minX": 118,
+          "minY": 128,
+          "maxX": 4278,
+          "maxY": 1802
+        },
+        "wireSegments": 504,
+        "outsideWireSegments": 0,
+        "ok": true
+      },
+      {
+        "sheet": 4,
+        "id": "ESS1",
+        "frame": {
+          "left": 60,
+          "top": 60,
+          "right": 3460,
+          "bottom": 2060
+        },
+        "wireBounds": {
+          "minX": 198,
+          "minY": 158,
+          "maxX": 1688,
+          "maxY": 1572
+        },
+        "wireSegments": 285,
+        "outsideWireSegments": 0,
+        "ok": true
+      },
+      {
+        "sheet": 5,
+        "id": "ESS2",
+        "frame": {
+          "left": 60,
+          "top": 60,
+          "right": 3460,
+          "bottom": 2060
+        },
+        "wireBounds": {
+          "minX": 240,
+          "minY": 158,
+          "maxX": 1730,
+          "maxY": 1572
+        },
+        "wireSegments": 285,
+        "outsideWireSegments": 0,
+        "ok": true
+      },
+      {
+        "sheet": 6,
+        "id": "CTL",
+        "frame": {
+          "left": 60,
+          "top": 60,
+          "right": 4720,
+          "bottom": 4100
+        },
+        "wireBounds": {
+          "minX": 130,
+          "minY": 118,
+          "maxX": 3097,
+          "maxY": 3850
+        },
+        "wireSegments": 762,
+        "outsideWireSegments": 0,
+        "ok": true
+      },
+      {
+        "sheet": 7,
+        "id": "MATRIX",
+        "frame": {
+          "left": 60,
+          "top": 60,
+          "right": 5280,
+          "bottom": 2220
+        },
+        "wireBounds": {
+          "minX": 212,
+          "minY": 138,
+          "maxX": 3651,
+          "maxY": 1894
+        },
+        "wireSegments": 681,
+        "outsideWireSegments": 0,
+        "ok": true
+      }
+    ]
+  },
+  "bomLayoutCheck": {
+    "reservedRightColumnWidth": 1300,
+    "tableWidth": 1196,
+    "pagesChecked": 7,
+    "pagesClear": 7,
+    "results": [
+      {
+        "sheet": 1,
+        "id": "AC",
+        "bom": {
+          "x": 5030,
+          "y": 100,
+          "w": 1196,
+          "h": 489.2
+        },
+        "diagramFrameRight": 4940,
+        "wireMaxX": 4584,
+        "deviceHitMaxX": 4607,
+        "wireCount": 177,
+        "deviceCount": 55,
+        "titleBlock": {
+          "x": 5666,
+          "y": 2136
+        },
+        "checks": {
+          "bomRightInsideFrame": true,
+          "tableClearOfDiagramFrame": true,
+          "tableClearOfWires": true,
+          "tableClearOfDevices": true,
+          "tableAboveTitleBlock": true
+        },
+        "ok": true
+      },
+      {
+        "sheet": 2,
+        "id": "DC",
+        "bom": {
+          "x": 3950,
+          "y": 100,
+          "w": 1196,
+          "h": 174
+        },
+        "diagramFrameRight": 3860,
+        "wireMaxX": 3532,
+        "deviceHitMaxX": 3555,
+        "wireCount": 253,
+        "deviceCount": 93,
+        "titleBlock": {
+          "x": 4586,
+          "y": 4716
+        },
+        "checks": {
+          "bomRightInsideFrame": true,
+          "tableClearOfDiagramFrame": true,
+          "tableClearOfWires": true,
+          "tableClearOfDevices": true,
+          "tableAboveTitleBlock": true
+        },
+        "ok": true
+      },
+      {
+        "sheet": 3,
+        "id": "GUN",
+        "bom": {
+          "x": 4530,
+          "y": 100,
+          "w": 1196,
+          "h": 344.8
+        },
+        "diagramFrameRight": 4440,
+        "wireMaxX": 4278,
+        "deviceHitMaxX": 4249,
+        "wireCount": 140,
+        "deviceCount": 66,
+        "titleBlock": {
+          "x": 5166,
+          "y": 1956
+        },
+        "checks": {
+          "bomRightInsideFrame": true,
+          "tableClearOfDiagramFrame": true,
+          "tableClearOfWires": true,
+          "tableClearOfDevices": true,
+          "tableAboveTitleBlock": true
+        },
+        "ok": true
+      },
+      {
+        "sheet": 4,
+        "id": "ESS1",
+        "bom": {
+          "x": 2250,
+          "y": 100,
+          "w": 1196,
+          "h": 411.7999999999999
+        },
+        "diagramFrameRight": 2160,
+        "wireMaxX": 1688,
+        "deviceHitMaxX": 1756,
+        "wireCount": 71,
+        "deviceCount": 35,
+        "titleBlock": {
+          "x": 2886,
+          "y": 1896
+        },
+        "checks": {
+          "bomRightInsideFrame": true,
+          "tableClearOfDiagramFrame": true,
+          "tableClearOfWires": true,
+          "tableClearOfDevices": true,
+          "tableAboveTitleBlock": true
+        },
+        "ok": true
+      },
+      {
+        "sheet": 5,
+        "id": "ESS2",
+        "bom": {
+          "x": 2250,
+          "y": 100,
+          "w": 1196,
+          "h": 411.7999999999999
+        },
+        "diagramFrameRight": 2160,
+        "wireMaxX": 1730,
+        "deviceHitMaxX": 1798,
+        "wireCount": 71,
+        "deviceCount": 35,
+        "titleBlock": {
+          "x": 2886,
+          "y": 1896
+        },
+        "checks": {
+          "bomRightInsideFrame": true,
+          "tableClearOfDiagramFrame": true,
+          "tableClearOfWires": true,
+          "tableClearOfDevices": true,
+          "tableAboveTitleBlock": true
+        },
+        "ok": true
+      },
+      {
+        "sheet": 6,
+        "id": "CTL",
+        "bom": {
+          "x": 3510,
+          "y": 100,
+          "w": 1196,
+          "h": 351.6
+        },
+        "diagramFrameRight": 3420,
+        "wireMaxX": 3097,
+        "deviceHitMaxX": 3099,
+        "wireCount": 160,
+        "deviceCount": 79,
+        "titleBlock": {
+          "x": 4146,
+          "y": 3936
+        },
+        "checks": {
+          "bomRightInsideFrame": true,
+          "tableClearOfDiagramFrame": true,
+          "tableClearOfWires": true,
+          "tableClearOfDevices": true,
+          "tableAboveTitleBlock": true
+        },
+        "ok": true
+      },
+      {
+        "sheet": 7,
+        "id": "MATRIX",
+        "bom": {
+          "x": 4070,
+          "y": 100,
+          "w": 1196,
+          "h": 569.1999999999996
+        },
+        "diagramFrameRight": 3980,
+        "wireMaxX": 3651,
+        "deviceHitMaxX": 3659,
+        "wireCount": 280,
+        "deviceCount": 160,
+        "titleBlock": {
+          "x": 4706,
+          "y": 2056
+        },
+        "checks": {
+          "bomRightInsideFrame": true,
+          "tableClearOfDiagramFrame": true,
+          "tableClearOfWires": true,
+          "tableClearOfDevices": true,
+          "tableAboveTitleBlock": true
+        },
+        "ok": true
+      }
+    ]
+  }
+}
