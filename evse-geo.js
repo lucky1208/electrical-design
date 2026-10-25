@@ -2837,6 +2837,40 @@ window.EVSE_GEO = (function () {
     design.bodyRepair = fixed;
     return fixed;
   }
+  function c02Hits(design) {
+    const out = [];
+    design.wires.forEach(function (w) {
+      const sg = segsOf(w.pts);
+      design.devices.forEach(function (v) {
+        if (v.sheet !== w.sheet || v.x == null || v.sym.isBus || v.sym.isXref || v.pwr) return;
+        const ko = deviceKeepout(v);
+        for (let i = 0; i < sg.length; i++) {
+          if (leadStubSegW(w, sg[i], i, sg.length, design)) continue;
+          if (bodyHitRect(sg[i], ko.core)) { out.push({ wire: w, dev: v, seg: i }); break; }
+        }
+      });
+    });
+    return out;
+  }
+  function c11Hits(design) {
+    const out = [];
+    design.wires.forEach(function (w) {
+      const sg = segsOf(w.pts);
+      design.devices.forEach(function (v) {
+        if (v.sheet !== w.sheet || v.x == null || v.sym.isBus || v.sym.isXref || v.pwr) return;
+        const dm = devDims(v);
+        const ir = { x: v.x - 6, y: v.y - 6, w: dm.w + 12, h: dm.h + 12 };
+        for (let i = 0; i < sg.length; i++) {
+          if (leadStubSegW(w, sg[i], i, sg.length, design)) continue;
+          for (let t = 0.08; t <= 0.92; t += 0.08) {
+            const x = sg[i].x1 + (sg[i].x2 - sg[i].x1) * t, y = sg[i].y1 + (sg[i].y2 - sg[i].y1) * t;
+            if (x > ir.x && x < ir.x + ir.w && y > ir.y && y < ir.y + ir.h) { out.push({ wire: w, dev: v, seg: i }); return; }
+          }
+        }
+      });
+    });
+    return out;
+  }
   function c12Hits(design) {
     const out = [];
     design.wires.forEach(function (w) {
@@ -3087,6 +3121,51 @@ const item = candidates[wi];
     return c13Hits(design).length;
   }
 
+  function emergencyRoute(design) {
+    const failed = design.nets.filter(function (n) { return n.err === 'ROUTE_NO_CLEAR_PATH'; });
+    let fixed = 0;
+    failed.forEach(function (n) {
+      const M = design.map;
+      const A = pinAbs(M, n.a), B = pinAbs(M, n.b);
+      if (!A || !B || !M[n.a.d] || !M[n.b.d]) return;
+      const sheet = M[n.a.d].sheet;
+      const obst = [];
+      design.devices.forEach(function (d) {
+        if (d.sheet !== sheet || d.sym.isBus || d.sym.isXref || d.x == null || d.pwr) return;
+        obst.push(deviceKeepout(d));
+        obst.push(dashedBand(d));
+      });
+      const soft = (design.soft || {})[sheet] || [];
+      const tried = {};
+      let accepted = false;
+      for (let ei = 0; ei < 3 && !accepted; ei++) {
+        for (let si = 0; si < 2 && !accepted; si++) {
+          const A2 = pinAbs(M, n.a), B2 = pinAbs(M, n.b);
+          if (!A2 || !B2) continue;
+          A2.esc = (M[n.a.d].sym.isXref ? 0 : ESC) + ei * 16;
+          B2.esc = (M[n.b.d].sym.isXref ? 0 : ESC) + ei * 16;
+          const pts = solve(A2, B2, obst, newUsed(), n.a.d, n.b.d, soft, n.cls,
+            !!(M[n.a.d].sym.noCross || M[n.b.d].sym.noCross), !!si);
+          if (!pts || pts.length < 2) continue;
+          const key = JSON.stringify(pts);
+          if (tried[key]) continue;
+          tried[key] = 1;
+          const w = { id: 'W-' + n.id, net: n.id, cls: n.cls, name: n.name, sheet: sheet, pts: pts, a: A2, b: B2, manual: true, via: 'EMERGENCY-ROUTE' };
+          design.wires.push(w);
+          const bad = c13Hits(design).some(function (h) { return h.wire === w; }) ||
+            c12Hits(design).some(function (h) { return h.wire === w; }) ||
+            c02Hits(design).some(function (h) { return h.wire === w; }) ||
+            c11Hits(design).some(function (h) { return h.wire === w; });
+          if (bad) { design.wires.pop(); continue; }
+          n.err = null; n.wire_id = w.id; fixed++; accepted = true;
+        }
+      }
+    });
+    if (fixed) crossings(design);
+    design.emergencyRouted = fixed;
+    return fixed;
+  }
+
   function fixXrefOverlap(design) {
     if (design.params && design.params.family === 'mwess') return 0;
     const xrefs = design.devices.filter(function (d) { return d.xref && d.x != null; });
@@ -3154,7 +3233,7 @@ const item = candidates[wi];
       fixC08(d);
       fixClear8(d);
       if (window.EVSE_LABELFIX) window.EVSE_LABELFIX.run(d);
-      snapEnds(d); forceOrtho(d); fitRoutedFrames(d); crossings(d); fixCrossXrefs(d); fixC08(d); repairLabelCross(d); repairBodyCross(d); enforceC13(d); nudgeC14(d); crossings(d); nudgeC14(d); audit(d);
+      snapEnds(d); forceOrtho(d); fitRoutedFrames(d); crossings(d); fixCrossXrefs(d); fixC08(d); repairLabelCross(d); repairBodyCross(d); enforceC13(d); nudgeC14(d); crossings(d); nudgeC14(d); emergencyRoute(d); enforceC13(d); audit(d);
       if (window.EVSE_GEO) window.EVSE_GEO.lastDesign = d;
       return d;
     } else {
@@ -3196,6 +3275,7 @@ const item = candidates[wi];
     d.c05Nudged = nudgeC05(d);
     crossings(d);
     d.xrefFixed = fixXrefOverlap(d);
+    d.emergencyRouted = emergencyRoute(d);
     crossings(d); audit(d);
     if (window.EVSE_GEO) window.EVSE_GEO.lastDesign = d; /* V5-EX1: 导出模块取当前方案 */
     return d;
