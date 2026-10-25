@@ -67,3 +67,16 @@ test('AI document recommendation validates and applies official URLs', async () 
     global.fetch = originalFetch;
   }
 });
+
+test('MWESS cross-page flags expose labels and pair tags for jump', () => {
+  require('../evse-core.js');
+  require('../evse-mwess-core.js');
+  const d = global.window.EVSE_MWESS.build({ family: 'mwess' });
+  const xs = d.devices.filter(x => x.xref);
+  assert.ok(xs.length > 0);
+  assert.ok(xs.every(x => x.xrefLabel && x.xrefTag && /→\s*\d+\//.test(x.xrefLabel)));
+  const first = xs[0];
+  const pair = xs.filter(x => x.xrefTag === first.xrefTag);
+  assert.equal(pair.length, 2);
+  assert.notEqual(pair[0].sheet, pair[1].sheet);
+});

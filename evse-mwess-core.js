@@ -1067,8 +1067,8 @@ window.EVSE_MWESS = (function () {
       const sA = 'XR' + String(xn).padStart(3, '0') + 'A', sB = 'XR' + String(xn).padStart(3, '0') + 'B';
       const labA = '→' + B.sheet + '/' + B.id + ':' + n.b.p, labB = '→' + A.sheet + '/' + A.id + ':' + n.a.p;
       const xtag = 'XP' + String(xn).padStart(3, '0');
-      design.devices.push({ id: sA, sheet: A.sheet, tag: '', name: '跨页连接符', spec: n.name || '', xref: true, sym: window.EVSE_CORE.S.xref(labA, pinDirOf(A, n.a.p), xtag), attach: { d: A.id, p: n.a.p } });
-      design.devices.push({ id: sB, sheet: B.sheet, tag: '', name: '跨页连接符', spec: n.name || '', xref: true, sym: window.EVSE_CORE.S.xref(labB, pinDirOf(B, n.b.p), xtag), attach: { d: B.id, p: n.b.p } });
+      design.devices.push({ id: sA, sheet: A.sheet, tag: '', name: '跨页连接符', spec: n.name || '', xref: true, xrefLabel: labA, xrefTag: xtag, sym: window.EVSE_CORE.S.xref(labA, pinDirOf(A, n.a.p), xtag), attach: { d: A.id, p: n.a.p } });
+      design.devices.push({ id: sB, sheet: B.sheet, tag: '', name: '跨页连接符', spec: n.name || '', xref: true, xrefLabel: labB, xrefTag: xtag, sym: window.EVSE_CORE.S.xref(labB, pinDirOf(B, n.b.p), xtag), attach: { d: B.id, p: n.b.p } });
       keep.push({ id: n.id + 'a', name: n.name + '/1', cls: n.cls, a: n.a, b: { d: sA, p: '1' }, xpair: n.name });
       keep.push({ id: n.id + 'b', name: n.name + '/2', cls: n.cls, a: { d: sB, p: '1' }, b: n.b, xpair: n.name });
     });

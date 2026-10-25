@@ -45,6 +45,9 @@
     border-top-color:#fff;animation:spin .7s linear infinite}
   .gen:disabled{cursor:progress}
   .cvwrap{position:relative;flex:1;min-width:0;min-height:0;display:flex;flex-direction:column;background:#0b0e12}
+  #xrefQuick{position:absolute;top:10px;left:50%;transform:translateX(-50%);z-index:18;display:none;align-items:center;gap:8px;background:rgba(15,20,26,.96);border:1px solid #2f6fdc;border-radius:20px;padding:4px 5px 4px 12px;box-shadow:0 8px 24px rgba(0,0,0,.5);font-size:11px;color:#bfeaff;white-space:nowrap}
+  #xrefQuick button{padding:3px 10px;font-size:11px;background:#1e5cc8;border-color:#2f6fdc;color:#fff;border-radius:14px}
+  #xrefQuickName{display:inline-block;max-width:60vw;overflow:hidden;text-overflow:ellipsis;vertical-align:middle}
   #busy{position:absolute;inset:0 0 28px;z-index:20;display:none;align-items:center;justify-content:center;
     background:rgba(8,11,16,.62);backdrop-filter:blur(2px)}
   #busy.on{display:flex}
@@ -100,9 +103,18 @@
   .ctxmenu .row{display:flex;justify-content:space-between;gap:14px;line-height:1.75}
   .ctxmenu .row b{color:#7c8794;font-weight:400;flex:0 0 auto}
   .ctxmenu .row span{color:#c8d1dc;text-align:right;word-break:break-all}
-  .ctxmenu .acts{margin-top:9px;display:flex;gap:8px}
+  .ctxmenu .acts{margin-top:9px;display:flex;gap:8px;flex-wrap:wrap}
   .ctxmenu .acts button{background:#1c232b;border:1px solid #2b333d;color:#c8d1dc;border-radius:5px;padding:5px 10px;font-size:12px;cursor:pointer;font-family:inherit}
   .ctxmenu .acts button:hover{background:#232c36;color:#fff}
+  .xrefpick{position:fixed;z-index:120;left:50%;top:50%;transform:translate(-50%,-50%);width:440px;max-width:92vw;max-height:72vh;overflow:auto;background:#151a20;border:1px solid #2b333d;border-radius:10px;padding:14px;box-shadow:0 24px 70px rgba(0,0,0,.65)}
+  .xrefpick h4{margin:0 0 3px;font-size:13px;color:#e6eaf0}
+  .xrefpick .xsub{font-size:10.5px;color:#7c8794;line-height:1.55;margin-bottom:10px}
+  .xrefpick button.xitem{display:block;width:100%;text-align:left;background:#11161c;border:1px solid #232b34;color:#dbe3ec;border-radius:6px;padding:8px 9px;margin-bottom:6px;cursor:pointer;font-family:inherit;font-size:11.5px}
+  .xrefpick button.xitem:hover{border-color:#2f6fdc;background:#1a2531}
+  .xrefpick .xitem b{display:block;color:#bfeaff;font-size:11.5px;font-weight:600}
+  .xrefpick .xitem span{display:block;color:#7c8794;font-size:10px;margin-top:2px}
+  .xrefpick .xclose{background:#1c232b;border:1px solid #2b333d;color:#c8d1dc;border-radius:5px;padding:5px 12px;font-size:11.5px;cursor:pointer;font-family:inherit}
+  .xrefpick .xclose:hover{background:#232c36;color:#fff}
   .q{background:#0f1318;border:1px solid #262f39;border-radius:6px;color:#e6eaf0;font-size:12px;padding:6px 10px 6px 28px;width:258px;outline:none;font-family:inherit;transition:border-color .15s,box-shadow .15s}
   .q:focus{border-color:#2f6fdc;box-shadow:0 0 0 3px rgba(47,111,220,.18)}
   #qcnt{flex:0 0 auto;white-space:nowrap}
@@ -406,6 +418,10 @@
   <div class="body">
     <div class="cvwrap">
       <div id="cv"></div>
+      <div id="xrefQuick" aria-live="polite">
+        <span id="xrefQuickName"></span>
+        <button class="btn" id="xrefQuickBtn" type="button">跳转到连接</button>
+      </div>
       <div id="busy" role="status" aria-live="polite" aria-hidden="true">
         <div class="busybox">
           <div class="spin" aria-hidden="true"></div>
@@ -790,6 +806,14 @@
     var w = Math.abs(dg.x1 - dg.x0), h = Math.abs(dg.y1 - dg.y0);
     return '<rect x="' + x + '" y="' + y + '" width="' + w + '" height="' + h + '" fill="rgba(14,165,233,.08)" stroke="#0ea5e9" stroke-width="' + (1.4 / view.k) + '" stroke-dasharray="' + (5 / view.k) + ' ' + (4 / view.k) + '"/>';
   }
+  function renderXrefQuick() {
+    var el = $('xrefQuick'); if (!el) return;
+    var sel = ST.sel, d = (D && sel && sel.k === 'dev') ? D.map[sel.id] : null;
+    if (d && d.xref) {
+      $('xrefQuickName').textContent = (d.tag || d.id) + ' · ' + (d.spec || '跨页连接');
+      el.style.display = 'flex';
+    } else el.style.display = 'none';
+  }
   function drawSel() {
     var g = world && world.querySelector('#lay-sel'); if (!g) return;
     var s = '', sel = ST.sel;
@@ -813,6 +837,7 @@
       }
     }
     g.innerHTML = s;
+    renderXrefQuick();
   }
   function applyView() { if (world) world.setAttribute('transform', 'translate(' + view.x + ',' + view.y + ') scale(' + view.k + ')'); }
   function doFit() {
@@ -2175,6 +2200,10 @@
       title = dv.tag + ' · ' + dv.name; sub = 'ID ' + dv.id + ' · 页 ' + dv.sheet + ' · 分区 ' + dv.zone;
       rows = [['规格/档位', (dv.spec || '—') + '（RFQ_REQUIRED）'], ['坐标', Math.round(dv.x) + ', ' + Math.round(dv.y)],
         ['外形', dv.sym.w + ' × ' + dv.sym.h], ['端子数', dv.sym.pins.length]];
+      if (dv.xref) {
+        rows.push(['跨页指向', dv.xrefLabel ? dv.xrefLabel.replace('→', '第').replace('/', '页 /') : '—']);
+        rows.push(['跨页编号', dv.xrefTag || '—']);
+      }
       pins = dv.sym.pins.map(function (p) {
         var n = netOfPin(dv.id, p.n);
         return { n: p.n, name: p.name || p.n, to: n ? otherEnd(n, dv.id, p.n) + '  [' + n.cls + ']' : '悬空',
@@ -2239,7 +2268,15 @@
             + '<span style="flex:1;color:' + p.color + '">' + esc(p.to) + '</span></div>';
         }).join('') + '</div>';
     }
+    if (sel.k === 'dev') {
+      var dx = D.map[sel.id];
+      if (dx && dx.xref) {
+        h += '<button class="btn" style="width:100%;margin-top:9px;background:#1e5cc8;border-color:#2f6fdc;color:#fff" onclick="window.__EVSE_JUMP_XREF(\'' + dx.id + '\')">跳转到信号连接</button>'
+          + '<div style="font-size:10px;color:#6f7a87;margin-top:4px;line-height:1.5">有多个连接位置时会弹出选择列表</div>';
+      }
+    }
     $('insp').innerHTML = h;
+    renderXrefQuick();
   }
   function renderScore() {
     if (!D) return;
@@ -2526,6 +2563,7 @@ if (doc.url) {
     };
   $('bNew').onclick = function () { openNewDlg('new'); };
   $('bAddSheet').onclick = function () { openNewDlg('add'); };
+  $('xrefQuickBtn').onclick = function () { if (ST.sel && ST.sel.k === 'dev') window.__EVSE_JUMP_XREF(ST.sel.id); };
   $('bSavePrj').onclick = savePrj;
   $('bOpenPrj').onclick = function () { $('prjFile').click(); };
   $('bCalcRun').onclick = runCalc;
@@ -2636,6 +2674,97 @@ if (doc.url) {
       });
       })();
     };
+    function xrefTargets(d) {
+      if (typeof d === 'string') d = D && D.map[d];
+      if (!D || !d || !d.xref) return [];
+      var list = [], seen = {};
+      function add(sheet, devId, pinN, kind) {
+        var dv = D.map[devId];
+        if (!dv || dv.x == null || dv.y == null) return;
+        var p = (dv.sym.pins || []).filter(function (q) { return q.n === pinN; })[0];
+        var key = sheet + '|' + devId + '|' + pinN;
+        if (seen[key]) return;
+        seen[key] = 1;
+        list.push({
+          sheet: sheet, dev: devId, pin: pinN,
+          x: dv.x + (p ? p.x : 0), y: dv.y + (p ? p.y : 0),
+          tag: dv.tag || dv.id, name: dv.name || '', spec: dv.spec || '',
+          pinName: p ? (p.name || p.n) : pinN, kind: kind || ''
+        });
+      }
+      var m = /→\s*(\d+)\/([^:\s]+):([^\s]+)/.exec(String(d.xrefLabel || ''));
+      if (m) add(+m[1], m[2], m[3], 'label');
+      if (d.xrefTag) {
+        D.devices.forEach(function (x) {
+          if (x === d || !x.xref || x.xrefTag !== d.xrefTag) return;
+          if (x.attach) add(x.sheet, x.attach.d, x.attach.p, 'pair');
+        });
+      }
+      var nets = (D.nets || []).filter(function (n) {
+        return (n.a.d === d.id && n.a.p === '1') || (n.b.d === d.id && n.b.p === '1');
+      });
+      var xpairs = nets.map(function (n) { return n.xpair; }).filter(Boolean);
+      (D.nets || []).filter(function (n) { return nets.indexOf(n) >= 0 || (n.xpair && xpairs.indexOf(n.xpair) >= 0); }).forEach(function (n) {
+        [n.a, n.b].forEach(function (ep) {
+          var dv = D.map[ep.d];
+          if (!dv || dv.xref) return;
+          add(dv.sheet, ep.d, ep.p, 'net');
+        });
+      });
+      var others = list.filter(function (c) { return c.sheet !== d.sheet; });
+      var out = others.length ? others : list;
+      out.sort(function (a, b) {
+        return a.sheet - b.sheet || String(a.tag).localeCompare(String(b.tag), 'zh') || String(a.pinName).localeCompare(String(b.pinName), 'zh');
+      });
+      return out;
+    }
+    function closeXrefPicker() {
+      var b = document.getElementById('xrefPickBack');
+      if (b) b.remove();
+    }
+    function jumpToXrefTarget(c) {
+      if (!c) return;
+      ST.sheet = c.sheet;
+      ST.sel = { k: 'dev', id: c.dev };
+      if (window.__EVSE_JUMP) window.__EVSE_JUMP(c.sheet, c.x, c.y);
+      else { paint(false); renderAll(); }
+      msg('已跳转到 ' + (c.tag || c.dev) + ' · 页' + c.sheet + ' · ' + (c.pinName || c.pin));
+    }
+    function showXrefPicker(d, list) {
+      closeXrefPicker();
+      var back = document.createElement('div');
+      back.id = 'xrefPickBack';
+      back.style.cssText = 'position:fixed;inset:0;z-index:119;background:rgba(6,9,13,.5)';
+      var box = document.createElement('div');
+      box.className = 'xrefpick';
+      box.innerHTML = '<h4>选择跳转目标</h4><div class="xsub">' + esc((d.tag || d.id) + ' · ' + (d.spec || d.xrefLabel || '')) + ' · 共 ' + list.length + ' 个连接位置</div>';
+      list.forEach(function (c) {
+        var b = document.createElement('button');
+        b.className = 'xitem';
+        b.innerHTML = '<b>页 ' + c.sheet + ' · ' + esc(c.tag) + ' · ' + esc(c.pinName || c.pin) + '</b><span>' + esc((c.name || '') + (c.spec ? ' / ' + c.spec : '')) + '</span>';
+        b.onclick = function () { closeXrefPicker(); jumpToXrefTarget(c); };
+        box.appendChild(b);
+      });
+      var foot = document.createElement('div');
+      foot.style.cssText = 'text-align:right;margin-top:4px';
+      var closeBtn = document.createElement('button');
+      closeBtn.className = 'xclose'; closeBtn.textContent = '关闭'; closeBtn.onclick = closeXrefPicker;
+      foot.appendChild(closeBtn); box.appendChild(foot);
+      back.appendChild(box);
+      back.addEventListener('click', function (e) { if (e.target === back) closeXrefPicker(); });
+      document.body.appendChild(back);
+    }
+    function jumpXref(id) {
+      if (!D || !D.map[id]) return;
+      var d = D.map[id];
+      var list = xrefTargets(d);
+      if (!list.length) { msg('未找到 ' + (d.tag || d.id) + ' 的连接目标（跨页指向为空或目标未放置）'); return; }
+      if (list.length === 1) jumpToXrefTarget(list[0]);
+      else showXrefPicker(d, list);
+    }
+    window.__EVSE_JUMP_XREF = jumpXref;
+    window.__EVSE_XREF_TARGETS = xrefTargets;
+    document.addEventListener('keydown', function (e) { if (e.key === 'Escape') closeXrefPicker(); });
     window.__EVSE_JUMP = function (sheet, x, y) { /* v2.12: 搜索跳转 */
       ST.sheet = sheet; paint(false);
       view.k = Math.max(view.k, 1.2);
@@ -2741,7 +2870,11 @@ if (doc.url) {
     if (k === 'dev') {
       var d = D.map[id];
       if (!d) return;
-      show(e, '<h4>元器件 · ' + (d.tag || d.id) + '</h4>' + devRows(D, d), [
+      var acts = [];
+      if (d.xref && window.__EVSE_JUMP_XREF) {
+        acts.push({ t: '跳转到连接', f: function () { close(); window.__EVSE_JUMP_XREF(id); } });
+      }
+      acts.push(
         { t: '重走此器件连线', f: function () {
             window.EVSE_GEO.rerouteDevice(D, id);
             window.EVSE_GEO.audit(D);
@@ -2756,7 +2889,8 @@ if (doc.url) {
             window.__EVSE_REFRESH(); close();
           } },
         { t: '关闭', f: close }
-      ]);
+      );
+      show(e, '<h4>元器件 · ' + (d.tag || d.id) + '</h4>' + devRows(D, d), acts);
     } else if (k === 'wire') {
       var w = D.wires.filter(function (q) { return q.id === id; })[0];
       if (!w) return;
