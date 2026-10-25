@@ -4,7 +4,7 @@
   "description": "源数据驱动的充电储能系统电气设计生成、可信校核与全寿命优化平台。纯静态、零依赖、零构建、可离线运行。",
   "main": "evse-calc.js",
   "scripts": {
-    "test": "node --test tests/source.test.js tests/calc.test.js tests/docs.test.js"
+    "test": "node --test tests/source.test.js tests/calc.test.js tests/docs.test.js tests/geo.test.js"
   },
   "keywords": [
     "evse",

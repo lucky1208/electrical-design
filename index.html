@@ -726,7 +726,8 @@
     if (!D || !D.devices || !D.devices.length) { msg('⚠ 生成了空设计（参数异常或引擎故障）——请 Ctrl+F5 强制刷新后重试'); }
     if (D && D.sheets && D.sheets.length && !D.sheets.some(function (s) { return s.no === ST.sheet; })) ST.sheet = D.sheets[0].no;
     hist = []; fut = []; ST.sel = null;
-    msg('卢继雄倾注心力制作');
+    if (D && D.audit && D.audit.blocking && D.audit.blocking.length) msg('⚠ 生成完成，但存在 ' + D.audit.blocking.length + ' 个阻断错误：' + D.audit.blocking.map(function (i) { return i.id; }).join('、') + '（见「属性/评分」）');
+    else msg('卢继雄倾注心力制作');
     paint(fit !== false); renderAll();
   }
   function msg(s) { var me = $('msg'); if (me) { me.textContent = s; me.title = s; me.style.color = ''; } }
@@ -1463,20 +1464,24 @@
     document.body.appendChild(a); a.click();
     setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 100);
   }
-  function exportSvg() {
+  function exportGuard(label) {
+    if (!D || !D.audit || !D.audit.blocking || !D.audit.blocking.length) return true;
+    var codes = D.audit.blocking.map(function (i) { return i.id; }).join('、');
+    return window.confirm('当前图纸存在阻断错误（' + codes + '）。' + label + '只能作为概念草图，不能用于施工/生产。仍要导出？');
+  }  function exportSvg() {
     dl('EVSE-CONCEPT-10' + ST.sheet + '.svg', window.EVSE_RENDER.fullSVG(D, ST.sheet, viewOpts()), 'image/svg+xml');
     msg('已导出 页' + ST.sheet + ' SVG');
   }
   function exportJson() {
     var out = {
-      meta: { version: D.version, status: D.status, params: D.params, generated: new Date().toISOString() },
+      meta: { version: D.version, status: D.status, auditStatus: D.audit.status, blocking: D.audit.blocking.map(function (i) { return i.id; }), params: D.params, generated: new Date().toISOString() },
       sheets: D.sheets.map(function (s) { return { no: s.no, title: s.title }; }),
       devices: D.devices.filter(function (d) { return !d.sym.isXref; }).map(function (d) {
         return { id: d.id, tag: d.tag, name: d.name, spec: d.spec, sheet: d.sheet, zone: d.zone,
           x: d.x, y: d.y, pins: d.sym.pins.map(function (p) { return { n: p.n, name: p.name, domain: p.k, dir: p.t, side: p.d }; }) };
       }),
       nets: D.nets.map(function (n) {
-        return { id: n.id, name: n.name, cls: n.cls, from: n.a.d + ':' + n.a.p, to: n.b.d + ':' + n.b.p, wire: n.wire || null };
+        return { id: n.id, name: n.name, cls: n.cls, from: n.a.d + ':' + n.a.p, to: n.b.d + ':' + n.b.p, wire: n.wire_id || n.wire || null };
       }),
       audit: { total: D.audit.total, grade: D.audit.grade, score: D.audit.score,
         items: D.audit.items.map(function (i) { return { id: i.id, cat: i.cat, title: i.title, ok: i.ok, level: i.level, detail: i.detail }; }) }
@@ -2281,9 +2286,10 @@
   function renderScore() {
     if (!D) return;
     var A = D.audit;
-    $('grade').textContent = A.grade;
-    $('grade').style.color = A.total >= 88 ? '#17A34A' : A.total >= 78 ? '#E08600' : '#D42A2A';
-    $('total').textContent = A.total + '/100';
+    var blocked = A.blocking && A.blocking.length;
+    $('grade').textContent = blocked ? 'D' : A.grade;
+    $('grade').style.color = blocked || A.total < 65 ? '#D42A2A' : A.total >= 88 ? '#17A34A' : A.total >= 78 ? '#E08600' : '#D42A2A';
+    $('total').textContent = A.total + '/100' + (blocked ? ' · ' + blocked + ' 阻断' : '');
     $('score').innerHTML = A.score.map(function (x) {
       var r = x.got / x.weight;
       return '<div style="margin-bottom:7px"><div style="display:flex;font-size:10.5px;color:#a7b1bd;margin-bottom:3px">'

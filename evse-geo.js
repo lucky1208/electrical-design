@@ -1441,7 +1441,7 @@ window.EVSE_GEO = (function () {
   }
 
   /* 拖动线段：dir='v' 改 x，'h' 改 y；同向邻线被挤推 */
-  function dragSegment(design, wireId, segIdx, newCoord) {
+  function dragSegmentCore(design, wireId, segIdx, newCoord) {
     const w = design.wires.filter(function (q) { return q.id === wireId; })[0];
     if (!w) return [];
     const pts = w.pts.map(function (p) { return p.slice(); });
@@ -1480,6 +1480,38 @@ window.EVSE_GEO = (function () {
     return moved;
   }
 
+  function dragSegment(design, wireId, segIdx, newCoord) {
+    const snap = design.wires.map(function (w) { return { w: w, pts: w.pts.map(function (p) { return p.slice(); }), manual: w.manual }; });
+    const snapHops = JSON.parse(JSON.stringify(design.hops || []));
+    const snapJunc = JSON.parse(JSON.stringify(design.junctions || []));
+    const moved = dragSegmentCore(design, wireId, segIdx, newCoord);
+    if (!moved.length) return moved;
+    const bad = moved.some(function (id) {
+      const w = design.wires.filter(function (q) { return q.id === id; })[0];
+      if (!w) return true;
+      const sg = segsOf(w.pts);
+      for (let i = 0; i < sg.length; i++) if (sg[i].x1 !== sg[i].x2 && sg[i].y1 !== sg[i].y2) return true;
+      const n = netById(design, w.net);
+      for (let di = 0; di < design.devices.length; di++) {
+        const v = design.devices[di];
+        if (v.sheet !== w.sheet || v.x == null || v.sym.isBus || v.sym.isXref || v.pwr) continue;
+        const ko = deviceKeepout(v);
+        for (let i = 0; i < sg.length; i++) {
+          const own = n && (v.id === n.a.d || v.id === n.b.d);
+          const stub = i === 0 || i === sg.length - 1;
+          if (own && stub && !bodyHitRect(sg[i], ko.core)) continue;
+          if (bodyHitRect(sg[i], ko)) return true;
+        }
+      }
+      return false;
+    });
+    if (bad) {
+      snap.forEach(function (s) { s.w.pts = s.pts; s.w.manual = s.manual; });
+      design.hops = snapHops; design.junctions = snapJunc;
+      return [];
+    }
+    return moved;
+  }
   /* ============================================================
    * 5. 规则引擎：DRC + 图纸优劣评分
    * ============================================================ */
@@ -1590,7 +1622,7 @@ window.EVSE_GEO = (function () {
       });
     });
     add('C', 'C01', '全部走线正交（无斜线）', nonOrtho === 0, nonOrtho ? nonOrtho + ' 段非正交' : segCount + ' 段全部水平/垂直');
-    add('C', 'C02', '走线不穿越器件本体（含自身端子）', thruDev === 0, thruDev ? thruDev + ' 段穿越器件（需人工挤线或改布局）' : '0 段穿越', thruDev ? 'warn' : 'pass');
+    add('C', 'C02', '走线不穿越器件本体（含自身端子）', thruDev === 0, thruDev ? thruDev + ' 段穿越器件（需人工挤线或改布局）' : '0 段穿越', thruDev ? 'error' : 'pass');
     add('C', 'C03', '正交交叉一律画半圆跨越（不连接）', true, design.hops.length + ' 处跨越由统一后处理生成，与绘制顺序无关');
     add('C', 'C04', '真实连接点画实心结点', true, design.junctions.length + ' 个结点');
     let tight = 0;
@@ -1678,7 +1710,7 @@ window.EVSE_GEO = (function () {
       });
       if (badW) inBody++;
     });
-    add('C', 'C11', '走线避开器件外框外扩 6px 净空区（端子外引段除外）', inBody === 0, inBody ? inBody + ' 条线进入器件外框外扩 6px 净空区（非器件本体穿越）' : '端子外引段豁免后均满足 6px 净空', inBody ? 'warn' : 'pass');
+    add('C', 'C11', '走线避开器件外框外扩 6px 净空区（端子外引段除外）', inBody === 0, inBody ? inBody + ' 条线进入器件外框外扩 6px 净空区（非器件本体穿越）' : '端子外引段豁免后均满足 6px 净空', inBody ? 'error' : 'pass');
     let pinHit = 0;
     design.wires.forEach(function (w) {
       const sg = segsOf(w.pts), n = netById(design, w.net);
@@ -1693,7 +1725,7 @@ window.EVSE_GEO = (function () {
         }
       });
     });
-    add('C', 'C12', '走线不穿越元器件管脚延伸区', pinHit === 0, pinHit ? pinHit + ' 条线穿越管脚延伸区（禁止区已扩展到引脚外沿）' : '0 条线穿越管脚延伸区', pinHit ? 'warn' : 'pass');
+    add('C', 'C12', '走线不穿越元器件管脚延伸区', pinHit === 0, pinHit ? pinHit + ' 条线穿越管脚延伸区（禁止区已扩展到引脚外沿）' : '0 条线穿越管脚延伸区', pinHit ? 'error' : 'pass');
     let dashHit = 0;
     design.wires.forEach(function (w) {
       const sg = segsOf(w.pts), n = netById(design, w.net);
@@ -1708,7 +1740,34 @@ window.EVSE_GEO = (function () {
         }
       });
     });
-    add('C', 'C13', '走线不进入器件虚线禁布框（本体外扩 8px）', dashHit === 0, dashHit ? dashHit + ' 条线进入虚线禁布框' : '0 条线进入虚线禁布框', dashHit ? 'warn' : 'pass');    add('C', 'C10', '走线端点终结在真实物理端子上', endOff === 0,
+    add('C', 'C13', '走线不进入器件虚线禁布框（本体外扩 8px）', dashHit === 0, dashHit ? dashHit + ' 条线进入虚线禁布框' : '0 条线进入虚线禁布框', dashHit ? 'error' : 'pass');    const ctrack = {};
+    design.wires.forEach(function (w) {
+      segsOf(w.pts).forEach(function (s) {
+        const axis = s.v ? 'V' : 'H', coord = s.v ? s.x1 : s.y1;
+        const key = w.sheet + '|' + axis + '|' + Math.round(coord * 2);
+        (ctrack[key] = ctrack[key] || []).push({ w: w, s: s, axis: axis, coord: coord });
+      });
+    });
+    const coincident = {};
+    const coincidentEx = [];
+    Object.keys(ctrack).forEach(function (key) {
+      const group = ctrack[key];
+      for (let i = 0; i < group.length; i++) for (let j = i + 1; j < group.length; j++) {
+        const a = group[i], b = group[j];
+        if (a.w === b.w || a.w.net === b.w.net || Math.abs(a.coord - b.coord) > 0.5) continue;
+        const ol = a.s.v
+          ? Math.min(Math.max(a.s.y1, a.s.y2), Math.max(b.s.y1, b.s.y2)) - Math.max(Math.min(a.s.y1, a.s.y2), Math.min(b.s.y1, b.s.y2))
+          : Math.min(Math.max(a.s.x1, a.s.x2), Math.max(b.s.x1, b.s.x2)) - Math.max(Math.min(a.s.x1, a.s.x2), Math.min(b.s.x1, b.s.x2));
+        if (ol <= 0.01) continue;
+        const ids = [a.w.id, b.w.id].sort();
+        const k2 = ids.join('|') + '|' + key;
+        if (coincident[k2]) continue;
+        coincident[k2] = 1;
+        if (coincidentEx.length < 8) coincidentEx.push(ids.join('/') + ' (' + a.axis + ' @ ' + Math.round(a.coord) + ')');
+      }
+    });
+    const coincidentCount = Object.keys(coincident).length;
+    add('C', 'C14', '不同走线不得共线重叠', coincidentCount === 0, coincidentCount ? coincidentCount + ' 组共线重叠：' + coincidentEx.join('、') : '未发现共线重叠', coincidentCount ? 'error' : 'pass');    add('C', 'C10', '走线端点终结在真实物理端子上', endOff === 0,
       endOff ? endOff + ' 处脉线脱离引脚：' + endEx.join('、') : design.wires.length * 2 + ' 个端点全部钉在端子上');
     /* LIB-R20 禁止重叠堆积：器件本体 / 跨页符 / 标注文字带互不重叠 */
     const bx = (design.boxes || []).filter(function (b) { return b.kind !== 'corridor'; }); /* V6-GCORR: 走廊不参与重叠审计 */
@@ -1814,7 +1873,8 @@ window.EVSE_GEO = (function () {
       if (ord.indexOf(grade) < ord.indexOf('B')) grade = 'B';
     }
     const blocking = items.filter(function (i) { return !i.ok && i.level === 'error'; });
-    design.audit = { items: items, score: score, total: total, grade: grade, blocking: blocking, rubric: RUBRIC, stats: { segs: segCount, bends: bends, len: Math.round(totalLen), hops: design.hops.length, junc: design.junctions.length, pins: design.devices.reduce(function (a, d) { return a + d.sym.pins.length; }, 0) } };
+    if (blocking.length) grade = 'D';
+    design.audit = { items: items, score: score, total: total, grade: grade, status: blocking.length ? 'BLOCKED' : 'PASS', blocking: blocking, rubric: RUBRIC, stats: { segs: segCount, bends: bends, len: Math.round(totalLen), hops: design.hops.length, junc: design.junctions.length, pins: design.devices.reduce(function (a, d) { return a + d.sym.pins.length; }, 0) } };
     return design;
   }
 
@@ -2648,7 +2708,8 @@ window.EVSE_GEO = (function () {
       }
     }
     return cur;
-  }  function repairLabelCross(design) {
+  }
+  function repairLabelCross(design) {
     const devs = design.devices.filter(function (d) { return d.x != null && !d.sym.isBus && !d.sym.isXref && !d.pwr; }).map(deviceKeepout);
     const boxes = (design.boxes || []).filter(function (b) { return b.kind === 'label' || b.kind === 'xref'; }).concat(design.devices.filter(function (d) { return d.x != null && !d.sym.isBus && !d.sym.isXref && !d.pwr; }).map(dashedBand));
     const samePt = function (a, b) { return Math.abs(a[0] - b[0]) < 0.01 && Math.abs(a[1] - b[1]) < 0.01; };
