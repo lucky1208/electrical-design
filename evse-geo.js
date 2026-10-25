@@ -2872,6 +2872,173 @@ window.EVSE_GEO = (function () {
     });
     return out;
   }
+  function c14Conflicts(design) {
+    const ctrack = {}, out = [], seen = {};
+    design.wires.forEach(function (w) {
+      segsOf(w.pts).forEach(function (s) {
+        const axis = s.v ? 'V' : 'H', coord = s.v ? s.x1 : s.y1;
+        const key = w.sheet + '|' + axis + '|' + Math.round(coord * 2);
+        (ctrack[key] = ctrack[key] || []).push({ w: w, s: s, axis: axis, coord: coord });
+      });
+    });
+    Object.keys(ctrack).forEach(function (key) {
+      const group = ctrack[key];
+      for (let i = 0; i < group.length; i++) for (let j = i + 1; j < group.length; j++) {
+        const a = group[i], b = group[j];
+        if (a.w === b.w || a.w.net === b.w.net || Math.abs(a.coord - b.coord) > 0.5) continue;
+        const na = netById(design, a.w.net), nb = netById(design, b.w.net);
+        const pk = function (r) { return r ? r.d + ':' + r.p : ''; };
+        if (na && nb && (pk(na.a) === pk(nb.a) || pk(na.a) === pk(nb.b) || pk(na.b) === pk(nb.a) || pk(na.b) === pk(nb.b))) continue;
+        const ol = a.s.v
+          ? Math.min(Math.max(a.s.y1, a.s.y2), Math.max(b.s.y1, b.s.y2)) - Math.max(Math.min(a.s.y1, a.s.y2), Math.min(b.s.y1, b.s.y2))
+          : Math.min(Math.max(a.s.x1, a.s.x2), Math.max(b.s.x1, b.s.x2)) - Math.max(Math.min(a.s.x1, a.s.x2), Math.min(b.s.x1, b.s.x2));
+        if (ol <= 0.01) continue;
+        const ids = [a.w.id, b.w.id].sort();
+        const k2 = ids.join('|') + '|' + key;
+        if (seen[k2]) continue;
+        seen[k2] = 1;
+        out.push({ a: a, b: b, ol: ol, axis: a.axis, coord: a.coord });
+      }
+    });
+    return out;
+  }
+  function nudgeC14(design) {
+    if (design.params && design.params.family === 'mwess') return 0;
+    let fixed = 0;
+    for (let pass = 0; pass < 8; pass++) {
+      const before = c14Conflicts(design).length;
+      if (!before) break;
+      let changed = false;
+      const conflicts = c14Conflicts(design);
+      for (let ci = 0; ci < conflicts.length && !changed; ci++) {
+        const pair = conflicts[ci];
+        const candidates = [pair.a, pair.b];
+        for (let wi = 0; wi < 2 && !changed; wi++) {
+const item = candidates[wi];
+          const w = item.w;
+          const oldRoutePts = w.pts.map(function (p) { return p.slice(); });
+          const oldA = w.a, oldB = w.b, oldManual = w.manual, oldVia = w.via;
+          if (rerouteWireHard(design, w)) {
+            const afterRoute = c14Conflicts(design).length;
+            audit(design);
+            const r02 = design.audit.items.filter(function (i) { return i.id === 'C02'; })[0];
+            const r11 = design.audit.items.filter(function (i) { return i.id === 'C11'; })[0];
+            if (!c13Hits(design).length && !c12Hits(design).length && r02.ok && r11.ok && afterRoute < before) {
+              fixed++; changed = true; w.manual = true; w.via = 'C14-REROUTE';
+              continue;
+            }
+            w.pts = oldRoutePts; w.a = oldA; w.b = oldB; w.manual = oldManual; w.via = oldVia;
+            crossings(design);
+          }
+          const sg = segsOf(w.pts);
+          let idx = -1;
+          for (let k = 0; k < sg.length; k++) {
+            if (sg[k].x1 === item.s.x1 && sg[k].y1 === item.s.y1 && sg[k].x2 === item.s.x2 && sg[k].y2 === item.s.y2) { idx = k; break; }
+          }
+          if (idx <= 0 || idx >= sg.length - 1) continue;
+          const prev = sg[idx - 1], next = sg[idx + 1];
+          const base = item.axis === 'V' ? item.coord : item.coord;
+          if (item.axis === 'V' && (prev.v || next.v)) continue;
+          if (item.axis === 'H' && (!prev.v || !next.v)) continue;
+          const oldPts = w.pts;
+          let accepted = false;
+          for (let d = 0; d < 4 && !accepted; d++) {
+            const off = (d + 1) * MIN_CLEAR;
+            for (let si = 0; si < 2 && !accepted; si++) {
+              const nc = base + (si ? off : -off);
+              const np = oldPts.map(function (p) { return p.slice(); });
+              if (item.axis === 'V') { np[idx][0] = nc; np[idx + 1][0] = nc; }
+              else { np[idx][1] = nc; np[idx + 1][1] = nc; }
+              const ns = segsOf(np);
+              let bad = false;
+              for (let k = 0; k < ns.length; k++) if (ns[k].x1 !== ns[k].x2 && ns[k].y1 !== ns[k].y2) { bad = true; break; }
+              if (bad) continue;
+              w.pts = np;
+              const c13 = c13Hits(design).length, c12 = c12Hits(design).length;
+              const after = c14Conflicts(design).length;
+              audit(design);
+              const a02 = design.audit.items.filter(function (i) { return i.id === 'C02'; })[0];
+              const a11 = design.audit.items.filter(function (i) { return i.id === 'C11'; })[0];
+              if (!c13 && !c12 && a02.ok && a11.ok && after < before) { accepted = true; changed = true; fixed++; w.manual = true; w.via = 'C14-NUDGE'; }
+              else w.pts = oldPts;
+            }
+          }
+        }
+      }
+      if (!changed) break;
+    }
+    return fixed;
+  }
+
+  function nudgeC05(design) {
+    if (design.params && design.params.family === 'mwess') return 0;
+    audit(design);
+    let fixed = 0;
+    let before = (design._c05pairs || []).length;
+    for (let pass = 0; pass < 10; pass++) {
+      if (!before) break;
+      let changed = false;
+      const pairs = (design._c05pairs || []).slice();
+      for (let pi = 0; pi < pairs.length && !changed; pi++) {
+        const pair = pairs[pi];
+        const items = [pair.a, pair.b];
+        for (let wi = 0; wi < 2 && !changed; wi++) {
+          const item = items[wi], w = item.w;
+          const routeOld = w.pts.map(function (p) { return p.slice(); });
+          const routeA = w.a, routeB = w.b, routeManual = w.manual, routeVia = w.via;
+          if (rerouteWireHard(design, w)) {
+            crossings(design);
+            audit(design);
+            const rr02 = design.audit.items.filter(function (i) { return i.id === 'C02'; })[0];
+            const rr11 = design.audit.items.filter(function (i) { return i.id === 'C11'; })[0];
+            const rrCount = (design._c05pairs || []).length;
+            if (!c13Hits(design).length && !c12Hits(design).length && !c14Conflicts(design).length && rr02.ok && rr11.ok && rrCount < before) {
+              before = rrCount; fixed++; changed = true; w.via = 'C05-REROUTE'; w.manual = true;
+              continue;
+            }
+            w.pts = routeOld; w.a = routeA; w.b = routeB; w.manual = routeManual; w.via = routeVia;
+            crossings(design); audit(design);
+          }
+          const sg = segsOf(w.pts);
+          let idx = -1;
+          for (let k = 0; k < sg.length; k++) if (sg[k].x1 === item.s.x1 && sg[k].y1 === item.s.y1 && sg[k].x2 === item.s.x2 && sg[k].y2 === item.s.y2) { idx = k; break; }
+          if (idx <= 0 || idx >= sg.length - 1) continue;
+          const prev = sg[idx - 1], next = sg[idx + 1];
+          if (sg[idx].v && (prev.v || next.v)) continue;
+          if (!sg[idx].v && (!prev.v || !next.v)) continue;
+          const base = sg[idx].v ? sg[idx].x1 : sg[idx].y1;
+          const old = w.pts.map(function (p) { return p.slice(); });
+          for (let d = 0; d < 3 && !changed; d++) {
+            const off = (d + 1) * MIN_CLEAR;
+            for (let si = 0; si < 2 && !changed; si++) {
+              const nc = base + (si ? off : -off);
+              const np = old.map(function (p) { return p.slice(); });
+              if (sg[idx].v) { np[idx][0] = nc; np[idx + 1][0] = nc; }
+              else { np[idx][1] = nc; np[idx + 1][1] = nc; }
+              const ns = segsOf(np);
+              let bad = false;
+              for (let k = 0; k < ns.length; k++) if (ns[k].x1 !== ns[k].x2 && ns[k].y1 !== ns[k].y2) { bad = true; break; }
+              if (bad) continue;
+              w.pts = np; w.manual = true;
+              crossings(design);
+              const c13 = c13Hits(design).length, c12 = c12Hits(design).length, c14 = c14Conflicts(design).length;
+              audit(design);
+              const a02 = design.audit.items.filter(function (i) { return i.id === 'C02'; })[0];
+              const a11 = design.audit.items.filter(function (i) { return i.id === 'C11'; })[0];
+              const after = (design._c05pairs || []).length;
+              if (!c13 && !c12 && !c14 && a02.ok && a11.ok && after < before) {
+                before = after; fixed++; changed = true; w.via = 'C05-NUDGE';
+              } else {
+                w.pts = old; crossings(design); audit(design);
+              }
+            }
+          }
+        }
+      }
+      if (!changed) break;
+    }
+    return fixed;
+  }
   function rerouteWireHard(design, w) {
     const n = netById(design, w.net); if (!n) return false;
     const M = design.map;
@@ -2920,6 +3087,51 @@ window.EVSE_GEO = (function () {
     return c13Hits(design).length;
   }
 
+  function fixXrefOverlap(design) {
+    if (design.params && design.params.family === 'mwess') return 0;
+    const xrefs = design.devices.filter(function (d) { return d.xref && d.x != null; });
+    const bodies = design.devices.filter(function (d) { return d.x != null && !d.sym.isXref && !d.sym.isBus && !d.pwr; });
+    let fixed = 0;
+    xrefs.forEach(function (xr) {
+      const dm = devDims(xr);
+      const box = (design.boxes || []).filter(function (b) { return b.id === xr.id && b.kind === 'xref'; })[0];
+      if (!box) return;
+      const r = { x: box.x, y: box.y, w: box.w, h: box.h };
+      const hit = bodies.some(function (d) { return d.sheet === xr.sheet && overlap(r, { x: d.x - 2, y: d.y - 2, w: devDims(d).w + 4, h: devDims(d).h + 4 }); });
+      if (!hit) return;
+      const parent = xr.attach && design.map[xr.attach.d];
+      if (!parent || parent.x == null) return;
+      const pw = devDims(parent).w, py = parent.y, px = parent.x;
+      const cands = [];
+      [34, 40, 20, 60, 80, 100, 120, 160, 200].forEach(function (off) {
+        cands.push([px - dm.w - off, py]);
+        cands.push([px + pw + off, py]);
+        cands.push([px, py - dm.h - off]);
+        cands.push([px, py + devDims(parent).h + off]);
+      });
+      const oldWires = JSON.parse(JSON.stringify(design.wires));
+      const oldX = xr.x, oldY = xr.y, oldBX = box.x, oldBY = box.y;
+      for (let ci = 0; ci < cands.length; ci++) {
+        const x = Math.round(cands[ci][0]), y = Math.round(cands[ci][1]);
+        if (x < 20 || y < 20) continue;
+        xr.x = x; xr.y = y; box.x = x - 2; box.y = y - 2;
+        design.wires.forEach(function (w) {
+          const n = netById(design, w.net);
+          if (n && (n.a.d === xr.id || n.b.d === xr.id)) w.manual = false;
+        });
+        reroute(design, [xr.id]);
+        crossings(design);
+        audit(design);
+        if (!design.audit.blocking.length) { fixed++; return; }
+        design.wires = JSON.parse(JSON.stringify(oldWires));
+        xr.x = oldX; xr.y = oldY; box.x = oldBX; box.y = oldBY;
+        crossings(design);
+      }
+      audit(design);
+    });
+    return fixed;
+  }
+
   function generate(params) {
     let d;
     if (params && params.family === 'mwess') {
@@ -2942,7 +3154,7 @@ window.EVSE_GEO = (function () {
       fixC08(d);
       fixClear8(d);
       if (window.EVSE_LABELFIX) window.EVSE_LABELFIX.run(d);
-      snapEnds(d); forceOrtho(d); fitRoutedFrames(d); crossings(d); fixCrossXrefs(d); fixC08(d); repairLabelCross(d); repairBodyCross(d); enforceC13(d); audit(d);
+      snapEnds(d); forceOrtho(d); fitRoutedFrames(d); crossings(d); fixCrossXrefs(d); fixC08(d); repairLabelCross(d); repairBodyCross(d); enforceC13(d); nudgeC14(d); crossings(d); nudgeC14(d); audit(d);
       if (window.EVSE_GEO) window.EVSE_GEO.lastDesign = d;
       return d;
     } else {
@@ -2977,6 +3189,13 @@ window.EVSE_GEO = (function () {
     repairLabelCross(d);
     repairBodyCross(d);
     enforceC13(d);
+    d.c14Nudged = nudgeC14(d);
+    crossings(d);
+    d.c14Nudged += nudgeC14(d);
+    crossings(d);
+    d.c05Nudged = nudgeC05(d);
+    crossings(d);
+    d.xrefFixed = fixXrefOverlap(d);
     crossings(d); audit(d);
     if (window.EVSE_GEO) window.EVSE_GEO.lastDesign = d; /* V5-EX1: 导出模块取当前方案 */
     return d;
