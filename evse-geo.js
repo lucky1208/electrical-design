@@ -79,9 +79,38 @@ window.EVSE_GEO = (function () {
     const x = x0 + (ANCHW[t.a] || 0) * wTxt;
     return { sheet: d.sheet, x: x - 2, y: y0 - 11, w: wTxt + 4, h: 32, kind: 'label', id: d.id };
   }
-  function pinOf(dv, pid) {
+  function pinKeepouts(d) {
+    const out = [];
+    (d.sym.pins || []).forEach(function (p) {
+      const a = abs(d, p);
+      const len = Math.max(6, (p.len || 0) + 6), half = 4;
+      let r;
+      if (p.d === 'W') r = { x: a.x, y: a.y - half, w: len, h: half * 2 };
+      else if (p.d === 'E') r = { x: a.x - len, y: a.y - half, w: len, h: half * 2 };
+      else if (p.d === 'N') r = { x: a.x - half, y: a.y, w: half * 2, h: len };
+      else r = { x: a.x - half, y: a.y - len, w: half * 2, h: len };
+      out.push(r);
+    });
+    return out;
+  }  function pinOf(dv, pid) {
     for (let i = 0; i < dv.sym.pins.length; i++) if (dv.sym.pins[i].n === pid) return dv.sym.pins[i];
     return null;
+  }
+  /* 器件禁止布线区：本体 + 全部引脚外沿，core 保留纯本体用于端点引出段豁免 */
+  function deviceKeepout(d) {
+    const dm = devDims(d);
+    let x0 = d.x, y0 = d.y, x1 = d.x + dm.w, y1 = d.y + dm.h;
+    (d.sym.pins || []).forEach(function (p) {
+      const a = abs(d, p);
+      x0 = Math.min(x0, a.x); y0 = Math.min(y0, a.y);
+      x1 = Math.max(x1, a.x); y1 = Math.max(y1, a.y);
+    });
+    const pad = 2;
+    return {
+      sheet: d.sheet, id: d.id,
+      x: x0 - pad, y: y0 - pad, w: x1 - x0 + pad * 2, h: y1 - y0 + pad * 2,
+      core: { x: d.x, y: d.y, w: dm.w, h: dm.h }
+    };
   }
   function pinAbs(map, ref) {
     const dv = map[ref.d]; if (!dv) return null;
@@ -356,7 +385,7 @@ window.EVSE_GEO = (function () {
     design.sheets.forEach(function (s) { obst[s.no] = []; });
     design.devices.forEach(function (d) {
       if (d.sym.isBus || d.x == null || d.pwr) return; /* v2.0.4: 旗标非实体 */
-      (obst[d.sheet] || []).push({ id: d.id, x: d.x, y: d.y, w: devDims(d).w, h: devDims(d).h });
+      (obst[d.sheet] || []).push(deviceKeepout(d));
     });
     const used = {}; design.sheets.forEach(function (s) { used[s.no] = newUsed(); });
     const soft = {}; design.sheets.forEach(function (s) { soft[s.no] = []; });
@@ -501,7 +530,12 @@ window.EVSE_GEO = (function () {
       for (let i = 0; i < sg.length; i++) {
         for (let j = 0; j < ob.length; j++) {
           const r = ob[j];
-          if (r.id === ida || r.id === idb) { if (!OWN_HARD || i === 0 || i === sg.length - 1) continue; } /* V11: COMM/CTL 信号线自体亦硬障碍（首末引出段豁免）；V12e 回滚：全局自体硬障会引发 separate 连锁回归，待精准方案 */
+          if (r.id === ida || r.id === idb) {
+            const stub = i === 0 || i === sg.length - 1;
+            const core = r.core || r;
+            if (stub && !bodyHitRect(sg[i], core)) continue;
+            if (stub) return false;
+          }
           if (hitRect(sg[i], r)) return false;
         }
         if (useSoft && soft) {
@@ -550,10 +584,10 @@ window.EVSE_GEO = (function () {
     if (!last) return null;
     /* 第2轮：A* 通道绕障（避器件 + 避文字）；V12: OWN_HARD 不在这里松（自体穿越留给第5轮兕底） */
     let ap = pathFindAdaptive(A, B, ob, soft || [], used, ida, idb, a1, b1, A0, B0, false, strict);
-    if (ap) { VIA = 'astar'; return orient(ap, A0); }
+    if (ap) { const po = orient(ap, A0); if (ok(po, true)) { VIA = 'astar'; return po; } }
     /* 第3轮：A* 仅绕器件（允许压文字，C02 优先于 C08） */
     let ap2 = pathFindAdaptive(A, B, ob, soft || [], used, ida, idb, a1, b1, A0, B0, true, strict);
-    if (ap2) { VIA = 'astar-nosoft'; return orient(ap2, A0); }
+    if (ap2) { const po = orient(ap2, A0); if (ok(po, false)) { VIA = 'astar-nosoft'; return po; } }
     /* 第4轮：不穿器件优先于间距（C02 > C05），先避文字再不避 */
     for (let si = 0; si < shapes.length; si++) {
       for (let k = 0; k < shapes[si].n; k++) {
@@ -567,13 +601,12 @@ window.EVSE_GEO = (function () {
         if (ok(c, false, true)) { VIA = 'shape-hard'; return orient(c, A0); }
       }
     }
-    /* 第5轮（V12）：自体硬障碍最后兕底——仅当以上全失败才允许穿自体 */
-    if (OWN_HARD) {
-      OWN_HARD = false;
-      const ap5 = pathFindAdaptive(A, B, ob, soft || [], used, ida, idb, a1, b1, A0, B0, false, strict)
-        || pathFindAdaptive(A, B, ob, soft || [], used, ida, idb, a1, b1, A0, B0, true, strict);
-      OWN_HARD = true;
-      if (ap5) { VIA = 'astar-ownlast'; return orient(ap5, A0); }
+    /* 第5轮（V2.2）：禁止“穿自体”兜底；无路径时明确失败，交由布局/通道扩容处理 */
+    /* V2.2：硬禁区-only 通道兜底——忽略文字/已用通道，仍不得穿越器件与管脚区 */
+    const apH = pathFindAdaptive(A, B, ob, [], null, ida, idb, a1, b1, A0, B0, true, true);
+    if (apH) {
+      const ph = orient(apH, A0);
+      if (ok(ph, false, true)) { VIA = 'astar-hard'; return ph; }
     }
     /* MWESS 方案禁止穿器件兜底；无路时明确留错并阻止误交付。 */
     if (strict) { VIA = 'NO_CLEAR_PATH'; return null; }
@@ -683,7 +716,7 @@ window.EVSE_GEO = (function () {
     const feed = function (r) {
       LANES.forEach(function (L) { xv.push(r.x - L, r.x + r.w + L); yv.push(r.y - L, r.y + r.h + L); });
     };
-    for (let i = 0; i < hard.length; i++) { const r = hard[i]; if ((r.id === ida || r.id === idb) && (!OWN_HARD || strict)) continue; if (!overlap(r, bb)) continue; H.push(r); feed(r); } /* 端点器件仅允许引出段穿越；严格模式的 A* 从 pin 外引点起步 */
+    for (let i = 0; i < hard.length; i++) { const r = hard[i]; if (r.id === ida || r.id === idb) continue; if (!overlap(r, bb)) continue; H.push(r); feed(r); } /* 端点器件不参与 A* 硬障碍，最终 ok() 用 core 严格复核首末段与中间段 */
     for (let i = 0; i < soft.length; i++) { const r = soft[i]; if (r.id === ida || r.id === idb) continue; if (!overlap(r, bb)) continue; S.push(r); feed(r); }
     if (!H.length && !S.length) return null;
     xv.push(Math.round((a1[0] + b1[0]) / 2));
@@ -1361,7 +1394,7 @@ window.EVSE_GEO = (function () {
     const obst = {}; design.sheets.forEach(function (s) { obst[s.no] = []; });
     design.devices.forEach(function (d) {
       if (d.sym.isBus || d.sym.isXref || d.x == null) return;
-      (obst[d.sheet] || []).push({ id: d.id, x: d.x, y: d.y, w: devDims(d).w, h: devDims(d).h });
+      (obst[d.sheet] || []).push(deviceKeepout(d));
     });
     const used = {}; design.sheets.forEach(function (s) { used[s.no] = newUsed(); });
     design.wires.forEach(function (w) {
@@ -1539,23 +1572,21 @@ window.EVSE_GEO = (function () {
     /* --- C 制图规范 --- */
     let nonOrtho = 0, thruDev = 0, offGrid = 0, segCount = 0, totalLen = 0, bends = 0;
     const obst = design.devices.filter(function (d) { return !d.sym.isBus && !d.sym.isXref && !d.pwr && d.x != null; })
-      .map(function (d) { return { id: d.id, sheet: d.sheet, x: d.x, y: d.y, w: d.sym.w, h: d.sym.h }; });
+      .map(function (d) { return deviceKeepout(d); });
     design.wires.forEach(function (w) {
       const sg = segsOf(w.pts); segCount += sg.length; bends += Math.max(0, w.pts.length - 2);
-      const n = netById(design, w.net);
       sg.forEach(function (s) {
         totalLen += Math.abs(s.x2 - s.x1) + Math.abs(s.y2 - s.y1);
         if (Math.abs(s.x1 - s.x2) > 0.01 && Math.abs(s.y1 - s.y2) > 0.01) nonOrtho++;
         if (Math.abs(s.x1 % 1) > 0.01 || Math.abs(s.y1 % 1) > 0.01) offGrid++;
         obst.forEach(function (r) {
           if (r.sheet !== w.sheet) return;
-          if (n && (r.id === n.a.d || r.id === n.b.d)) return;
-          if (bodyHitRect(s, r)) thruDev++;
+          if (bodyHitRect(s, r.core)) thruDev++;
         });
       });
     });
     add('C', 'C01', '全部走线正交（无斜线）', nonOrtho === 0, nonOrtho ? nonOrtho + ' 段非正交' : segCount + ' 段全部水平/垂直');
-    add('C', 'C02', '走线不穿越器件本体', thruDev === 0, thruDev ? thruDev + ' 段穿越器件（需人工挤线或改布局）' : '0 段穿越', thruDev ? 'warn' : 'pass');
+    add('C', 'C02', '走线不穿越器件本体（含自身端子）', thruDev === 0, thruDev ? thruDev + ' 段穿越器件（需人工挤线或改布局）' : '0 段穿越', thruDev ? 'warn' : 'pass');
     add('C', 'C03', '正交交叉一律画半圆跨越（不连接）', true, design.hops.length + ' 处跨越由统一后处理生成，与绘制顺序无关');
     add('C', 'C04', '真实连接点画实心结点', true, design.junctions.length + ' 个结点');
     let tight = 0;
@@ -1644,6 +1675,23 @@ window.EVSE_GEO = (function () {
       if (badW) inBody++;
     });
     add('C', 'C11', '走线避开器件外框外扩 6px 净空区（端子外引段除外）', inBody === 0, inBody ? inBody + ' 条线进入器件外框外扩 6px 净空区（非器件本体穿越）' : '端子外引段豁免后均满足 6px 净空', inBody ? 'warn' : 'pass');
+    let pinHit = 0;
+    design.wires.forEach(function (w) {
+      const sg = segsOf(w.pts), n = netById(design, w.net);
+      design.devices.forEach(function (v) {
+        if (v.sheet !== w.sheet || v.x == null || v.sym.isBus || v.sym.isXref || v.pwr) return;
+        const prs = pinKeepouts(v);
+        for (let i = 0; i < sg.length; i++) {
+          const own = n && (v.id === n.a.d || v.id === n.b.d);
+          const stub = i === 0 || i === sg.length - 1;
+          if (own && stub) continue;
+          for (let pi = 0; pi < prs.length; pi++) {
+            if (bodyHitRect(sg[i], prs[pi])) { pinHit++; i = sg.length; break; }
+          }
+        }
+      });
+    });
+    add('C', 'C12', '走线不穿越元器件管脚延伸区', pinHit === 0, pinHit ? pinHit + ' 条线穿越管脚延伸区（禁止区已扩展到引脚外沿）' : '0 条线穿越管脚延伸区', pinHit ? 'warn' : 'pass');
     add('C', 'C10', '走线端点终结在真实物理端子上', endOff === 0,
       endOff ? endOff + ' 处脉线脱离引脚：' + endEx.join('、') : design.wires.length * 2 + ' 个端点全部钉在端子上');
     /* LIB-R20 禁止重叠堆积：器件本体 / 跨页符 / 标注文字带互不重叠 */
@@ -1811,7 +1859,7 @@ window.EVSE_GEO = (function () {
     const obst = {}; design.sheets.forEach(function (s) { obst[s.no] = []; });
     design.devices.forEach(function (d) {
       if (d.sym.isBus || d.x == null) return;
-      (obst[d.sheet] || []).push({ id: d.id, x: d.x, y: d.y, w: devDims(d).w, h: devDims(d).h });
+      (obst[d.sheet] || []).push(deviceKeepout(d));
     });
     const used = {}; design.sheets.forEach(function (s) { used[s.no] = newUsed(); });
     const bad = [];
@@ -1846,7 +1894,7 @@ window.EVSE_GEO = (function () {
     const obst = {};
     design.devices.forEach(function (d) {
       if (d.sym.isBus || d.x == null) return;
-      (obst[d.sheet] = obst[d.sheet] || []).push({ id: d.id, x: d.x, y: d.y, w: d.sym.w, h: d.sym.h });
+      (obst[d.sheet] = obst[d.sheet] || []).push(deviceKeepout(d));
     });
     for (let round = 0; round < 2; round++) {
       let fixed = 0;
@@ -2514,6 +2562,201 @@ window.EVSE_GEO = (function () {
     return design;
   }
 
+  function bodyViolationCount(design) {
+    const devs = design.devices.filter(function (d) { return d.x != null && !d.sym.isBus && !d.sym.isXref && !d.pwr; }).map(deviceKeepout);
+    let n = 0;
+    design.wires.forEach(function (w) {
+      let bad = false;
+      segsOf(w.pts).forEach(function (s) {
+        if (bad) return;
+        devs.forEach(function (r) { if (r.sheet === w.sheet && bodyHitRect(s, r.core)) bad = true; });
+      });
+      if (bad) n++;
+    });
+    return n;
+  }
+  function fixCrossXrefs(design) {
+    let cur = bodyViolationCount(design);
+    if (!cur) return 0;
+    const xrefs = design.devices.filter(function (d) { return d.xref && d.x != null; });
+    for (let xi = 0; xi < xrefs.length && cur > 0; xi++) {
+      const xr = xrefs[xi];
+      const nets = design.nets.filter(function (n) { return n.a.d === xr.id || n.b.d === xr.id; });
+      if (!nets.length) continue;
+      const ownWires = design.wires.filter(function (w) { return nets.some(function (n) { return n.id === w.net; }); });
+      let bad = false;
+      ownWires.forEach(function (w) {
+        if (bad) return;
+        const devs = design.devices.filter(function (d) { return d.x != null && !d.sym.isBus && !d.sym.isXref && !d.pwr; }).map(deviceKeepout);
+        segsOf(w.pts).forEach(function (s) {
+          if (bad) return;
+          devs.forEach(function (r) { if (r.sheet === w.sheet && bodyHitRect(s, r.core)) bad = true; });
+        });
+      });
+      if (!bad) continue;
+      const xp = xr.sym.pins[0];
+      if (!xp) continue;
+      const others = [];
+      nets.forEach(function (n) {
+        const ep = n.a.d === xr.id ? n.b : n.a;
+        const dv = design.map[ep.d];
+        if (dv && !dv.xref) others.push({ dv: dv, p: ep.p });
+      });
+      if (!others.length) continue;
+      const cands = [];
+      others.forEach(function (o) {
+        const pa = pinAbs(design.map, { d: o.dv.id, p: o.p });
+        if (!pa) return;
+        [40, 80, 120].forEach(function (off) {
+          cands.push({ x: pa.x + off - xp.x, y: pa.y - xp.y });
+          cands.push({ x: pa.x - off - xp.x, y: pa.y - xp.y });
+          cands.push({ x: pa.x - xp.x, y: pa.y + off - xp.y });
+          cands.push({ x: pa.x - xp.x, y: pa.y - off - xp.y });
+        });
+      });
+      const oldWires = JSON.parse(JSON.stringify(design.wires));
+      const oldX = xr.x, oldY = xr.y;
+      const bb = (design.boxes || []).filter(function (b) { return b.id === xr.id && b.kind === 'xref'; })[0];
+      const oldB = bb ? { x: bb.x, y: bb.y } : null;
+      for (let ci = 0; ci < cands.length; ci++) {
+        const c = cands[ci];
+        if (c.x < 60 || c.y < 60) continue;
+        xr.x = c.x; xr.y = c.y;
+        if (bb) { bb.x = xr.x - 2; bb.y = xr.y - 2; }
+        reroute(design, [xr.id]);
+        const now = bodyViolationCount(design);
+        if (now < cur) { cur = now; break; }
+        design.wires = JSON.parse(JSON.stringify(oldWires));
+        xr.x = oldX; xr.y = oldY;
+        if (bb && oldB) { bb.x = oldB.x; bb.y = oldB.y; }
+      }
+    }
+    return cur;
+  }  function repairLabelCross(design) {
+    const devs = design.devices.filter(function (d) { return d.x != null && !d.sym.isBus && !d.sym.isXref && !d.pwr; }).map(deviceKeepout);
+    const boxes = (design.boxes || []).filter(function (b) { return b.kind === 'label' || b.kind === 'xref'; });
+    const samePt = function (a, b) { return Math.abs(a[0] - b[0]) < 0.01 && Math.abs(a[1] - b[1]) < 0.01; };
+    const boxHit = function (s, sheet, net) {
+      return boxes.filter(function (b) {
+        if (b.sheet !== sheet) return false;
+        if (net && (b.id === net.a.d || b.id === net.b.d)) return false;
+        return bodyHitRect(s, b);
+      });
+    };
+    const bodyBad = function (segs, sheet) {
+      for (let i = 0; i < segs.length; i++) for (let j = 0; j < devs.length; j++) if (devs[j].sheet === sheet && bodyHitRect(segs[i], devs[j].core)) return true;
+      return false;
+    };
+    let fixed = 0;
+    for (let pass = 0; pass < 3; pass++) {
+      let changed = false;
+      design.wires.forEach(function (w) {
+        const net = netById(design, w.net);
+        for (let i = 0; i + 1 < w.pts.length; i++) {
+          const p = w.pts[i], q = w.pts[i + 1];
+          if (samePt(p, q)) continue;
+          const horiz = Math.abs(p[1] - q[1]) < 0.01;
+          const s = horiz ? { v: false, x1: p[0], x2: q[0], y1: p[1], y2: q[1] } : { v: true, x1: p[0], x2: q[0], y1: p[1], y2: q[1] };
+          if (!boxHit(s, w.sheet, net).length) continue;
+          const cands = [];
+          [8, 16, 24, 32, 48, 64, 96].forEach(function (g) {
+            if (horiz) { cands.push([[p[0], p[1] + g], [q[0], q[1] + g]]); cands.push([[p[0], p[1] - g], [q[0], q[1] - g]]); }
+            else { cands.push([[p[0] + g, p[1]], [q[0] + g, q[1]]]); cands.push([[p[0] - g, p[1]], [q[0] - g, q[1]]]); }
+          });
+          let done = false;
+          for (let ci = 0; ci < cands.length && !done; ci++) {
+            const np = w.pts.slice(0, i + 1).concat(cands[ci], w.pts.slice(i + 1));
+            const clean = [np[0]];
+            for (let k = 1; k < np.length; k++) if (!samePt(np[k], clean[clean.length - 1])) clean.push(np[k]);
+            const ss = segsOf(clean);
+            let bad = bodyBad(ss, w.sheet);
+            for (let k = 0; k < ss.length && !bad; k++) if (boxHit(ss[k], w.sheet, net).length) bad = true;
+            if (bad) continue;
+            w.pts = clean; w.manual = true; w.via = 'REPAIR-LABEL';
+            fixed++; changed = true; done = true;
+          }
+          if (done) break;
+        }
+      });
+      if (!changed) break;
+    }
+    return fixed;
+  }  function repairBodyCross(design) {
+    const devs = design.devices.filter(function (d) { return d.x != null && !d.sym.isBus; }).map(deviceKeepout);
+    const hits = function (s, sheet, opt) {
+      return devs.filter(function (r) {
+        if (r.sheet !== sheet || !bodyHitRect(s, r.core)) return false;
+        if (opt && opt.n && (r.id === opt.n.a.d || r.id === opt.n.b.d) && (opt.k === 0 || opt.k === opt.total - 1)) return false;
+        return true;
+      });
+    };
+    const samePt = function (a, b) { return Math.abs(a[0] - b[0]) < 0.01 && Math.abs(a[1] - b[1]) < 0.01; };
+    let fixed = 0;
+    for (let pass = 0; pass < 6; pass++) {
+      let changed = false;
+      design.wires.forEach(function (w) {
+        for (let i = 0; i + 1 < w.pts.length; i++) {
+          const p = w.pts[i], q = w.pts[i + 1];
+          if (samePt(p, q)) continue;
+          const horiz = Math.abs(p[1] - q[1]) < 0.01;
+          const s = horiz
+            ? { v: false, x1: p[0], x2: q[0], y1: p[1], y2: q[1] }
+            : { v: true, x1: p[0], x2: q[0], y1: p[1], y2: q[1] };
+          const crossed = hits(s, w.sheet);
+          if (!crossed.length) continue;
+          const cands = [];
+          if (horiz) {
+            const top = Math.min.apply(null, crossed.map(function (r) { return r.y; }));
+            const bot = Math.max.apply(null, crossed.map(function (r) { return r.y + r.h; }));
+            [12, 24, 40, 64, 96, 128, 192, 256, 384, 512, 768, 1024, 1280, 1536, 2048].forEach(function (g) {
+              [top - g, bot + g].forEach(function (c) {
+                cands.push([[p[0], c], [q[0], c]]);
+                [0, 12, -12, 24, -24].forEach(function (dx0) {
+                  [0, 12, -12, 24, -24].forEach(function (dx1) {
+                    if (!dx0 && !dx1) return;
+                    cands.push([[p[0], p[1]], [p[0] + dx0, p[1]], [p[0] + dx0, c], [q[0] + dx1, c], [q[0] + dx1, q[1]], [q[0], q[1]]]);
+                  });
+                });
+              });
+            });
+          } else {
+            const left = Math.min.apply(null, crossed.map(function (r) { return r.x; }));
+            const right = Math.max.apply(null, crossed.map(function (r) { return r.x + r.w; }));
+            [12, 24, 40, 64, 96, 128, 192, 256, 384, 512, 768, 1024, 1280, 1536, 2048].forEach(function (g) {
+              [left - g, right + g].forEach(function (c) {
+                cands.push([[c, p[1]], [c, q[1]]]);
+                [0, 12, -12, 24, -24].forEach(function (dy0) {
+                  [0, 12, -12, 24, -24].forEach(function (dy1) {
+                    if (!dy0 && !dy1) return;
+                    cands.push([[p[0], p[1]], [p[0], p[1] + dy0], [c, p[1] + dy0], [c, q[1] + dy1], [q[0], q[1] + dy1], [q[0], q[1]]]);
+                  });
+                });
+              });
+            });
+          }
+          let done = false;
+          for (let ci = 0; ci < cands.length && !done; ci++) {
+            const np = w.pts.slice(0, i + 1).concat(cands[ci], w.pts.slice(i + 1));
+            const clean = [np[0]];
+            for (let k = 1; k < np.length; k++) if (!samePt(np[k], clean[clean.length - 1])) clean.push(np[k]);
+            const ss = segsOf(clean);
+            let bad = false;
+            const wn = netById(design, w.net);
+            for (let k = 0; k < ss.length && !bad; k++) if (hits(ss[k], w.sheet, { n: wn, k: k, total: ss.length }).length) bad = true;
+            if (bad) continue;
+            w.pts = clean;
+            w.manual = true;
+            w.via = 'REPAIR-BODY';
+            fixed++; changed = true; done = true;
+          }
+            if (done) break;
+        }
+      });
+      if (!changed) break;
+    }
+    design.bodyRepair = fixed;
+    return fixed;
+  }
   function generate(params) {
     let d;
     if (params && params.family === 'mwess') {
@@ -2536,7 +2779,7 @@ window.EVSE_GEO = (function () {
       fixC08(d);
       fixClear8(d);
       if (window.EVSE_LABELFIX) window.EVSE_LABELFIX.run(d);
-      snapEnds(d); forceOrtho(d); fitRoutedFrames(d); crossings(d); audit(d);
+      snapEnds(d); forceOrtho(d); fitRoutedFrames(d); crossings(d); fixCrossXrefs(d); fixC08(d); repairLabelCross(d); repairBodyCross(d); audit(d);
       if (window.EVSE_GEO) window.EVSE_GEO.lastDesign = d;
       return d;
     } else {
@@ -2566,10 +2809,14 @@ window.EVSE_GEO = (function () {
     separate(d, 2); snapEnds(d); forceOrtho(d); /* V12d: 平行间距收敛前置 */
     fixClear8(d); /* V12d: 线-器件外框 ≥8px 避让 oracle */
     deSpike(d);
+    fixCrossXrefs(d);
+    fixC08(d);
+    repairLabelCross(d);
+    repairBodyCross(d);
     crossings(d); audit(d);
     if (window.EVSE_GEO) window.EVSE_GEO.lastDesign = d; /* V5-EX1: 导出模块取当前方案 */
     return d;
   }
 
-  return { MIN_CLEAR, ESC, SNAP, place, route, separate, snapEnds, forceOrtho, crossings, detouch, reroute, rerouteDevice, hubAlign, dragSegment, dragJunction, audit, generate, segsOf, pinAbs, pinOf, rotateDev: function (design, id) { const d = design.map[id]; if (!d) return false; d.rot = ((d.rot || 0) + 90) % 360; return true; }, devDims: devDims, RUBRIC, textBands, overlap, labelBandOf: labelBand, hitRectOf: function (s, b) { return hitRect(s, { x: b.x, y: b.y, w: b.w, h: b.h }); } };
+  return { MIN_CLEAR, ESC, SNAP, place, route, separate, snapEnds, forceOrtho, crossings, detouch, reroute, rerouteDevice, hubAlign, dragSegment, dragJunction, audit, generate, repairBodyCross, segsOf, pinAbs, pinOf, rotateDev: function (design, id) { const d = design.map[id]; if (!d) return false; d.rot = ((d.rot || 0) + 90) % 360; return true; }, devDims: devDims, RUBRIC, textBands, overlap, labelBandOf: labelBand, hitRectOf: function (s, b) { return hitRect(s, { x: b.x, y: b.y, w: b.w, h: b.h }); } };
 })();
