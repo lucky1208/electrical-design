@@ -2837,6 +2837,32 @@ window.EVSE_GEO = (function () {
     design.bodyRepair = fixed;
     return fixed;
   }
+  function wireHardClean(design, w) {
+    const sg = segsOf(w.pts);
+    for (let di = 0; di < design.devices.length; di++) {
+      const v = design.devices[di];
+      if (v.sheet !== w.sheet || v.x == null || v.sym.isBus || v.sym.isXref || v.pwr) continue;
+      const ko = deviceKeepout(v), db = dashedBand(v), dm = devDims(v);
+      const ir = { x: v.x - 6, y: v.y - 6, w: dm.w + 12, h: dm.h + 12 };
+      for (let i = 0; i < sg.length; i++) {
+        const s = sg[i], lead = leadStubSegW(w, s, i, sg.length, design);
+        if (!lead && bodyHitRect(s, ko.core)) return false;
+        if (!lead) {
+          for (let t = 0.08; t <= 0.92; t += 0.08) {
+            const x = s.x1 + (s.x2 - s.x1) * t, y = s.y1 + (s.y2 - s.y1) * t;
+            if (x > ir.x && x < ir.x + ir.w && y > ir.y && y < ir.y + ir.h) return false;
+          }
+        }
+        const n = netById(design, w.net);
+        const own = n && (v.id === n.a.d || v.id === n.b.d);
+        const stub = i === 0 || i === sg.length - 1;
+        if (own && stub && !bodyHitRect(s, ko.core)) continue;
+        if (!bodyHitRect(s, ko.core) && bodyHitRect(s, ko)) return false;
+        if (!bodyHitRect(s, db.core) && bodyHitRect(s, db)) return false;
+      }
+    }
+    return true;
+  }
   function c02Hits(design) {
     const out = [];
     design.wires.forEach(function (w) {
@@ -3158,6 +3184,31 @@ const item = candidates[wi];
             c11Hits(design).some(function (h) { return h.wire === w; });
           if (bad) { design.wires.pop(); continue; }
           n.err = null; n.wire_id = w.id; fixed++; accepted = true;
+        }
+      }
+      if (!accepted) {
+        const ys = [];
+        const sA = A.d === 'S' ? 1 : A.d === 'N' ? -1 : 1;
+        const sB = B.d === 'S' ? 1 : B.d === 'N' ? -1 : -1;
+        [8, 16, 24, 40, 80].forEach(function (o) { ys.push(A.y + sA * o, A.y - sA * o); });
+        const ybs = [];
+        for (let yy = 40; yy <= B.y - 8; yy += 40) ybs.push(yy);
+        for (let yy = B.y + 40; yy <= B.y + 600; yy += 40) ybs.push(yy);
+        [8, 16, 24, 40, 80, 120, 160, 200].forEach(function (o) { ybs.push(B.y + sB * o); });
+        const xls = [];
+        for (let off = 40; off <= 360; off += 8) { xls.push(A.x + off); xls.push(A.x - off); xls.push(B.x + off); xls.push(B.x - off); }
+        for (let yi = 0; yi < ys.length && !accepted; yi++) {
+          for (let bi = 0; bi < ybs.length && !accepted; bi++) {
+            for (let xi = 0; xi < xls.length && !accepted; xi++) {
+              if (xls[xi] < 20 || ys[yi] === ybs[bi]) continue;
+              const raw = [[A.x, A.y], [A.x, ys[yi]], [xls[xi], ys[yi]], [xls[xi], ybs[bi]], [B.x, ybs[bi]], [B.x, B.y]];
+              const pts = [];
+              raw.forEach(function (p) { if (!pts.length || pts[pts.length - 1][0] !== p[0] || pts[pts.length - 1][1] !== p[1]) pts.push(p); });
+              const w2 = { id: 'W-' + n.id, net: n.id, cls: n.cls, name: n.name, sheet: sheet, pts: pts, a: A, b: B, manual: true, via: 'EMERGENCY-CHANNEL' };
+              if (!wireHardClean(design, w2)) continue;
+              design.wires.push(w2); n.err = null; n.wire_id = w2.id; fixed++; accepted = true;
+            }
+          }
         }
       }
     });
