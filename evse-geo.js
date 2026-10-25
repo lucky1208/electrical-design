@@ -1755,6 +1755,9 @@ window.EVSE_GEO = (function () {
       for (let i = 0; i < group.length; i++) for (let j = i + 1; j < group.length; j++) {
         const a = group[i], b = group[j];
         if (a.w === b.w || a.w.net === b.w.net || Math.abs(a.coord - b.coord) > 0.5) continue;
+        const na = netById(design, a.w.net), nb = netById(design, b.w.net);
+        const pk = function (r) { return r ? r.d + ':' + r.p : ''; };
+        if (na && nb && (pk(na.a) === pk(nb.a) || pk(na.a) === pk(nb.b) || pk(na.b) === pk(nb.a) || pk(na.b) === pk(nb.b))) continue;
         const ol = a.s.v
           ? Math.min(Math.max(a.s.y1, a.s.y2), Math.max(b.s.y1, b.s.y2)) - Math.max(Math.min(a.s.y1, a.s.y2), Math.min(b.s.y1, b.s.y2))
           : Math.min(Math.max(a.s.x1, a.s.x2), Math.max(b.s.x1, b.s.x2)) - Math.max(Math.min(a.s.x1, a.s.x2), Math.min(b.s.x1, b.s.x2));
@@ -2834,6 +2837,89 @@ window.EVSE_GEO = (function () {
     design.bodyRepair = fixed;
     return fixed;
   }
+  function c12Hits(design) {
+    const out = [];
+    design.wires.forEach(function (w) {
+      const n = netById(design, w.net), sg = segsOf(w.pts);
+      design.devices.forEach(function (v) {
+        if (v.sheet !== w.sheet || v.x == null || v.sym.isBus || v.sym.isXref || v.pwr) return;
+        const ko = deviceKeepout(v);
+        for (let i = 0; i < sg.length; i++) {
+          const own = n && (v.id === n.a.d || v.id === n.b.d);
+          const stub = i === 0 || i === sg.length - 1;
+          if (own && stub && !bodyHitRect(sg[i], ko.core)) continue;
+          if (!bodyHitRect(sg[i], ko.core) && bodyHitRect(sg[i], ko)) { out.push({ wire: w, dev: v, seg: i }); break; }
+        }
+      });
+    });
+    return out;
+  }
+  function c13Hits(design) {
+    const out = [];
+    design.wires.forEach(function (w) {
+      const n = netById(design, w.net);
+      const sg = segsOf(w.pts);
+      design.devices.forEach(function (v) {
+        if (v.sheet !== w.sheet || v.x == null || v.sym.isBus || v.sym.isXref || v.pwr) return;
+        const db = dashedBand(v);
+        for (let i = 0; i < sg.length; i++) {
+          const own = n && (v.id === n.a.d || v.id === n.b.d);
+          const stub = i === 0 || i === sg.length - 1;
+          if (own && stub && !bodyHitRect(sg[i], db.core)) continue;
+          if (!bodyHitRect(sg[i], db.core) && bodyHitRect(sg[i], db)) { out.push({ wire: w, dev: v, seg: i }); break; }
+        }
+      });
+    });
+    return out;
+  }
+  function rerouteWireHard(design, w) {
+    const n = netById(design, w.net); if (!n) return false;
+    const M = design.map;
+    const A = pinAbs(M, n.a), B = pinAbs(M, n.b);
+    if (!A || !B) return false;
+    const sheet = w.sheet;
+    const obst = [];
+    design.devices.forEach(function (d) {
+      if (d.sheet !== sheet || d.sym.isBus || d.sym.isXref || d.x == null || d.pwr) return;
+      obst.push(deviceKeepout(d));
+      obst.push(dashedBand(d));
+    });
+    const used = newUsed();
+    design.wires.forEach(function (q) {
+      if (q === w || q.net === w.net || q.sheet !== sheet) return;
+      segsOf(q.pts).forEach(function (s) { addUsed(used, s); });
+    });
+    const soft = (design.soft || {})[sheet] || [];
+    A.esc = M[n.a.d] && M[n.a.d].sym.isXref ? 0 : ESC;
+    B.esc = M[n.b.d] && M[n.b.d].sym.isXref ? 0 : ESC;
+    const old = w.pts;
+    const pts = solve(A, B, obst, used, n.a.d, n.b.d, soft, w.cls,
+      !!(M[n.a.d].sym.noCross || M[n.b.d].sym.noCross), false);
+    if (!pts || pts.length < 2) return false;
+    w.pts = pts; w.a = A; w.b = B; w.manual = true; w.via = 'C13-REROUTE';
+    crossings(design);
+    const bad = c13Hits(design).some(function (h) { return h.wire === w; }) || c12Hits(design).some(function (h) { return h.wire === w; });
+    if (bad) { w.pts = old; w.via = 'C13-REROUTE-FAIL'; crossings(design); return false; }
+    return true;
+  }
+  function enforceC13(design) {
+    let fixed = 0;
+    for (let pass = 0; pass < 4; pass++) {
+      const hits = c13Hits(design).concat(c12Hits(design));
+      if (!hits.length) break;
+      const seen = {};
+      let any = false;
+      hits.forEach(function (h) {
+        if (seen[h.wire.id]) return;
+        seen[h.wire.id] = 1;
+        if (rerouteWireHard(design, h.wire)) { fixed++; any = true; }
+      });
+      if (!any) break;
+    }
+    design.c13Repaired = fixed;
+    return c13Hits(design).length;
+  }
+
   function generate(params) {
     let d;
     if (params && params.family === 'mwess') {
@@ -2856,7 +2942,7 @@ window.EVSE_GEO = (function () {
       fixC08(d);
       fixClear8(d);
       if (window.EVSE_LABELFIX) window.EVSE_LABELFIX.run(d);
-      snapEnds(d); forceOrtho(d); fitRoutedFrames(d); crossings(d); fixCrossXrefs(d); fixC08(d); repairLabelCross(d); repairBodyCross(d); audit(d);
+      snapEnds(d); forceOrtho(d); fitRoutedFrames(d); crossings(d); fixCrossXrefs(d); fixC08(d); repairLabelCross(d); repairBodyCross(d); enforceC13(d); audit(d);
       if (window.EVSE_GEO) window.EVSE_GEO.lastDesign = d;
       return d;
     } else {
@@ -2890,6 +2976,7 @@ window.EVSE_GEO = (function () {
     fixC08(d);
     repairLabelCross(d);
     repairBodyCross(d);
+    enforceC13(d);
     crossings(d); audit(d);
     if (window.EVSE_GEO) window.EVSE_GEO.lastDesign = d; /* V5-EX1: 导出模块取当前方案 */
     return d;
