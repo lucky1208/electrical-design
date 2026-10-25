@@ -79,7 +79,11 @@ window.EVSE_GEO = (function () {
     const x = x0 + (ANCHW[t.a] || 0) * wTxt;
     return { sheet: d.sheet, x: x - 2, y: y0 - 11, w: wTxt + 4, h: 32, kind: 'label', id: d.id };
   }
-  function pinKeepouts(d) {
+  function dashedBand(d) {
+    const dm = devDims(d);
+    return { sheet: d.sheet, id: d.id, x: d.x - 8, y: d.y - 8, w: dm.w + 16, h: dm.h + 16,
+      core: { x: d.x, y: d.y, w: dm.w, h: dm.h } };
+  }  function pinKeepouts(d) {
     const out = [];
     (d.sym.pins || []).forEach(function (p) {
       const a = abs(d, p);
@@ -1680,19 +1684,31 @@ window.EVSE_GEO = (function () {
       const sg = segsOf(w.pts), n = netById(design, w.net);
       design.devices.forEach(function (v) {
         if (v.sheet !== w.sheet || v.x == null || v.sym.isBus || v.sym.isXref || v.pwr) return;
-        const prs = pinKeepouts(v);
+        const ko = deviceKeepout(v);
         for (let i = 0; i < sg.length; i++) {
           const own = n && (v.id === n.a.d || v.id === n.b.d);
           const stub = i === 0 || i === sg.length - 1;
-          if (own && stub) continue;
-          for (let pi = 0; pi < prs.length; pi++) {
-            if (bodyHitRect(sg[i], prs[pi])) { pinHit++; i = sg.length; break; }
-          }
+          if (own && stub && !bodyHitRect(sg[i], ko.core)) continue;
+          if (!bodyHitRect(sg[i], ko.core) && bodyHitRect(sg[i], ko)) { pinHit++; break; }
         }
       });
     });
     add('C', 'C12', '走线不穿越元器件管脚延伸区', pinHit === 0, pinHit ? pinHit + ' 条线穿越管脚延伸区（禁止区已扩展到引脚外沿）' : '0 条线穿越管脚延伸区', pinHit ? 'warn' : 'pass');
-    add('C', 'C10', '走线端点终结在真实物理端子上', endOff === 0,
+    let dashHit = 0;
+    design.wires.forEach(function (w) {
+      const sg = segsOf(w.pts), n = netById(design, w.net);
+      design.devices.forEach(function (v) {
+        if (v.sheet !== w.sheet || v.x == null || v.sym.isBus || v.sym.isXref || v.pwr) return;
+        const db = dashedBand(v);
+        for (let i = 0; i < sg.length; i++) {
+          const own = n && (v.id === n.a.d || v.id === n.b.d);
+          const stub = i === 0 || i === sg.length - 1;
+          if (own && stub && !bodyHitRect(sg[i], db.core)) continue;
+          if (!bodyHitRect(sg[i], db.core) && bodyHitRect(sg[i], db)) { dashHit++; break; }
+        }
+      });
+    });
+    add('C', 'C13', '走线不进入器件虚线禁布框（本体外扩 8px）', dashHit === 0, dashHit ? dashHit + ' 条线进入虚线禁布框' : '0 条线进入虚线禁布框', dashHit ? 'warn' : 'pass');    add('C', 'C10', '走线端点终结在真实物理端子上', endOff === 0,
       endOff ? endOff + ' 处脉线脱离引脚：' + endEx.join('、') : design.wires.length * 2 + ' 个端点全部钉在端子上');
     /* LIB-R20 禁止重叠堆积：器件本体 / 跨页符 / 标注文字带互不重叠 */
     const bx = (design.boxes || []).filter(function (b) { return b.kind !== 'corridor'; }); /* V6-GCORR: 走廊不参与重叠审计 */
@@ -2634,7 +2650,7 @@ window.EVSE_GEO = (function () {
     return cur;
   }  function repairLabelCross(design) {
     const devs = design.devices.filter(function (d) { return d.x != null && !d.sym.isBus && !d.sym.isXref && !d.pwr; }).map(deviceKeepout);
-    const boxes = (design.boxes || []).filter(function (b) { return b.kind === 'label' || b.kind === 'xref'; });
+    const boxes = (design.boxes || []).filter(function (b) { return b.kind === 'label' || b.kind === 'xref'; }).concat(design.devices.filter(function (d) { return d.x != null && !d.sym.isBus && !d.sym.isXref && !d.pwr; }).map(dashedBand));
     const samePt = function (a, b) { return Math.abs(a[0] - b[0]) < 0.01 && Math.abs(a[1] - b[1]) < 0.01; };
     const boxHit = function (s, sheet, net) {
       return boxes.filter(function (b) {
@@ -2685,8 +2701,8 @@ window.EVSE_GEO = (function () {
     const devs = design.devices.filter(function (d) { return d.x != null && !d.sym.isBus; }).map(deviceKeepout);
     const hits = function (s, sheet, opt) {
       return devs.filter(function (r) {
-        if (r.sheet !== sheet || !bodyHitRect(s, r.core)) return false;
-        if (opt && opt.n && (r.id === opt.n.a.d || r.id === opt.n.b.d) && (opt.k === 0 || opt.k === opt.total - 1)) return false;
+        if (r.sheet !== sheet || !bodyHitRect(s, r)) return false;
+        if (opt && opt.n && (r.id === opt.n.a.d || r.id === opt.n.b.d) && (opt.k === 0 || opt.k === opt.total - 1) && !bodyHitRect(s, r.core)) return false;
         return true;
       });
     };
@@ -2702,7 +2718,7 @@ window.EVSE_GEO = (function () {
           const s = horiz
             ? { v: false, x1: p[0], x2: q[0], y1: p[1], y2: q[1] }
             : { v: true, x1: p[0], x2: q[0], y1: p[1], y2: q[1] };
-          const crossed = hits(s, w.sheet);
+          const crossed = hits(s, w.sheet, { n: netById(design, w.net), k: i, total: w.pts.length - 1 });
           if (!crossed.length) continue;
           const cands = [];
           if (horiz) {
