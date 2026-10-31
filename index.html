@@ -292,7 +292,7 @@
     <div class="rpane" data-rp="export">
       <button class="btn pri" id="bSvg">导出 SVG</button>
       <button class="btn" id="bJson">导出网表</button>
-      <button class="btn" id="bDxf" title="导出 DXF R12（可 AutoCAD/Eplan 导入）">DXF</button>
+      <button class="btn" id="bDxf" title="导出当前页 DXF 2000（毫米单位，含符号基元/文字/图层）">DXF</button>
       <button class="btn" id="bCsvNet" title="导出网表 CSV">CSV网表</button>
       <button class="btn" id="bCsvBom" title="导出 BOM CSV">CSV-BOM</button>
       <button class="btn" id="bPdf" title="打印为 PDF（另存）">打印PDF</button>
@@ -426,7 +426,8 @@
         <div class="busybox">
           <div class="spin" aria-hidden="true"></div>
           <div class="busytxt">正在生成图纸…</div>
-          <div class="busysub">布线 · 跨越处理 · 审计评分</div>
+          <div class="busysub" id="busySub">布线 · 跨越处理 · 审计评分</div>
+          <button class="btn" id="busyCancel" style="margin-top:12px">取消本次生成</button>
         </div>
       </div>
       <div class="status">
@@ -504,7 +505,7 @@
 <div id="compDlg" style="display:none;position:fixed;inset:0;background:rgba(8,11,16,.6);z-index:60">
   <div style="margin:4vh auto;width:880px;max-height:92vh;overflow:auto;background:#151b26;border:1px solid #2b3648;border-radius:12px;padding:18px 20px;color:#dbe4f0;box-shadow:0 18px 60px rgba(0,0,0,.5)">
     <div style="font-weight:700;font-size:14px;margin-bottom:4px" id="cdHead">新建自定义元器件</div>
-    <div style="font-size:11px;color:#8c96a3;margin-bottom:12px">定义位号前缀、名称、框体尺寸与各边引脚（引脚号/名称/电气域/方向），符号实时预览，保存到本浏览器后出现在左侧元件库「自定义」分组。也可上传芯片引脚图/原理图截图，或粘贴手册引脚定义文字，由大模型自动识别填充。</div>
+    <div style="font-size:11px;color:#8c96a3;margin-bottom:12px">定义位号前缀、名称、框体尺寸与各边引脚；ERC 类型和额定值必须来自人工确认的资料。AI 识别内容按假设处理，未确认的引脚保持 unclassified。</div>
     <div style="display:flex;gap:16px">
       <div style="flex:1;min-width:0">
         <div style="display:flex;gap:8px">
@@ -516,6 +517,14 @@
           <label class="f" style="width:96px"><span>框宽</span><input id="cdW" type="number" value="120" min="60" max="400" step="10"></label>
           <label class="f" style="width:96px"><span>最小高度</span><input id="cdMinH" type="number" value="56" min="36" max="400" step="4"></label>
         </div>
+        <div style="display:flex;gap:8px;align-items:end;margin:4px 0">
+          <label class="f" style="flex:1"><span>制造商</span><input id="cdMfr" type="text" placeholder="未知时留空"></label>
+          <label class="f" style="flex:1"><span>型号</span><input id="cdModel" type="text" placeholder="未知时留空"></label>
+          <label class="f" style="flex:1"><span>来源 ID</span><input id="cdSourceId" type="text" placeholder="数据手册/证书记录 ID"></label>
+          <label class="f" style="flex:1"><span>来源修订</span><input id="cdSourceRev" type="text" placeholder="须与来源记录版本/文件标识一致"></label>
+          <label class="f" style="width:108px"><span>数据状态</span><select id="cdElecStatus"><option value="unknown">未知</option><option value="assumption">假设</option><option value="verified">已核验</option></select></label>
+        </div>
+        <label class="f" style="display:block"><span>结构化额定值 JSON（数值格式：{\"ratedVoltageV\":{\"value\":1000,\"unit\":\"V\"}}）</span><input id="cdRatings" type="text" placeholder="{}"></label>
         <div style="display:flex;gap:8px;align-items:center;margin:8px 0 5px">
           <span style="font-size:11px;color:#8c96a3">引脚定义（数量不限，逐行填写）</span>
           <button class="btn" id="cdAddPin" style="margin-left:auto;padding:3px 9px">＋ 添加引脚</button>
@@ -523,7 +532,7 @@
           <input type="file" id="cdImgFile" accept="image/*" style="display:none">
         </div>
         <div style="display:flex;gap:4px;font-size:10px;color:#5f6b78;margin-bottom:3px;padding:0 2px">
-          <span style="width:52px">引脚号</span><span style="width:86px">名称</span><span style="width:56px">边</span><span style="width:70px">电气域</span><span style="width:56px">方向</span>
+          <span style="width:52px">引脚号</span><span style="width:86px">名称</span><span style="width:56px">边</span><span style="width:70px">电气域</span><span style="width:56px">方向</span><span style="width:128px">ERC 类型</span>
         </div>
         <div id="cdPins" style="max-height:240px;overflow:auto;border:1px solid #232b34;border-radius:6px;padding:6px"></div>
         <div style="margin-top:8px">
@@ -714,24 +723,77 @@
     return { pinNo: ST.opts.pinNo, pinName: ST.opts.pinName, devName: ST.opts.devName, layers: L,
       hiNet: ST.sel && (ST.sel.k === 'wire' || ST.sel.k === 'pin') ? ST.sel.net : null };
   }
+  function commitGeneratedDesign(next, fit) {
+    var prev = { design: D, calc: CALC_RESULT, stale: CALC_STALE, sheet: ST.sheet, hist: hist, fut: fut, sel: ST.sel };
+    try {
+      if (!next || !next.devices || !next.devices.length) throw new Error('生成了空设计（参数异常或引擎故障）');
+      D = next;
+      if (D.sheets && D.sheets.length && !D.sheets.some(function (s) { return s.no === ST.sheet; })) ST.sheet = D.sheets[0].no;
+      hist = []; fut = []; ST.sel = null;
+      CALC_RESULT = null; CALC_STALE = true;
+      paint(fit !== false); renderAll();
+      if (window.EVSE_GEO) window.EVSE_GEO.lastDesign = D;
+      if (D.audit && D.audit.blocking && D.audit.blocking.length) msg('⚠ 生成完成，但存在 ' + D.audit.blocking.length + ' 个阻断错误：' + D.audit.blocking.map(function (i) { return i.id; }).join('、') + '（见「属性/评分」）');
+      else msg('设计生成完成 · 自动规则已运行');
+      return D;
+    } catch (err) {
+      D = prev.design; CALC_RESULT = prev.calc; CALC_STALE = prev.stale; ST.sheet = prev.sheet; hist = prev.hist; fut = prev.fut; ST.sel = prev.sel;
+      if (window.EVSE_GEO) window.EVSE_GEO.lastDesign = D;
+      throw err;
+    }
+  }
+  function workerGenerate(params) {
+    if (!window.Worker || location.protocol === 'file:') return null;
+    var w;
+    try { w = new Worker(new URL('evse-worker.js', location.href), { name: 'EVSE schematic generation' }); }
+    catch (e) { return null; }
+    return new Promise(function (resolve, reject) {
+      designWorker = w; rejectDesignWorker = reject;
+      w.onmessage = function (event) {
+        var data = event.data || {};
+        if (data.type === 'progress') { setBusyPhase(data.message); return; }
+        designWorker = null; rejectDesignWorker = null; w.terminate();
+        if (data.type === 'result') resolve(data.design);
+        else reject(new Error(data.message || '后台生成器失败'));
+      };
+      w.onerror = function (event) {
+        designWorker = null; rejectDesignWorker = null; w.terminate();
+        reject(new Error(event.message || '后台生成器加载失败'));
+      };
+      w.onmessageerror = function () {
+        designWorker = null; rejectDesignWorker = null; w.terminate();
+        reject(new Error('后台生成结果无法解码'));
+      };
+      w.postMessage({ type: 'generate', params: params });
+    });
+  }
   function generate(fit) {
+    var oldParams = JSON.parse(JSON.stringify(ST.params || {}));
     ST.params = normalizeParams(ST.params.family, ST.params);
     delete ST.params.custom;
-    CALC_RESULT = null;
-    CALC_STALE = true;
     renderFields();
     var p = {}; Object.keys(ST.params).forEach(function (k) { p[k] = ST.params[k]; });
-    var t0 = performance.now();
-    D = window.EVSE_GEO.generate(p);
-    if (!D || !D.devices || !D.devices.length) { msg('⚠ 生成了空设计（参数异常或引擎故障）——请 Ctrl+F5 强制刷新后重试'); }
-    if (D && D.sheets && D.sheets.length && !D.sheets.some(function (s) { return s.no === ST.sheet; })) ST.sheet = D.sheets[0].no;
-    hist = []; fut = []; ST.sel = null;
-    if (D && D.audit && D.audit.blocking && D.audit.blocking.length) msg('⚠ 生成完成，但存在 ' + D.audit.blocking.length + ' 个阻断错误：' + D.audit.blocking.map(function (i) { return i.id; }).join('、') + '（见「属性/评分」）');
-    else msg('卢继雄倾注心力制作');
-    paint(fit !== false); renderAll();
+    var job = workerGenerate(p);
+    if (job) return job.then(function (next) { return commitGeneratedDesign(next, fit); }).catch(function (err) { ST.params = oldParams; renderFields(); throw err; });
+    setBusyPhase('正在主线程生成（当前环境不支持 Web Worker）');
+    return Promise.resolve().then(function () { return commitGeneratedDesign(window.EVSE_GEO.generate(p), fit); }).catch(function (err) { ST.params = oldParams; renderFields(); throw err; });
   }
   function msg(s) { var me = $('msg'); if (me) { me.textContent = s; me.title = s; me.style.color = ''; } }
   var busyOn = false;
+  var busyPhase = '', busyStartedAt = 0, busyClock = null;
+  var designWorker = null, rejectDesignWorker = null;
+  function setBusyPhase(label) {
+    busyPhase = String(label || '正在计算');
+    var sub = $('busySub'); if (sub) sub.textContent = busyPhase;
+  }
+  function cancelDesignGeneration() {
+    if (!designWorker) return false;
+    var w = designWorker, reject = rejectDesignWorker;
+    designWorker = null; rejectDesignWorker = null;
+    w.terminate();
+    if (reject) { var cancelled = new Error('已取消本次生成；画布与原参数已保留'); cancelled.code = 'CANCELLED'; reject(cancelled); }
+    return true;
+  }
   function runBusy(text, fn) {
     if (busyOn) return;
     busyOn = true;
@@ -743,6 +805,7 @@
     msg(text);
     var t0 = Date.now();
     function finish() {
+      if (busyClock) { clearInterval(busyClock); busyClock = null; }
       var left = Math.max(0, 320 - (Date.now() - t0));
       setTimeout(function () {
         if (el) { el.classList.remove('on'); el.setAttribute('aria-hidden', 'true'); }
@@ -750,10 +813,16 @@
         busyOn = false;
       }, left);
     }
+    busyStartedAt = Date.now(); setBusyPhase(text);
+    var bt = $('busyCancel'); if (bt) { bt.disabled = !window.Worker || location.protocol === 'file:'; bt.onclick = function () { if (!cancelDesignGeneration()) msg('本地文件模式或当前操作不支持取消'); }; }
+    busyClock = setInterval(function () {
+      var sec = Math.floor((Date.now() - busyStartedAt) / 1000), title = el && el.querySelector('.busytxt');
+      if (title) title.textContent = busyPhase + ' · ' + sec + ' 秒';
+    }, 1000);
     requestAnimationFrame(function () {
       setTimeout(function () {
-        try { fn(); } catch (err) { console.error(err); msg('⚠ 生成失败：' + ((err && err.message) || err) + '（画布保留上一次结果）'); }
-        finish();
+        try { Promise.resolve(fn()).catch(function (err) { if (err && err.code === 'CANCELLED') { msg(err.message); return; } console.error(err); msg('⚠ 生成失败：' + ((err && err.message) || err) + '（画布保留上一次结果）'); }).finally(finish); }
+        catch (err) { console.error(err); msg('⚠ 生成失败：' + ((err && err.message) || err) + '（画布保留上一次结果）'); finish(); }
       }, 40);
     });
   }
@@ -1277,7 +1346,7 @@
         next.name = pr.n + ' 示范站';
         ST.params = normalizeParams(pr.p.family, next);
         renderFields();
-        runBusy('正在载入方案并生成图纸…', function () { generate(true); msg('已载入方案：' + pr.n); });
+        runBusy('正在载入方案并生成图纸…', function () { return generate(true).then(function () { msg('已载入方案：' + pr.n); }); });
       };
     });
   }
@@ -1465,26 +1534,40 @@
     setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 100);
   }
   function exportGuard(label) {
-    if (!D || !D.audit || !D.audit.blocking || !D.audit.blocking.length) return true;
-    var codes = D.audit.blocking.map(function (i) { return i.id; }).join('、');
-    return window.confirm('当前图纸存在阻断错误（' + codes + '）。' + label + '只能作为概念草图，不能用于施工/生产。仍要导出？');
-  }  function exportSvg() {
+    if (!D) { msg('请先生成或打开图纸'); return false; }
+    var blocking = D.audit && D.audit.blocking ? D.audit.blocking : [];
+    var codes = blocking.length ? ' 阻断项：' + blocking.map(function (i) { return i.id; }).join('、') + '。' : '';
+    var concept = String(D.status || '').indexOf('CONCEPT_DRAFT') === 0 || !D.audit || D.audit.status !== 'PASS';
+    return window.confirm(label + '将导出当前图纸。' + codes + '\n当前文件状态：' + (D.status || '未标注') + '。自动审计结果不能代替器件选型、保护配合和工程签署。' + (concept ? '\n此文件仅为概念草图，不得用于施工、采购定型或生产。' : '') + '\n继续导出？');
+  }
+  window.EVSE_EXPORT_GUARD = exportGuard;
+  window.EVSE_CURRENT_SHEET = function () { return ST.sheet; };
+  window.EVSE_CURRENT_DESIGN = function () { return D; };
+  function exportSvg() {
+    if (!exportGuard('SVG')) return;
     dl('EVSE-CONCEPT-10' + ST.sheet + '.svg', window.EVSE_RENDER.fullSVG(D, ST.sheet, viewOpts()), 'image/svg+xml');
     msg('已导出 页' + ST.sheet + ' SVG');
   }
   function exportJson() {
+    if (!exportGuard('网表 JSON')) return;
+    var audit = D.audit || { status: 'NOT_RUN', blocking: [], score: [], items: [], stats: {}, total: null, grade: 'N/A' };
     var out = {
-      meta: { version: D.version, status: D.status, auditStatus: D.audit.status, blocking: D.audit.blocking.map(function (i) { return i.id; }), params: D.params, generated: new Date().toISOString() },
-      sheets: D.sheets.map(function (s) { return { no: s.no, title: s.title }; }),
-      devices: D.devices.filter(function (d) { return !d.sym.isXref; }).map(function (d) {
+      schema: 'evse-schematic/v2',
+      meta: { version: D.version, status: D.status, auditStatus: audit.status, blocking: audit.blocking.map(function (i) { return i.id; }), params: D.params, generated: new Date().toISOString(), ruleProfile: 'EVSE-DRC-ERC-2026.10', applicableWeight: audit.applicableWeight, rubricWeight: audit.rubricWeight },
+      sheets: D.sheets.map(function (s) { return { no: s.no, title: s.title, frame: s.frame || null }; }),
+      devices: D.devices.map(function (d) {
         return { id: d.id, tag: d.tag, name: d.name, spec: d.spec, sheet: d.sheet, zone: d.zone,
-          x: d.x, y: d.y, pins: d.sym.pins.map(function (p) { return { n: p.n, name: p.name, domain: p.k, dir: p.t, side: p.d }; }) };
+          x: d.x, y: d.y, rot: d.rot || 0, electrical: d.electrical || { schema: 'evse-device-electrical/v1', status: 'unknown', ratings: {}, sourceId: null },
+          symbol: { w: d.sym.w, h: d.sym.h, draw: d.sym.draw, isBus: !!d.sym.isBus, isXref: !!d.sym.isXref },
+          pins: d.sym.pins.map(function (p) { return { n: p.n, name: p.name, domain: p.k, dir: p.t, side: p.d, ercType: p.ercType || 'unclassified', ercStatus: p.ercStatus || 'unknown', ercSourceId: p.ercSourceId || null }; }) };
       }),
       nets: D.nets.map(function (n) {
-        return { id: n.id, name: n.name, cls: n.cls, from: n.a.d + ':' + n.a.p, to: n.b.d + ':' + n.b.p, wire: n.wire_id || n.wire || null };
+        return { id: n.id, name: n.name, cls: n.cls, from: n.a, to: n.b, wire: n.wire_id || n.wire || null, xpair: n.xpair || null, error: n.err || null };
       }),
-      audit: { total: D.audit.total, grade: D.audit.grade, score: D.audit.score,
-        items: D.audit.items.map(function (i) { return { id: i.id, cat: i.cat, title: i.title, ok: i.ok, level: i.level, detail: i.detail }; }) }
+      wires: (D.wires || []).map(function (w) { return { id: w.id, sheet: w.sheet, net: w.net, cls: w.cls, points: w.pts, manual: !!w.manual, routeStatus: w.routeStatus || null }; }),
+      hops: D.hops || [], junctions: D.junctions || [],
+      audit: { total: audit.total, grade: audit.grade, score: audit.score,
+        items: audit.items.map(function (i) { return { id: i.id, cat: i.cat, title: i.title, ok: i.ok, level: i.level, detail: i.detail }; }), stats: audit.stats }
     };
     dl('EVSE-netlist.json', JSON.stringify(out, null, 2), 'application/json');
     msg('已导出引脚级网表 JSON（' + out.nets.length + ' 条网络）');
@@ -1770,12 +1853,14 @@
     return true;
   }
   function exportCalcPack() {
+    if (D && !exportGuard('电气校核证据包')) return;
     if (!CALC_RESULT && !runCalc()) return;
     var pack = window.EVSE_CALC.toEvidencePack(D, CALC_RESULT);
     dl('EVSE-证据包-' + String(CALC_RESULT.generatedAt).replace(/[:T]/g, '-').slice(0, 19) + '.json', JSON.stringify(pack, null, 2), 'application/json');
     msg('证据包已导出：含参数、校核结果、假设与来源登记（不替代原始资料归档）');
   }
   function exportCalcCsv() {
+    if (D && !exportGuard('电气校核 CSV')) return;
     if (!CALC_RESULT && !runCalc()) return;
     dl('EVSE-电气校核-' + String(CALC_RESULT.generatedAt).replace(/[:T]/g, '-').slice(0, 19) + '.csv', '\ufeff' + window.EVSE_CALC.toCSV(CALC_RESULT), 'text/csv;charset=utf-8');
     msg('校核 CSV 已导出');
@@ -1921,7 +2006,7 @@
     var id = 'LU' + (D.devices.length + 1);
     while (D.map[id]) id += 'x';
     var tag = nextTag(pre.tag);
-    var dev = { id: id, sheet: ST.sheet, zone: 'ZX', tag: tag, name: pre.name, spec: '库放置', sym: sym, x: Math.round(wx), y: Math.round(wy), lib: true };
+    var dev = { id: id, sheet: ST.sheet, zone: 'ZX', tag: tag, name: pre.name, spec: '库放置', sym: sym, electrical: window.EVSE_CORE.normalizeElectrical(pre.spec && pre.spec.electrical), x: Math.round(wx), y: Math.round(wy), lib: true };
     D.devices.push(dev); D.map[id] = dev;
     if (D.boxes) D.boxes.push({ sheet: dev.sheet, x: dev.x - 2, y: dev.y - 2, w: (sym.w || 20) + 4, h: (sym.h || 20) + 4, kind: 'body', id: id });
     paint(false); renderAll();
@@ -1956,6 +2041,8 @@
   /* ---------- V14: 自定义元器件（手动定义引脚 / 自由框体形状 / AI 识图或文字生成） ---------- */
   var CD_EDIT = -1, cdPins = [];
   var KDOMS = ['AC', 'DC', 'ESS', 'AUX', 'CTL', 'COMM', 'SIG', 'PE'];
+  var ERC_PIN_TYPES = window.EVSE_CORE.ERC_PIN_TYPES || ['unclassified', 'passive', 'input', 'output', 'bidirectional', 'power_input', 'power_output', 'power_bidirectional', 'no_connect'];
+  var ERC_PIN_LABELS = { unclassified: '未分类', passive: '无源', input: '输入', output: '输出', bidirectional: '双向', power_input: '电源输入', power_output: '电源输出', power_bidirectional: '双向电源', no_connect: '禁止连接' };
   function customStore() { try { return JSON.parse(localStorage.getItem('evse.customLib') || '[]'); } catch (e) { return []; } }
   function customSave(arr) { try { localStorage.setItem('evse.customLib', JSON.stringify(arr)); } catch (e) { msg('保存失败：浏览器本地存储不可用 ' + e.message); } }
   function rebuildCustomLib() {
@@ -1967,12 +2054,20 @@
   }
   function cdSpec() {
     var by = { left: [], right: [], top: [], bottom: [] };
-    cdPins.forEach(function (p) { (by[p.side] || by.right).push({ n: p.n, name: p.name, k: p.k, t: p.t }); });
+    var sourceId = $('cdSourceId').value.trim() || null;
+    cdPins.forEach(function (p) { (by[p.side] || by.right).push({ n: p.n, name: p.name, k: p.k, t: p.t, ercType: p.ercType || 'unclassified', ercStatus: p.ercType && p.ercType !== 'unclassified' ? 'assumption' : 'unknown', ercSourceId: sourceId }); });
+    var ratings = {};
+    try { ratings = JSON.parse(($('cdRatings').value || '{}').trim() || '{}'); } catch (e) {}
+    if (!ratings || typeof ratings !== 'object' || Array.isArray(ratings)) ratings = {};
     return {
       tag: ($('cdTag').value || '').trim() || 'U', name: ($('cdName').value || '').trim() || '自定义器件',
       title: ($('cdTitle').value || '').trim() || (($('cdName').value || '').trim() || '自定义'),
       w: Math.max(60, +$('cdW').value || 120), minH: Math.max(36, +$('cdMinH').value || 56),
-      left: by.left, right: by.right, top: by.top, bottom: by.bottom
+      left: by.left, right: by.right, top: by.top, bottom: by.bottom,
+      electrical: window.EVSE_CORE.normalizeElectrical({
+        status: $('cdElecStatus').value, manufacturer: $('cdMfr').value.trim(), model: $('cdModel').value.trim(),
+        ratings: ratings, sourceId: sourceId, sourceRevision: $('cdSourceRev').value.trim(), note: '自定义库录入；需按来源状态进行独立审计'
+      })
     };
   }
   function cdPreview() {
@@ -2002,13 +2097,14 @@
     var h = '';
     if (!cdPins.length) h = '<div style="color:#5f6b78;font-size:11px;padding:8px">暂无引脚——点「＋ 添加引脚」逐个定义，或用 AI 识图/解析文字自动生成</div>';
     cdPins.forEach(function (p, i) {
-      var mk = function (cls, opts, cur) { return '<select class="q ' + cls + '" style="padding:3px 2px;font-size:11px">' + opts.map(function (o) { return '<option value="' + o + '"' + (o === cur ? ' selected' : '') + '>' + o + '</option>'; }).join('') + '</select>'; };
+      var mk = function (cls, opts, cur, labels) { return '<select class="q ' + cls + '" style="padding:3px 2px;font-size:11px">' + opts.map(function (o) { return '<option value="' + o + '"' + (o === cur ? ' selected' : '') + '>' + esc(labels && labels[o] || o) + '</option>'; }).join('') + '</select>'; };
       h += '<div style="display:flex;gap:4px;margin-bottom:4px;align-items:center" data-i="' + i + '">'
         + '<input class="q cd-n" style="width:52px;padding:3px 6px;font-size:11px" value="' + esc(p.n) + '" placeholder="脚号">'
         + '<input class="q cd-name" style="width:86px;padding:3px 6px;font-size:11px" value="' + esc(p.name) + '" placeholder="名称">'
         + mk('cd-side', ['left', 'right', 'top', 'bottom'], p.side)
         + mk('cd-k', KDOMS, p.k)
         + mk('cd-t', ['in', 'out', 'bi'], p.t)
+        + mk('cd-erc', ERC_PIN_TYPES, p.ercType || 'unclassified', ERC_PIN_LABELS)
         + '<button class="btn cd-del" style="padding:1px 7px;color:#f87171;margin-left:auto" title="删除此引脚">✕</button></div>';
     });
     $('cdPins').innerHTML = h;
@@ -2019,17 +2115,22 @@
       row.querySelector('.cd-side').onchange = function () { cdPins[i].side = this.value; cdPreview(); };
       row.querySelector('.cd-k').onchange = function () { cdPins[i].k = this.value; };
       row.querySelector('.cd-t').onchange = function () { cdPins[i].t = this.value; };
+      row.querySelector('.cd-erc').onchange = function () { cdPins[i].ercType = this.value; cdPreview(); };
       row.querySelector('.cd-del').onclick = function () { cdPins.splice(i, 1); cdRenderPins(); cdPreview(); };
     });
   }
   function cdLoadSpec(spec) {
     $('cdTag').value = spec.tag || 'U'; $('cdName').value = spec.name || ''; $('cdTitle').value = spec.title || '';
     $('cdW').value = spec.w || 120; $('cdMinH').value = spec.minH || 56;
+    var el = spec.electrical || {};
+    $('cdMfr').value = el.manufacturer || ''; $('cdModel').value = el.model || ''; $('cdSourceId').value = el.sourceId || ''; $('cdSourceRev').value = el.sourceRevision || '';
+    $('cdElecStatus').value = ['unknown', 'assumption', 'verified'].indexOf(el.status) >= 0 ? el.status : 'unknown';
+    $('cdRatings').value = JSON.stringify(el.ratings || {});
     cdPins = [];
     ['left', 'right', 'top', 'bottom'].forEach(function (sd) {
-      (spec[sd] || []).forEach(function (p) { cdPins.push({ n: String(p.n || ''), name: String(p.name || ''), side: sd, k: KDOMS.indexOf(p.k) >= 0 ? p.k : 'CTL', t: ['in', 'out', 'bi'].indexOf(p.t) >= 0 ? p.t : 'bi' }); });
+      (spec[sd] || []).forEach(function (p) { cdPins.push({ n: String(p.n || ''), name: String(p.name || ''), side: sd, k: KDOMS.indexOf(p.k) >= 0 ? p.k : 'CTL', t: ['in', 'out', 'bi'].indexOf(p.t) >= 0 ? p.t : 'bi', ercType: ERC_PIN_TYPES.indexOf(p.ercType) > 0 ? p.ercType : 'unclassified' }); });
     });
-    if (!cdPins.length) cdPins = [{ n: '1', name: 'IN', side: 'left', k: 'CTL', t: 'in' }, { n: '2', name: 'OUT', side: 'right', k: 'CTL', t: 'out' }];
+    if (!cdPins.length) cdPins = [{ n: '1', name: 'IN', side: 'left', k: 'CTL', t: 'in', ercType: 'unclassified' }, { n: '2', name: 'OUT', side: 'right', k: 'CTL', t: 'out', ercType: 'unclassified' }];
     cdRenderPins(); cdPreview();
   }
   window.__CUSTOM_NEW = function () { CD_EDIT = -1; $('cdHead').textContent = '新建自定义元器件'; $('cdAiMsg').textContent = ''; $('cdAiText').value = ''; cdLoadSpec({}); $('compDlg').style.display = 'block'; };
@@ -2043,7 +2144,7 @@
     if (!confirm('删除自定义元器件「' + e.name + '」？（已放置到图纸上的实例不受影响）')) return;
     var arr = customStore(); arr.splice(e.custom, 1); customSave(arr); rebuildCustomLib(); msg('已删除自定义元器件 ' + e.name);
   };
-  var CD_PROMPT = function (what) { return '你是电气原理图符号助手。请从' + what + '中提取元器件符号定义，只输出一个 JSON 对象（禁止 markdown 代码块和其它文字）：{"name":"元器件名称","tag":"位号前缀大写字母","title":"框内标题","w":框宽整数60到400,"pins":[{"n":"引脚号","name":"引脚名","side":"left或right或top或bottom","k":"AC或DC或ESS或AUX或CTL或COMM或SIG或PE","t":"in或out或bi"}]}。规则：电源输入放 left，功率/通信输出放 right，接地 PE 放 bottom；引脚数量与名称严格按资料，不得臆造；k 为电气域判断，t 为信号方向判断。'; };
+  var CD_PROMPT = function (what) { return '你是电气原理图符号助手。请从' + what + '中提取元器件符号定义，只输出一个 JSON 对象（禁止 markdown 代码块和其它文字）：{"name":"元器件名称","tag":"位号前缀大写字母","title":"框内标题","w":框宽整数60到400,"pins":[{"n":"引脚号","name":"引脚名","side":"left或right或top或bottom","k":"AC或DC或ESS或AUX或CTL或COMM或SIG或PE","t":"in或out或bi","ercType":"unclassified或passive或input或output或bidirectional或power_input或power_output或power_bidirectional或no_connect"}]}。规则：电源输入放 left，功率/通信输出放 right，接地 PE 放 bottom；引脚数量与名称严格按资料，不得臆造。只有资料明确给出电气驱动类型时才填写 ercType，否则必须为 unclassified；AI 给出的类型一律是待人工复核假设，不得标为已核验。'; };
   async function cdAiCall(content) {
     if (!window.EVSE_AI || !EVSE_AI.ready()) { $('cdAiMsg').textContent = '⚠ 请先在「AI 工具 → 大模型设置」配置接口地址 / Key / 模型（识图需模型支持视觉）'; return; }
     $('cdAiMsg').textContent = '🤖 AI 识别中，请稍候…';
@@ -2059,7 +2160,7 @@
       if (j.w) $('cdW').value = Math.min(400, Math.max(60, +j.w || 120));
       var sides = { left: 1, right: 1, top: 1, bottom: 1 };
       cdPins = (j.pins || []).map(function (p, i2) {
-        return { n: String(p.n || p.num || (i2 + 1)), name: String(p.name || p.n || ''), side: sides[p.side] ? p.side : 'right', k: KDOMS.indexOf(p.k) >= 0 ? p.k : 'CTL', t: ['in', 'out', 'bi'].indexOf(p.t) >= 0 ? p.t : 'bi' };
+        return { n: String(p.n || p.num || (i2 + 1)), name: String(p.name || p.n || ''), side: sides[p.side] ? p.side : 'right', k: KDOMS.indexOf(p.k) >= 0 ? p.k : 'CTL', t: ['in', 'out', 'bi'].indexOf(p.t) >= 0 ? p.t : 'bi', ercType: ERC_PIN_TYPES.indexOf(p.ercType) > 0 ? p.ercType : 'unclassified' };
       });
       cdRenderPins(); cdPreview();
       $('cdAiMsg').textContent = '✔ 已识别 ' + cdPins.length + ' 个引脚，请逐个核对修正后保存';
@@ -2073,7 +2174,7 @@
       await cdAiCall([{ type: 'text', text: CD_PROMPT('图片') }, { type: 'image_url', image_url: { url: dataUrl } }]);
     } catch (e) { $('cdAiMsg').textContent = '读取图片失败：' + e.message; }
   }
-  $('cdAddPin').onclick = function () { cdPins.push({ n: String(cdPins.length + 1), name: '', side: 'right', k: 'CTL', t: 'bi' }); cdRenderPins(); cdPreview(); };
+  $('cdAddPin').onclick = function () { cdPins.push({ n: String(cdPins.length + 1), name: '', side: 'right', k: 'CTL', t: 'bi', ercType: 'unclassified' }); cdRenderPins(); cdPreview(); };
   $('cdCancel').onclick = function () { $('compDlg').style.display = 'none'; };
   $('cdAiImg').onclick = function () { $('cdImgFile').click(); };
   $('cdImgFile').onchange = function () { var f = this.files && this.files[0]; this.value = ''; if (f) cdAiImage(f); };
@@ -2083,6 +2184,8 @@
     cdAiCall([{ type: 'text', text: CD_PROMPT('资料') + '\n\n资料：\n' + txt.slice(0, 6000) }]);
   };
   $('cdOK').onclick = function () {
+    try { var r = JSON.parse(($('cdRatings').value || '{}').trim() || '{}'); if (!r || typeof r !== 'object' || Array.isArray(r)) throw new Error('额定值必须为 JSON 对象'); }
+    catch (e) { msg('结构化额定值 JSON 无效：' + e.message); return; }
     var spec = cdSpec();
     if (!($('cdName').value || '').trim()) { msg('请填写元器件名称'); return; }
     if (!spec.left.length && !spec.right.length && !spec.top.length && !spec.bottom.length) { msg('至少需要一个引脚'); return; }
@@ -2289,20 +2392,22 @@
     var blocked = A.blocking && A.blocking.length;
     $('grade').textContent = blocked ? 'D' : A.grade;
     $('grade').style.color = blocked || A.total < 65 ? '#D42A2A' : A.total >= 88 ? '#17A34A' : A.total >= 78 ? '#E08600' : '#D42A2A';
-    $('total').textContent = A.total + '/100' + (blocked ? ' · ' + blocked + ' 阻断' : '');
+    $('total').textContent = A.total + '/100 · 适用权重 ' + (A.applicableWeight == null ? 100 : A.applicableWeight) + '/' + (A.rubricWeight || 100) + (blocked ? ' · ' + blocked + ' 阻断' : '');
     $('score').innerHTML = A.score.map(function (x) {
-      var r = x.got / x.weight;
+      var r = x.applicable ? x.pct : 0;
+      var scoreText = x.applicable ? (x.got + ' / ' + x.weight + '（' + x.pass + '/' + x.total + '）') : 'N/A · 未自动验证';
       return '<div style="margin-bottom:7px"><div style="display:flex;font-size:10.5px;color:#a7b1bd;margin-bottom:3px">'
-        + '<span style="flex:1">' + esc(x.name) + '</span><span style="color:#6f7a87">' + x.got + ' / ' + x.weight + '（' + x.pass + '/' + x.total + '）</span></div>'
+        + '<span style="flex:1">' + esc(x.name) + '</span><span style="color:#6f7a87">' + scoreText + '</span></div>'
         + '<div class="bar2"><i style="width:' + Math.round(r * 100) + '%;background:'
-        + (r > .95 ? '#17A34A' : r > .7 ? '#E08600' : '#D42A2A') + '"></i></div></div>';
+        + (x.applicable ? (r > .95 ? '#17A34A' : r > .7 ? '#E08600' : '#D42A2A') : '#59636f') + '"></i></div></div>';
     }).join('');
-    var fail = A.items.filter(function (i) { return !i.ok; });
+    var fail = A.items.filter(function (i) { return !i.ok && i.level !== 'info'; });
     $('ruleHdr').textContent = '规则明细（' + fail.length + ' 项待改进 / 共 ' + A.items.length + ' 项）';
     $('audit').innerHTML = A.items.slice().sort(function (a, b) { return (a.ok ? 1 : 0) - (b.ok ? 1 : 0); }).map(function (i) {
-      var c = i.ok ? '#17A34A' : (i.level === 'error' ? '#D42A2A' : '#E08600');
+      var informational = i.level === 'info';
+      var c = informational ? '#7b8794' : i.ok ? '#17A34A' : (i.level === 'error' ? '#D42A2A' : '#E08600');
       return '<div class="ai"><span style="flex:0 0 14px;color:' + c + ';font-size:11px">'
-        + (i.ok ? '✓' : (i.level === 'error' ? '✕' : '!')) + '</span><span style="flex:1;min-width:0">'
+        + (informational ? '—' : i.ok ? '✓' : (i.level === 'error' ? '✕' : '!')) + '</span><span style="flex:1;min-width:0">'
         + '<span style="display:block;font-size:11.5px;color:#dbe3ec">' + esc(i.title) + '</span>'
         + '<span style="display:block;font-size:10.5px;color:#6f7a87;margin-top:1px">' + esc(i.id) + ' · ' + esc(i.detail) + '</span>'
         + '</span></div>';
@@ -2453,6 +2558,7 @@ if (doc.url) {
   }
   function exportCsv() {
     if (!BOM) return;
+    if (!exportGuard('BOM CSV')) return;
     dl('EVSE-BOM.csv', window.EVSE_BOM.toCSV(BOM, D), 'text/csv;charset=utf-8');
     msg('已导出 BOM CSV（' + BOM.rows.length + ' 项）');
   }
@@ -2565,7 +2671,7 @@ if (doc.url) {
     };
     $('bGen').onclick = function () {
       if (D && D.params && D.params.custom && !window.confirm('当前为自定义图纸：重新生成将用左侧参数方案覆盖画布（未保存内容会丢失，已保存的工程文件不受影响）。继续？')) return;
-      runBusy(D ? '正在重新生成图纸…' : '正在生成图纸…', function () { generate(true); });
+      runBusy(D ? '正在重新生成图纸…' : '正在生成图纸…', function () { return generate(true); });
     };
   $('bNew').onclick = function () { openNewDlg('new'); };
   $('bAddSheet').onclick = function () { openNewDlg('add'); };
@@ -2796,7 +2902,7 @@ if (doc.url) {
         lw = w; lh = h; doFit();
       }).observe(host);
     }
-    runBusy('正在生成图纸…', function () { generate(true); });
+    runBusy('正在生成图纸…', function () { return generate(true); });
   }
   boot();
 })();

@@ -17,8 +17,9 @@ window.EVSE_CORE = (function () {
   let RAILS = {};
   'use strict';
 
-  const VERSION = '2.0.0';
+  const VERSION = '2.1.0';
   const GRID = 10;
+  const ERC_PIN_TYPES = ['unclassified', 'passive', 'input', 'output', 'bidirectional', 'power_input', 'power_output', 'power_bidirectional', 'no_connect'];
 
   /* ---------- 能量域 / 网络类别（线型、线宽、颜色） ---------- */
   const NETC = {
@@ -43,7 +44,24 @@ window.EVSE_CORE = (function () {
    * ['T',x,y,s,size?,anchor?,style?] 文本
    * ['M',x,y,w,h]          遮罩块（底色，用于跨线断口）
    */
-  const P = (n, name, x, y, d, k, t, len) => ({ n: n, name: name, x: x, y: y, d: d, k: k, t: t || 'pas', len: len == null ? 8 : len });
+  const P = (n, name, x, y, d, k, t, len, ercType, ercStatus, ercSourceId) => ({
+    n: n, name: name, x: x, y: y, d: d, k: k, t: t || 'pas', len: len == null ? 8 : len,
+    ercType: ERC_PIN_TYPES.indexOf(ercType) > 0 ? ercType : 'unclassified',
+    ercStatus: ERC_PIN_TYPES.indexOf(ercType) > 0 ? (ercStatus || 'modeled') : 'unknown',
+    ercSourceId: ercSourceId || null
+  });
+
+  function normalizeElectrical(e) {
+    const src = e && typeof e === 'object' ? e : {};
+    const ratings = src.ratings && typeof src.ratings === 'object' ? src.ratings : {};
+    return {
+      schema: 'evse-device-electrical/v1',
+      status: ['unknown', 'assumption', 'verified'].indexOf(src.status) >= 0 ? src.status : 'unknown',
+      manufacturer: String(src.manufacturer || ''), model: String(src.model || ''),
+      ratings: Object.assign({}, ratings), sourceId: src.sourceId || null,
+      sourceRevision: String(src.sourceRevision || ''), note: String(src.note || '')
+    };
+  }
 
   function acGlyph(cx, cy, s) { return ['P', 'M ' + (cx - s) + ' ' + cy + ' q ' + (s / 2) + ' ' + (-s * 0.8) + ' ' + s + ' 0 q ' + (s / 2) + ' ' + (s * 0.8) + ' ' + s + ' 0']; }
   function dcGlyph(cx, cy, s) { return [['L', cx - s, cy - 3, cx + s, cy - 3], ['D', cx - s, cy + 3, cx + s, cy + 3]]; }
@@ -64,8 +82,8 @@ window.EVSE_CORE = (function () {
       else if (mk === 'cb') d.push(['L', x - 5, 11, x + 5, 21], ['L', x - 5, 21, x + 5, 11]);
       else if (mk === 'km') d.push(['A', x, 19, 5, 0, 180]);
       else if (mk === 'ls') d.push(['L', x - 7, 16, x + 7, 16], ['A', x, 19, 5, 0, 180]);
-      pins.push(P(String(2 * i + 1), names[i], x, 0, 'N', k, 'in'));
-      pins.push(P(String(2 * i + 2), names[i], x, 60, 'S', k, 'out'));
+      pins.push(P(String(2 * i + 1), names[i], x, 0, 'N', k, 'in', 8, 'passive'));
+      pins.push(P(String(2 * i + 2), names[i], x, 60, 'S', k, 'out', 8, 'passive'));
     }
     if (n > 1) d.push(['D', 4.5, 33, (n - 1) * pitch + 4.5, 33]);
     let w = (n - 1) * pitch;
@@ -76,8 +94,8 @@ window.EVSE_CORE = (function () {
       /* V-DRV-01：线圈必须画续流/钳位回路（阴极朝 A1 正端） */
       d.push(['L', cx, 12, cx + 20, 12], ['L', cx + 20, 12, cx + 20, 48], ['L', cx, 48, cx + 20, 48]);
       d.push(['P', 'M ' + (cx + 15) + ' 36 l 10 0 l -5 -9 z'], ['L', cx + 15, 27, cx + 25, 27]);
-      pins.push(P('A1', 'A1', cx, 0, 'N', 'CTL', 'in'));
-      pins.push(P('A2', 'A2', cx, 60, 'S', 'CTL', 'in'));
+      pins.push(P('A1', 'A1', cx, 0, 'N', 'CTL', 'in', 8, 'passive'));
+      pins.push(P('A2', 'A2', cx, 60, 'S', 'CTL', 'in', 8, 'passive'));
       w = cx + 25;
     }
     return { w: w, h: 60, draw: d, pins: pins, isSwitch: true, hasCoil: !!opt.coil, coilDiode: !!opt.coil, noCross: true, tagAt: { x: -16, y: 4, a: 'e' } }; /* V13: isSwitch 供通电仿真识别 */
@@ -93,7 +111,7 @@ window.EVSE_CORE = (function () {
     if (opt.fast !== false) d.push(['L', -6, 21, 6, 21, 2.4]);
     return {
       w: 0, h: 60, draw: d, tagAt: { x: -13, y: 26, a: 'e' },
-      pins: [P('1', '1', 0, 0, 'N', k, 'in'), P('2', '2', 0, 60, 'S', k, 'out')], noCross: true
+      pins: [P('1', '1', 0, 0, 'N', k, 'in', 8, 'passive'), P('2', '2', 0, 60, 'S', k, 'out', 8, 'passive')], noCross: true
     };
   }
   function makeRes(opt) {
@@ -102,7 +120,7 @@ window.EVSE_CORE = (function () {
     return {
       w: 0, h: 60, draw: [['L', 0, 8, 0, 16], ['R', -7, 16, 14, 28], ['L', 0, 44, 0, 52]],
       tagAt: { x: -14, y: 26, a: 'e' },
-      pins: [P('1', '1', 0, 0, 'N', k, 'in'), P('2', '2', 0, 60, 'S', k, 'out')]
+      pins: [P('1', '1', 0, 0, 'N', k, 'in', 8, 'passive'), P('2', '2', 0, 60, 'S', k, 'out', 8, 'passive')]
     };
   }
 
@@ -133,7 +151,7 @@ window.EVSE_CORE = (function () {
             d.push(['A', px, cy, 4.5, side === 'S' ? 180 : 0, side === 'S' ? 360 : 180]);
           }
         });
-        pins.push(P(t.id + '.' + wn, wn, px, yEnd, side, bars[bi].k || 'AC', 'pas', 0));
+        pins.push(P(t.id + '.' + wn, wn, px, yEnd, side, bars[bi].k || 'AC', 'pas', 0, 'passive'));
       });
       if (t.label) d.push(['T', x + (t.wires.length - 1) * DP / 2, side === 'S' ? yEnd + 11 : yEnd - 5, t.label, 7.5, 'm', 'dim']);
       x += (t.wires.length - 1) * DP + (t.gap || 30);
@@ -160,11 +178,12 @@ window.EVSE_CORE = (function () {
     const d = [['R', 0, 0, w, h, opt.r || 0]];
     const pins = [];
     const y0 = (n) => Math.round(HDR(opt) + (h - HDR(opt) - (n - 1) * pitch) / 2);
-    L.forEach(function (p, i) { pins.push(P(p.n || p.name, p.name, -10, y0(L.length) + i * pitch, 'W', p.k, p.t, 10)); });
-    R.forEach(function (p, i) { pins.push(P(p.n || p.name, p.name, w + 10, y0(R.length) + i * pitch, 'E', p.k, p.t, 10)); });
+    const addBoxPin = function (p, x, y, side) { pins.push(P(p.n || p.name, p.name, x, y, side, p.k, p.t, 10, p.ercType, p.ercStatus, p.ercSourceId)); };
+    L.forEach(function (p, i) { addBoxPin(p, -10, y0(L.length) + i * pitch, 'W'); });
+    R.forEach(function (p, i) { addBoxPin(p, w + 10, y0(R.length) + i * pitch, 'E'); });
     const tx0 = (n, pt) => Math.round((w - (n - 1) * pt) / 2);
-    T.forEach(function (p, i) { pins.push(P(p.n || p.name, p.name, tx0(T.length, opt.tpitch || 22) + i * (opt.tpitch || 22), -10, 'N', p.k, p.t, 10)); });
-    B.forEach(function (p, i) { pins.push(P(p.n || p.name, p.name, tx0(B.length, opt.bpitch || 22) + i * (opt.bpitch || 22), h + 10, 'S', p.k, p.t, 10)); });
+    T.forEach(function (p, i) { addBoxPin(p, tx0(T.length, opt.tpitch || 22) + i * (opt.tpitch || 22), -10, 'N'); });
+    B.forEach(function (p, i) { addBoxPin(p, tx0(B.length, opt.bpitch || 22) + i * (opt.bpitch || 22), h + 10, 'S'); });
     if (opt.title) d.push(['T', w / 2, opt.titleY || 15, opt.title, opt.titleSize || 10, 'm', 'title']);
     if (opt.sub) d.push(['T', w / 2, (opt.titleY || 15) + 12, opt.sub, 7.5, 'm', 'dim']);
     if (opt.glyph === 'acdc') { d.push(['L', 0, h, w, 0], acGlyph(w * 0.28, h * 0.3, 7)); dcGlyph(w * 0.72, h * 0.72, 8).forEach(function (g) { d.push(g); }); }
@@ -609,7 +628,7 @@ window.EVSE_CORE = (function () {
     const gunTerms = SD.terms;
     const acA = Math.round(p.kw * 1000 / (1.732 * acV * 0.95) + 32);
     const D = [], N = [];
-  const dev = function (o) { if (o && o.sym) normSym(o.sym); D.push(o); return o.id; };
+    const dev = function (o) { if (o && o.sym) normSym(o.sym); o.electrical = normalizeElectrical(o.electrical); D.push(o); return o.id; };
     let netSeq = 0;
     const net = function (a, b, cls, o) {
       netSeq++;
@@ -1319,5 +1338,5 @@ window.EVSE_CORE = (function () {
     });
     return sym;
   };
-  return { VERSION, GRID, NETC, S, makeSwitch, makeFuse, makeRes, makeBus, makeBox, build, PHASE4, normSym: normSym, rails: function () { return RAILS; } };
+  return { VERSION, GRID, NETC, ERC_PIN_TYPES, normalizeElectrical, S, makeSwitch, makeFuse, makeRes, makeBus, makeBox, build, PHASE4, normSym: normSym, rails: function () { return RAILS; } };
 })();

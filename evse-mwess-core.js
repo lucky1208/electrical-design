@@ -20,7 +20,7 @@ window.EVSE_MWESS = (function () {
   'use strict';
 
   const CORE = () => window.EVSE_CORE;
-  const VERSION = '1.0.0';
+  const VERSION = '1.1.0';
 
   /* ---------- 默认参数 ---------- */
   function defaults() {
@@ -75,7 +75,10 @@ window.EVSE_MWESS = (function () {
    * 符号库 —— 全部基于 EVSE_CORE.makeBox / makeSwitch / makeFuse / makeRes
    * ============================================================ */
   const S = {};
-  const P = (n, name, x, y, d, k, t, len) => ({ n, name, x, y, d, k, t: t || 'pas', len: len == null ? 8 : len });
+  const P = (n, name, x, y, d, k, t, len, ercType, ercStatus, ercSourceId) => ({
+    n, name, x, y, d, k, t: t || 'pas', len: len == null ? 8 : len,
+    ercType: ercType || 'unclassified', ercStatus: ercType ? (ercStatus || 'modeled') : 'unknown', ercSourceId: ercSourceId || null
+  });
 
   /* ---- 80kW 液冷 AC/DC 模块 ---- */
   S.acdcMod = function (tag, kw) {
@@ -443,7 +446,7 @@ window.EVSE_MWESS = (function () {
     const p = normalize(par);
     const C = CORE();
     const D = [], N = [];
-    const dev = function (o) { if (o && o.sym) C.normSym(o.sym); D.push(o); return o.id; };
+    const dev = function (o) { if (o && o.sym) C.normSym(o.sym); o.electrical = C.normalizeElectrical ? C.normalizeElectrical(o.electrical) : (o.electrical || { schema: 'evse-device-electrical/v1', status: 'unknown', manufacturer: '', model: '', ratings: {}, sourceId: null, sourceRevision: '', note: '' }); D.push(o); return o.id; };
     let seq = 0;
     const net = function (a, b, cls, o) {
       seq++;

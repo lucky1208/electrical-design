@@ -1,5 +1,5 @@
 /* ============================================================
- * EVSE-SCHEMATIC GEO v2.0 —— 布局 / 通道布线 / 跨越 / 挤线 / 规则引擎
+ * EVSE-SCHEMATIC GEO v2.1 —— 布局 / 通道布线 / 跨越 / 挤线 / 规则引擎
  *   place()   坐标即数据：母排优先，其余器件按母排分接点对齐
  *   route()   正交布线 + 通道分轨（区间重叠才换轨，间距≥MIN_CLEAR）
  *   crossings() 统一后处理插半圆（与绘制顺序无关）
@@ -308,6 +308,97 @@ window.EVSE_GEO = (function () {
       out.push({ x1: a[0], y1: a[1], x2: b[0], y2: b[1], v: Math.abs(a[0] - b[0]) < 0.01 });
     }
     return out;
+  }
+  function crossingPairs(design, tolerance) {
+    const tol = tolerance == null ? 0.5 : tolerance;
+    const cell = 16, horizontal = {}, vertical = [], out = [], seen = {};
+    const bin = function (v) { return Math.floor(v / cell); };
+    (design.wires || []).forEach(function (w) {
+      segsOf(w.pts || []).forEach(function (s, i) {
+        const ref = { w: w, s: s, i: i };
+        if (s.v) vertical.push(ref);
+        else if (Math.abs(s.y1 - s.y2) <= tol) {
+          const k = w.sheet + '|' + bin(s.y1);
+          (horizontal[k] = horizontal[k] || []).push(ref);
+        }
+      });
+    });
+    vertical.forEach(function (v) {
+      const y0 = bin(Math.min(v.s.y1, v.s.y2) - tol), y1 = bin(Math.max(v.s.y1, v.s.y2) + tol);
+      for (let bi = y0; bi <= y1; bi++) {
+        const list = horizontal[v.w.sheet + '|' + bi] || [];
+        list.forEach(function (h) {
+          const px = v.s.x1, py = h.s.y1;
+          if (px < Math.min(h.s.x1, h.s.x2) - tol || px > Math.max(h.s.x1, h.s.x2) + tol) return;
+          if (py < Math.min(v.s.y1, v.s.y2) - tol || py > Math.max(v.s.y1, v.s.y2) + tol) return;
+          const ids = [String(v.w.id), String(h.w.id)].sort();
+          const key = v.w.sheet + '|' + px.toFixed(2) + '|' + py.toFixed(2) + '|' + ids.join('|');
+          if (seen[key]) return;
+          seen[key] = true;
+          const interiorV = py > Math.min(v.s.y1, v.s.y2) + tol && py < Math.max(v.s.y1, v.s.y2) - tol;
+          const interiorH = px > Math.min(h.s.x1, h.s.x2) + tol && px < Math.max(h.s.x1, h.s.x2) - tol;
+          out.push({ sheet: v.w.sheet, x: px, y: py, a: v, b: h, interiorV: interiorV, interiorH: interiorH, interior: interiorV && interiorH });
+        });
+      }
+    });
+    return out;
+  }
+  function sharedPinAt(design, a, b, x, y) {
+    const na = netById(design, a.w.net), nb = netById(design, b.w.net);
+    if (!na || !nb) return false;
+    const ea = [na.a, na.b], eb = [nb.a, nb.b];
+    for (let i = 0; i < ea.length; i++) for (let j = 0; j < eb.length; j++) {
+      if (ea[i].d !== eb[j].d || ea[i].p !== eb[j].p) continue;
+      const pin = pinAbs(design.map || {}, ea[i]);
+      const dev = (design.map || {})[ea[i].d];
+      if (pin && dev && dev.sheet === a.w.sheet && Math.abs(pin.x - x) <= 1 && Math.abs(pin.y - y) <= 1) return true;
+    }
+    return false;
+  }
+  function hasMarkerAt(markers, sheet, x, y, tol) {
+    return (markers || []).some(function (m) {
+      return m.sheet === sheet && Math.abs(m.x - x) <= tol && Math.abs(m.y - y) <= tol;
+    });
+  }
+  function sameWireAdjacentAt(pair) {
+    if (pair.a.w !== pair.b.w || Math.abs(pair.a.i - pair.b.i) !== 1) return false;
+    const p = pair.a.w.pts[Math.max(pair.a.i, pair.b.i)];
+    return !!p && Math.abs(p[0] - pair.x) <= 0.6 && Math.abs(p[1] - pair.y) <= 0.6;
+  }
+  function auditCrossings(design) {
+    const pairs = crossingPairs(design), missingHops = [], expectedJunctions = {};
+    let distinctNetCrossings = 0;
+    pairs.forEach(function (pair) {
+      const sameNet = pair.a.w.net === pair.b.w.net;
+      const sharedPin = sharedPinAt(design, pair.a, pair.b, pair.x, pair.y);
+      if (!sameNet && !sharedPin) {
+        distinctNetCrossings++;
+        const hop = (design.hops || []).some(function (h) {
+          return h.sheet === pair.sheet && Math.abs(h.x - pair.x) <= 1 && Math.abs(h.y - pair.y) <= 1 && (!h.w || h.w === pair.a.w.id || h.w === pair.b.w.id);
+        });
+        if (!hop) missingHops.push(pair);
+      }
+      if ((sameNet || sharedPin) && !sharedPin && !sameWireAdjacentAt(pair)) {
+        expectedJunctions[pair.sheet + '|' + pair.x.toFixed(1) + '|' + pair.y.toFixed(1)] = pair;
+      }
+    });
+    const endpointCounts = {};
+    (design.wires || []).forEach(function (w) {
+      if (!w.pts || w.pts.length < 2) return;
+      [w.pts[0], w.pts[w.pts.length - 1]].forEach(function (p) {
+        const k = w.sheet + '|' + Math.round(p[0]) + '|' + Math.round(p[1]);
+        const e = endpointCounts[k] || (endpointCounts[k] = { sheet: w.sheet, x: Math.round(p[0]), y: Math.round(p[1]), count: 0 });
+        e.count++;
+      });
+    });
+    Object.keys(endpointCounts).forEach(function (k) {
+      const e = endpointCounts[k];
+      if (e.count >= 2) expectedJunctions[e.sheet + '|' + e.x.toFixed(1) + '|' + e.y.toFixed(1)] = e;
+    });
+    const missingJunctions = Object.keys(expectedJunctions).map(function (k) { return expectedJunctions[k]; }).filter(function (p) {
+      return !hasMarkerAt(design.junctions, p.sheet, p.x, p.y, 1);
+    });
+    return { pairs: pairs, distinctNetCrossings: distinctNetCrossings, missingHops: missingHops, missingJunctions: missingJunctions };
   }
   /* V3-1: 真实本体相交（无 PAD 容差）——用于 C02/推挤的"穿越本体"判定 */
   /* V10-GUARD: 引线 stub 豁免（首末段、pin 轴向、朝外）与体内穿入判定 */
@@ -1213,7 +1304,7 @@ window.EVSE_GEO = (function () {
         ends[k] = (ends[k] || 0) + 1;
       });
     });
-    const has = function (x, y) { return hops.some(function (h) { return Math.abs(h.x - x) < 1 && Math.abs(h.y - y) < 1; }); };
+    const has = function (sheet, x, y) { return hops.some(function (h) { return h.sheet === sheet && Math.abs(h.x - x) < 1 && Math.abs(h.y - y) < 1; }); };
     /* 规则1：竖线完整穿越横线内部 → 半圆在竖线（竖让横） */
     for (let i = 0; i < all.length; i++) {
       const A = all[i]; if (!A.s.v) continue;
@@ -1224,7 +1315,7 @@ window.EVSE_GEO = (function () {
         const ay0 = Math.min(A.s.y1, A.s.y2), ay1 = Math.max(A.s.y1, A.s.y2);
         const bx0 = Math.min(B.s.x1, B.s.x2), bx1 = Math.max(B.s.x1, B.s.x2);
         if (x <= bx0 + 1.5 || x >= bx1 - 1.5 || y <= ay0 + 1.5 || y >= ay1 - 1.5) continue;
-        if (has(x, y)) continue;
+        if (has(A.sheet, x, y)) continue;
         hops.push({ sheet: A.sheet, w: A.w, x: x, y: y });
       }
     }
@@ -1248,7 +1339,7 @@ window.EVSE_GEO = (function () {
           return (Math.abs(q0 - ay1) <= 0.6 && q1 > ay1) || (Math.abs(q1 - ay0) <= 0.6 && q0 < ay0);
         });
         if (!cont) continue;
-        if (has(x, y)) continue;
+        if (has(A.sheet, x, y)) continue;
         hops.push({ sheet: A.sheet, w: B.w, x: x, y: y, horiz: true });
       }
     }
@@ -1296,7 +1387,7 @@ window.EVSE_GEO = (function () {
             });
             if (tapCol) continue;
           }
-          if (has(x, y)) continue;
+          if (has(v.sheet, x, y)) continue;
           hops.push({ sheet: v.sheet, w: A.w, x: x, y: y });
         }
       });
@@ -1337,12 +1428,28 @@ window.EVSE_GEO = (function () {
             const lo = Math.min, hi = Math.max;
             const on = s.v ? (Math.abs(s.x1 - q.x) < 0.6 && q.y > lo(s.y1, s.y2) + 0.01 && q.y < hi(s.y1, s.y2) - 0.01)
               : (Math.abs(s.y1 - q.y) < 0.6 && q.x > lo(s.x1, s.x2) + 0.01 && q.x < hi(s.x1, s.x2) - 0.01);
-            if (!on || has(q.x, q.y)) return;
+            if (!on || has(w.sheet, q.x, q.y)) return;
             hops.push({ sheet: w.sheet, w: w.id, x: q.x, y: q.y, horiz: !s.v });
           });
         });
       });
     })();
+    /* Ensure every distinct-net perpendicular crossing has a hop owned by one
+     * of the two wires. Legacy special cases above intentionally skip some
+     * endpoint/near-end intersections; those still need explicit graphics. */
+    crossingPairs(design).forEach(function (pair) {
+      if (!pair.interior || pair.a.w.net === pair.b.w.net || sharedPinAt(design, pair.a, pair.b, pair.x, pair.y)) return;
+      const pairHop = hops.some(function (h) {
+        return h.sheet === pair.sheet && Math.abs(h.x - pair.x) < 1 && Math.abs(h.y - pair.y) < 1 && (h.w === pair.a.w.id || h.w === pair.b.w.id);
+      });
+      if (!pairHop) hops.push({ sheet: pair.sheet, w: pair.a.w.id, x: pair.x, y: pair.y, horiz: false });
+    });
+    /* A same-net perpendicular intersection is a real node, including a T
+     * branch where one segment terminates on the middle of another. */
+    crossingPairs(design).forEach(function (pair) {
+      if (pair.a.w.net !== pair.b.w.net || sameWireAdjacentAt(pair)) return;
+      if (!hasMarkerAt(junc, pair.sheet, pair.x, pair.y, 1)) junc.push({ sheet: pair.sheet, x: Math.round(pair.x), y: Math.round(pair.y) });
+    });
     design.hops = hops; design.junctions = junc;
     return design;
   }
@@ -1605,6 +1712,91 @@ window.EVSE_GEO = (function () {
     const brokenX = Object.keys(xpair).filter(function (k) { return xpair[k] !== 2 && k.indexOf('XPBUS') !== 0; }); /* V4-BUS3: 总线合并网豁免成对 */
     add('B', 'B04', '跨页信号成对连接符闭合（→页/器件:引脚）', brokenX.length === 0, Object.keys(xpair).length + ' 组跨页信号，标注含目标页/器件/引脚');
 
+    /* ERC 只消费显式声明的 pin.ercType；旧 t=in/out 是符号方向，不等于驱动能力。 */
+    const ERC_TYPES = (window.EVSE_CORE && window.EVSE_CORE.ERC_PIN_TYPES) || ['unclassified', 'passive', 'input', 'output', 'bidirectional', 'power_input', 'power_output', 'power_bidirectional', 'no_connect'];
+    const isElectricalDevice = function (d) { return !!d && !d.xref && !d.pwr && !(d.sym && d.sym.isXref); };
+    const pinMeta = function (ep) {
+      const d = M[ep.d];
+      const q = d && d.sym && (d.sym.pins || []).filter(function (x) { return String(x.n) === String(ep.p); })[0];
+      const type = q && ERC_TYPES.indexOf(q.ercType) > 0 ? q.ercType : 'unclassified';
+      return { d: d, q: q, type: type, key: ep.d + ':' + ep.p };
+    };
+    const ercErrors = [], driversByNet = {}, noConnect = [];
+    let typedPins = 0, unknownPins = 0, ercPins = 0;
+    design.devices.filter(isElectricalDevice).forEach(function (d) { (d.sym.pins || []).forEach(function (q) {
+      ercPins++;
+      if (ERC_TYPES.indexOf(q.ercType) > 0 && q.ercType !== 'unclassified') typedPins++; else unknownPins++;
+    }); });
+    design.nets.forEach(function (n) {
+      const a = pinMeta(n.a), b = pinMeta(n.b), key = String(n.cls || '') + '|' + String(n.name || n.id);
+      [a, b].forEach(function (m) {
+        if (m.type === 'power_output' || m.type === 'output') {
+          const list = driversByNet[key] || (driversByNet[key] = []);
+          if (list.indexOf(m.key) < 0) list.push(m.key);
+        }
+        if (m.type === 'no_connect') noConnect.push(m.key + ' (' + (n.name || n.id) + ')');
+      });
+      if ((a.type === 'output' || a.type === 'power_output') && (b.type === 'output' || b.type === 'power_output')) {
+        ercErrors.push('多驱动：' + a.key + ' ↔ ' + b.key + '（' + (n.name || n.id) + '）');
+      }
+    });
+    Object.keys(driversByNet).forEach(function (k) {
+      if (driversByNet[k].length > 1) ercErrors.push('同一逻辑网络存在多个输出驱动：' + driversByNet[k].join(' / ') + '（' + k.split('|').slice(1).join('|') + '）');
+    });
+    noConnect.forEach(function (x) { ercErrors.push('NC 引脚仍接入网络：' + x); });
+    add('B', 'B05', '显式引脚类型 ERC（多驱动 / NC 接线）', ercErrors.length ? false : (typedPins ? true : null),
+      ercErrors.length ? ercErrors.slice(0, 8).join('；') + (ercErrors.length > 8 ? ' …' : '')
+        : (typedPins ? '已声明类型 ' + typedPins + '/' + ercPins + ' 个引脚；未声明 ' + unknownPins + ' 个保持 unknown，旧 in/out 未用于推断 ERC' : ercPins + ' 个引脚均未声明 ERC 类型，结果为 unknown'),
+      ercErrors.length ? 'error' : (typedPins ? 'pass' : 'info'));
+
+    const ratingErrors = [], ratingUnknown = [], ratingAssumed = [];
+    let ratingVerified = 0;
+    const SOURCE = window.EVSE_SOURCE;
+    const ratingDevices = design.devices.filter(isElectricalDevice);
+    ratingDevices.forEach(function (d) {
+      const e = d.electrical || { status: 'unknown', ratings: {} };
+      const ratings = e.ratings && typeof e.ratings === 'object' ? e.ratings : {};
+      const hasRatings = Object.keys(ratings).length > 0;
+      if (e.status === 'verified') {
+        ratingVerified++;
+        const src = SOURCE && e.sourceId && SOURCE.byId(e.sourceId);
+        if (!src || src.status !== 'verified') ratingErrors.push(d.id + ': 已核验声明缺少状态为 verified 的来源记录');
+        else {
+          const sourceRevision = src.version || src.sha256 || src.file;
+          if (!sourceRevision || !e.sourceRevision || e.sourceRevision !== sourceRevision) ratingErrors.push(d.id + ': 来源修订/文件标识未绑定或不一致');
+        }
+        if (!e.manufacturer || !e.model) ratingErrors.push(d.id + ': 已核验额定值未绑定制造商和型号');
+        if (!hasRatings) ratingErrors.push(d.id + ': verified 但没有结构化额定参数');
+        Object.keys(ratings).forEach(function (k) {
+          const r = ratings[k], value = r && typeof r === 'object' ? Number(r.value) : NaN;
+          const unit = r && typeof r === 'object' ? String(r.unit || '') : '';
+          if (!Number.isFinite(value) || value <= 0 || !unit) ratingErrors.push(d.id + ': 额定参数 ' + k + ' 数值/单位无效');
+        });
+      } else if (e.status === 'assumption' && hasRatings) ratingAssumed.push(d.id);
+      else ratingUnknown.push(d.id);
+    });
+    add('B', 'B06', '器件额定值与来源证据绑定', ratingErrors.length ? false : (ratingUnknown.length || ratingAssumed.length ? null : true),
+      ratingErrors.length ? ratingErrors.slice(0, 8).join('；') + (ratingErrors.length > 8 ? ' …' : '')
+        : ('真实器件 ' + ratingDevices.length + ' 个；来源核验 ' + ratingVerified + ' 个；假设 ' + ratingAssumed.length + ' 个；未知 ' + ratingUnknown.length + ' 个。假设和未知均不表示满足选型要求'),
+      ratingErrors.length ? 'error' : (ratingUnknown.length || ratingAssumed.length ? 'info' : 'pass'));
+    const domainMismatch = [];
+    const powerDomain = function (ep) {
+      const d = M[ep.d], q = d && d.sym && (d.sym.pins || []).filter(function (x) { return String(x.n) === String(ep.p); })[0];
+      return q && q.k ? String(q.k).toUpperCase() : '';
+    };
+    design.nets.forEach(function (n) {
+      const da = M[n.a.d], db = M[n.b.d];
+      if (!da || !db || da.xref || db.xref || da.sym.isXref || db.sym.isXref || da.pwr || db.pwr) return;
+      const ka = powerDomain(n.a), kb = powerDomain(n.b);
+      const isACDC = (ka === 'AC' && (kb === 'DC' || kb === 'ESS')) || (kb === 'AC' && (ka === 'DC' || ka === 'ESS'));
+      const cls = String(n.cls || '').toUpperCase();
+      const classConflict = (cls === 'AC' && (ka === 'DC' || ka === 'ESS' || kb === 'DC' || kb === 'ESS')) ||
+        ((cls === 'DC' || cls === 'ESS') && (ka === 'AC' || kb === 'AC'));
+      if (isACDC || classConflict) domainMismatch.push((n.name || n.id) + ': ' + n.a.d + '/' + ka + ' ↔ ' + n.b.d + '/' + kb + '（网类 ' + cls + '）');
+    });
+    add('B', 'B07', '交流与直流高压域不直接跨接', domainMismatch.length === 0,
+      domainMismatch.length ? domainMismatch.slice(0, 10).join('；') + (domainMismatch.length > 10 ? ' …' : '') : '未发现明确 AC↔DC/ESS 直接跨接；变换器隔离/耐压仍需额定值与资料核验', domainMismatch.length ? 'warn' : 'info');
+
     /* --- C 制图规范 --- */
     let nonOrtho = 0, thruDev = 0, offGrid = 0, segCount = 0, totalLen = 0, bends = 0;
     const obst = design.devices.filter(function (d) { return !d.sym.isBus && !d.sym.isXref && !d.pwr && d.x != null; })
@@ -1623,8 +1815,13 @@ window.EVSE_GEO = (function () {
     });
     add('C', 'C01', '全部走线正交（无斜线）', nonOrtho === 0, nonOrtho ? nonOrtho + ' 段非正交' : segCount + ' 段全部水平/垂直');
     add('C', 'C02', '走线不穿越器件本体（含自身端子）', thruDev === 0, thruDev ? thruDev + ' 段穿越器件（需人工挤线或改布局）' : '0 段穿越', thruDev ? 'error' : 'pass');
-    add('C', 'C03', '正交交叉一律画半圆跨越（不连接）', true, design.hops.length + ' 处跨越由统一后处理生成，与绘制顺序无关');
-    add('C', 'C04', '真实连接点画实心结点', true, design.junctions.length + ' 个结点');
+    const crossingAudit = auditCrossings(design);
+    const hopExamples = crossingAudit.missingHops.slice(0, 5).map(function (x) { return (x.interior ? '交叉' : '端点接触') + ' ' + x.a.w.id + '/' + x.b.w.id + '@' + Math.round(x.x) + ',' + Math.round(x.y); });
+    add('C', 'C03', '异网交叉须有跨越；端点接触必须分离', crossingAudit.missingHops.length === 0,
+      crossingAudit.missingHops.length ? crossingAudit.missingHops.length + ' 处交叉/端点接触需处理：' + hopExamples.join('、') : crossingAudit.distinctNetCrossings + ' 处异网交叉均有对应跨越标记', crossingAudit.missingHops.length ? 'error' : 'pass');
+    const juncExamples = crossingAudit.missingJunctions.slice(0, 5).map(function (x) { return Math.round(x.x) + ',' + Math.round(x.y); });
+    add('C', 'C04', '真实连接点画实心结点', crossingAudit.missingJunctions.length === 0,
+      crossingAudit.missingJunctions.length ? crossingAudit.missingJunctions.length + ' 处连接缺少结点：' + juncExamples.join('、') : design.junctions.length + ' 个结点；检测到的连接点均已标记', crossingAudit.missingJunctions.length ? 'error' : 'pass');
     let tight = 0;
     const c05pairs = []; /* V11: 供 fixC05 使用的配对清单 */
     const bySheet = {};
@@ -1702,10 +1899,7 @@ window.EVSE_GEO = (function () {
         for (let i = 0; i < sgx.length && !badW; i++) {
           const s = sgx[i];
           if (leadStubSegW(w, s, i, sgx.length, design)) continue;
-          for (let t = 0.08; t <= 0.92; t += 0.08) {
-            const x = s.x1 + (s.x2 - s.x1) * t, y = s.y1 + (s.y2 - s.y1) * t;
-            if (x > ir.x && x < ir.x + ir.w && y > ir.y && y < ir.y + ir.h) { badW = true; break; }
-          }
+          if (bodyHitRect(s, ir)) badW = true;
         }
       });
       if (badW) inBody++;
@@ -1812,21 +2006,21 @@ window.EVSE_GEO = (function () {
     const avgBend = design.wires.length ? bends / design.wires.length : 0;
     add('D', 'D01', '平均拐点数 ≤ 4（原理图审美：短直、少拐）', avgBend <= 4, '平均 ' + avgBend.toFixed(2) + ' 个拐点 / 条', avgBend <= 4 ? 'pass' : 'warn');
     add('D', 'D02', '按功能分区且分页（一次 / 二次分离）', design.sheets.length >= 2, design.sheets.length + ' 页：' + design.sheets.map(function (s) { return s.no + '.' + s.title.split('·')[0].trim(); }).join(' / '));
-    add('D', 'D03', '母排分相绘制（L1/L2/L3/N、DC+/DC- 独立成线）', true, 'LIB-R11：交流 4 相独立母排，直流双极独立母排');
+    add('D', 'D03', '母排分相绘制（L1/L2/L3/N、DC+/DC- 独立成线）', null, '当前规则尚未从实际网络/母排几何验证分相；需工程复核', 'info');
     add('D', 'D04', '走线总长受控', totalLen > 0, '合计 ' + Math.round(totalLen / 100) / 10 + 'k 单位，' + segCount + ' 段');
 
     /* --- E 符号规范 --- */
-    add('E', 'E01', '开关类器件带功能标记（隔离=短横 / 断路器=× / 接触器=半圆）', true, 'QS1 隔离、QF1/QF2 断路器、KM/K* 接触器');
-    add('E', 'E02', '变换器用矩形 + 对角线 + ∼/= 标记', true, '充电模块、开关电源、DC/DC、PCS');
-    add('E', 'E03', '熔断器进线侧粗实线；电阻/电池/接地/灯/电机按 IEC 画法', true, '快熔 aR/gR 标记粗线');
-    add('E', 'E04', '全部符号来自受控符号库（非 SVG 描图）', true, design.devices.length + ' 个器件实例，' + design.devices.reduce(function (a, d) { return a + d.sym.pins.length; }, 0) + ' 个物理端子');
-    add('E', 'E05', '符号库标准符合性需专业复核（不自动声明合规）', true, '状态：REFERENCE_ONLY — SYMBOL_LIBRARY_TO_BE_VERIFIED', 'info');
+    add('E', 'E01', '开关符号功能画法符合适用标准', null, '符号外形当前未与受控标准符号编号及版本逐项比对', 'info');
+    add('E', 'E02', '变换器符号画法符合适用标准', null, '符号外形当前未与受控标准符号编号及版本逐项比对', 'info');
+    add('E', 'E03', '保护/接地/负载符号画法符合适用标准', null, '符号外形当前未与受控标准符号编号及版本逐项比对', 'info');
+    add('E', 'E04', '符号来自具有来源与修订记录的受控库', null, '当前符号实例 ' + design.devices.length + ' 个；库来源/修订完整性尚未自动检查', 'info');
+    add('E', 'E05', '符号库标准符合性需专业复核（不自动声明合规）', null, '状态：REFERENCE_ONLY — SYMBOL_LIBRARY_TO_BE_VERIFIED', 'info');
 
     /* --- F 文档控制 --- */
-    add('F', 'F01', '图框 / 图号 / 修订 / 状态 / 签署栏齐备', true, 'ISO 7200 参考栏位，签署人 UNASSIGNED');
-    add('F', 'F02', '线型图例 + 设备明细表遍历全部位号', true, design.devices.filter(function (d) { return !d.sym.isXref; }).length + ' 项');
+    add('F', 'F01', '图框 / 图号 / 修订 / 状态 / 签署栏齐备', null, '签署栏和标题栏字段未按交付类型自动校验', 'info');
+    add('F', 'F02', '线型图例 + 设备明细表遍历全部位号', null, '当前规则未对渲染结果与完整器件清单做逐项比对', 'info');
     add('F', 'F03', '输出状态标注为方案级概念草图', design.status.indexOf('CONCEPT_DRAFT') === 0, design.status);
-    add('F', 'F04', '器件档位标 RFQ_REQUIRED，不作为报价', true, '全部 spec 为标称序列档位');
+    add('F', 'F04', '器件档位标 RFQ_REQUIRED，不作为报价', null, '当前规则未检查全部器件档位和 BOM 状态', 'info');
 
     /* --- G 功能安全检测单元（源自厂家电路对比库 EVSE_VENDOR_KB） --- */
     const KB = window.EVSE_VENDOR_KB;
@@ -1864,10 +2058,14 @@ window.EVSE_GEO = (function () {
     const score = RUBRIC.map(function (r) {
       const list = items.filter(function (i) { return i.cat === r.id && i.level !== 'info'; });
       const good = list.filter(function (i) { return i.ok; }).length;
-      const pct = list.length ? good / list.length : 1;
-      return { id: r.id, name: r.name, weight: r.weight, got: Math.round(pct * r.weight * 10) / 10, pass: good, total: list.length };
+      const applicable = list.length > 0;
+      const pct = applicable ? good / list.length : null;
+      return { id: r.id, name: r.name, weight: r.weight, appliedWeight: applicable ? r.weight : 0,
+        applicable: applicable, pct: pct, got: applicable ? Math.round(pct * r.weight * 10) / 10 : 0, pass: good, total: list.length };
     });
-    const total = Math.round(score.reduce(function (a, s) { return a + s.got; }, 0) * 10) / 10;
+    const applicableWeight = score.reduce(function (a, s) { return a + s.appliedWeight; }, 0);
+    const weightedGot = score.reduce(function (a, s) { return a + s.got; }, 0);
+    const total = applicableWeight ? Math.round(weightedGot / applicableWeight * 1000) / 10 : 0;
     let grade = total >= 95 ? 'S' : total >= 88 ? 'A' : total >= 78 ? 'B' : total >= 65 ? 'C' : 'D';
     const cRow = score.filter(function (s) { return s.id === 'C'; })[0];
     const cHardFail = items.filter(function (i) { return i.cat === 'C' && !i.ok && (i.id === 'C02' || i.id === 'C05'); });
@@ -1875,9 +2073,12 @@ window.EVSE_GEO = (function () {
       const ord = ['S', 'A', 'B', 'C', 'D'];
       if (ord.indexOf(grade) < ord.indexOf('B')) grade = 'B';
     }
+    if (!applicableWeight || applicableWeight < RUBRIC.reduce(function (a, r) { return a + r.weight; }, 0) || items.some(function (i) { return !i.ok && i.level === 'warn'; })) {
+      if (grade === 'S') grade = 'A';
+    }
     const blocking = items.filter(function (i) { return !i.ok && i.level === 'error'; });
     if (blocking.length) grade = 'D';
-    design.audit = { items: items, score: score, total: total, grade: grade, status: blocking.length ? 'BLOCKED' : 'PASS', blocking: blocking, rubric: RUBRIC, stats: { segs: segCount, bends: bends, len: Math.round(totalLen), hops: design.hops.length, junc: design.junctions.length, pins: design.devices.reduce(function (a, d) { return a + d.sym.pins.length; }, 0) } };
+    design.audit = { items: items, score: score, total: total, applicableWeight: applicableWeight, rubricWeight: RUBRIC.reduce(function (a, r) { return a + r.weight; }, 0), grade: grade, status: blocking.length ? 'BLOCKED' : 'PASS', blocking: blocking, rubric: RUBRIC, stats: { segs: segCount, bends: bends, len: Math.round(totalLen), hops: design.hops.length, junc: design.junctions.length, pins: design.devices.reduce(function (a, d) { return a + d.sym.pins.length; }, 0) } };
     return design;
   }
 
@@ -3264,13 +3465,16 @@ const item = candidates[wi];
 
   function generate(params) {
     let d;
+    const report = function (text) { if (typeof globalThis !== 'undefined' && typeof globalThis.__EVSE_PROGRESS === 'function') globalThis.__EVSE_PROGRESS(String(text)); };
     if (params && params.family === 'mwess') {
       /* 兆瓦储能：build 自带器件坐标（绕开 place() 硬编码坐标表），布线/清理/审计复用下方共享管线 */
+      report('正在生成器件与引脚级网表');
       d = window.EVSE_MWESS.build(params);
       d.map = {}; d.devices.forEach(function (q) { d.map[q.id] = q; }); /* route/audit 依赖 design.map */
       d.hops = d.hops || []; d.junctions = d.junctions || []; d.boxes = d.boxes || [];
       frameAll(d);
       /* 大型储能图按功率、辅助、安全、控制、通信次序布线；失败路径不穿器件兜底，分轮推挤后再统一审计。 */
+      report('正在计算大图正交布线路径');
       route(d);
       if (window.EVSE_LABELFIX) window.EVSE_LABELFIX.run(d);
       snapEnds(d); forceOrtho(d); crossings(d);
@@ -3285,13 +3489,16 @@ const item = candidates[wi];
       fixClear8(d);
       if (window.EVSE_LABELFIX) window.EVSE_LABELFIX.run(d);
       snapEnds(d); forceOrtho(d); fitRoutedFrames(d); crossings(d); fixCrossXrefs(d); fixC08(d); repairLabelCross(d); repairBodyCross(d); enforceC13(d); nudgeC14(d); crossings(d); nudgeC14(d); emergencyRoute(d); enforceC13(d); audit(d);
+      report('正在完成禁布区、重叠与 ERC/DRC 审计');
       if (window.EVSE_GEO) window.EVSE_GEO.lastDesign = d;
       return d;
     } else {
+      report('正在生成器件与引脚级网表');
       d = window.EVSE_CORE.build(params);
       place(d);
     }
     /* L1-P9: hubAlign 已移除——A1/A5 的跟随符全部为 XR/PF（自带 LAT 避让摆放），hubAlign 强行按引脚 19px 排布导致跨页符框重叠（box 高 22），且移动后不刷新 boxes 造成 C08 虚报 */
+    report('正在计算正交布线路径与推挤通道');
     route(d); separate(d, 8);
     if (window.EVSE_LABELFIX) window.EVSE_LABELFIX.run(d);
     snapEnds(d); forceOrtho(d); healReroute(d); forceOrtho(d);
@@ -3327,6 +3534,7 @@ const item = candidates[wi];
     crossings(d);
     d.xrefFixed = fixXrefOverlap(d);
     d.emergencyRouted = emergencyRoute(d);
+    report('正在完成禁布区、重叠与 ERC/DRC 审计');
     crossings(d); audit(d);
     if (window.EVSE_GEO) window.EVSE_GEO.lastDesign = d; /* V5-EX1: 导出模块取当前方案 */
     return d;
