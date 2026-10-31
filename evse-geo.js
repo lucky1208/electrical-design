@@ -355,6 +355,25 @@ window.EVSE_GEO = (function () {
     }
     return false;
   }
+  /* Net records are pairwise edges. Two different records can still be the
+   * same electrical node when they terminate on one physical device pin. */
+  function sharesEndpointPin(design, netA, netB) {
+    const na = netById(design, netA), nb = netById(design, netB);
+    if (!na || !nb) return false;
+    const ea = [na.a, na.b], eb = [nb.a, nb.b];
+    for (let i = 0; i < ea.length; i++) for (let j = 0; j < eb.length; j++) {
+      if (ea[i].d === eb[j].d && String(ea[i].p) === String(eb[j].p)) return true;
+    }
+    return false;
+  }
+  function wireTerminatesAtPin(design, w, x, y) {
+    const n = netById(design, w.net);
+    if (!n) return false;
+    return [n.a, n.b].some(function (ep) {
+      const p = pinAbs(design.map || {}, ep);
+      return p && Math.abs(p.x - x) <= 1 && Math.abs(p.y - y) <= 1;
+    });
+  }
   function hasMarkerAt(markers, sheet, x, y, tol) {
     return (markers || []).some(function (m) {
       return m.sheet === sheet && Math.abs(m.x - x) <= tol && Math.abs(m.y - y) <= tol;
@@ -371,29 +390,37 @@ window.EVSE_GEO = (function () {
     pairs.forEach(function (pair) {
       const sameNet = pair.a.w.net === pair.b.w.net;
       const sharedPin = sharedPinAt(design, pair.a, pair.b, pair.x, pair.y);
-      if (!sameNet && !sharedPin) {
+      const sameNode = sameNet || sharesEndpointPin(design, pair.a.w.net, pair.b.w.net);
+      if (!sameNode) {
         distinctNetCrossings++;
         const hop = (design.hops || []).some(function (h) {
           return h.sheet === pair.sheet && Math.abs(h.x - pair.x) <= 1 && Math.abs(h.y - pair.y) <= 1 && (!h.w || h.w === pair.a.w.id || h.w === pair.b.w.id);
         });
         if (!hop) missingHops.push(pair);
       }
-      if ((sameNet || sharedPin) && !sharedPin && !sameWireAdjacentAt(pair)) {
+      if (sameNode && !sharedPin && !sameWireAdjacentAt(pair)) {
         expectedJunctions[pair.sheet + '|' + pair.x.toFixed(1) + '|' + pair.y.toFixed(1)] = pair;
       }
     });
-    const endpointCounts = {};
+    const endpointGroups = {};
     (design.wires || []).forEach(function (w) {
       if (!w.pts || w.pts.length < 2) return;
       [w.pts[0], w.pts[w.pts.length - 1]].forEach(function (p) {
         const k = w.sheet + '|' + Math.round(p[0]) + '|' + Math.round(p[1]);
-        const e = endpointCounts[k] || (endpointCounts[k] = { sheet: w.sheet, x: Math.round(p[0]), y: Math.round(p[1]), count: 0 });
-        e.count++;
+        const e = endpointGroups[k] || (endpointGroups[k] = { sheet: w.sheet, x: Math.round(p[0]), y: Math.round(p[1]), wires: [] });
+        if (!e.wires.some(function (q) { return q.id === w.id; })) e.wires.push(w);
       });
     });
-    Object.keys(endpointCounts).forEach(function (k) {
-      const e = endpointCounts[k];
-      if (e.count >= 2) expectedJunctions[e.sheet + '|' + e.x.toFixed(1) + '|' + e.y.toFixed(1)] = e;
+    Object.keys(endpointGroups).forEach(function (k) {
+      const e = endpointGroups[k];
+      if (e.wires.some(function (w) { return wireTerminatesAtPin(design, w, e.x, e.y); })) return;
+      for (let i = 0; i < e.wires.length; i++) for (let j = i + 1; j < e.wires.length; j++) {
+        const a = e.wires[i], b = e.wires[j];
+        if (a.net === b.net || sharesEndpointPin(design, a.net, b.net)) {
+          expectedJunctions[e.sheet + '|' + e.x.toFixed(1) + '|' + e.y.toFixed(1)] = e;
+          return;
+        }
+      }
     });
     const missingJunctions = Object.keys(expectedJunctions).map(function (k) { return expectedJunctions[k]; }).filter(function (p) {
       return !hasMarkerAt(design.junctions, p.sheet, p.x, p.y, 1);
@@ -450,11 +477,32 @@ window.EVSE_GEO = (function () {
     return s.y1 > r.y - PAD && s.y1 < r.y + r.h + PAD && hi(s.x1, s.x2) > r.x - PAD && lo(s.x1, s.x2) < r.x + r.w + PAD;
   }
   function newUsed() { return { v: {}, h: {} }; }
-  function addUsed(u, s) {
+  function addUsed(u, s, owner) {
     const m = s.v ? u.v : u.h, c = s.v ? s.x1 : s.y1, k = Math.floor(c / MIN_CLEAR);
-    (m[k] = m[k] || []).push(s);
+    const item = { x1: s.x1, y1: s.y1, x2: s.x2, y2: s.y2, v: s.v };
+    if (owner) item.owner = owner;
+    (m[k] = m[k] || []).push(item);
   }
-  function tooClose(s, u) {
+  function samePinRef(a, b) { return !!a && !!b && String(a.d) === String(b.d) && String(a.p) === String(b.p); }
+  function commonPinEscapeOnly(s, t, owner, oldOwner) {
+    if (!owner || !oldOwner || s.v !== t.v) return false;
+    const common = [];
+    if (samePinRef(owner.a, oldOwner.a)) common.push({ a: 'a', b: 'a' });
+    if (samePinRef(owner.a, oldOwner.b)) common.push({ a: 'a', b: 'b' });
+    if (samePinRef(owner.b, oldOwner.a)) common.push({ a: 'b', b: 'a' });
+    if (samePinRef(owner.b, oldOwner.b)) common.push({ a: 'b', b: 'b' });
+    /* A wire with both terminals shared is a duplicate route, not a branch. */
+    if (common.length !== 1) return false;
+    const c = common[0];
+    const candIsStub = c.a === 'a' ? owner.first : owner.last;
+    const oldIsStub = c.b === 'a' ? oldOwner.first : oldOwner.last;
+    if (!candIsStub || !oldIsStub) return false;
+    const overlapLen = s.v
+      ? Math.min(Math.max(s.y1, s.y2), Math.max(t.y1, t.y2)) - Math.max(Math.min(s.y1, s.y2), Math.min(t.y1, t.y2))
+      : Math.min(Math.max(s.x1, s.x2), Math.max(t.x1, t.x2)) - Math.max(Math.min(s.x1, s.x2), Math.min(t.x1, t.x2));
+    return overlapLen > 0 && overlapLen <= ESC + MIN_CLEAR;
+  }
+  function tooClose(s, u, owner) {
     const m = s.v ? u.v : u.h, c = s.v ? s.x1 : s.y1, k = Math.floor(c / MIN_CLEAR);
     for (let b = k - 1; b <= k + 1; b++) {
       const arr = m[b]; if (!arr) continue;
@@ -467,10 +515,18 @@ window.EVSE_GEO = (function () {
           if (Math.abs(t.y1 - s.y1) >= MIN_CLEAR) continue;
           if (Math.max(s.x1, s.x2) < Math.min(t.x1, t.x2) + 2 || Math.min(s.x1, s.x2) > Math.max(t.x1, t.x2) - 2) continue;
         }
+        if (commonPinEscapeOnly(s, t, owner, t.owner)) continue;
         return true;
       }
     }
     return false;
+  }
+  function usedOwner(n, i, count) {
+    return { a: n ? { d: n.a.d, p: String(n.a.p) } : null, b: n ? { d: n.b.d, p: String(n.b.p) } : null, first: i === 0, last: i === count - 1 };
+  }
+  function addWireUsed(used, w, n) {
+    const sg = segsOf(w.pts || []);
+    sg.forEach(function (s, i) { addUsed(used, s, usedOwner(n, i, sg.length)); });
   }
 
   function route(design) {
@@ -569,7 +625,7 @@ window.EVSE_GEO = (function () {
       ptsF = stubFix(ptsF, B, false);
       ptsF.forEach(function (q3) { q3[0] = Math.round(q3[0]); q3[1] = Math.round(q3[1]); });
       const sg = segsOf(ptsF);
-      sg.forEach(function (s) { addUsed(used[sh], s); });
+      sg.forEach(function (s, i) { addUsed(used[sh], s, usedOwner(n, i, sg.length)); });
       wires.push({ id: 'W-' + n.id, net: n.id, cls: n.cls, name: n.name, sheet: sh, pts: ptsF, a: A, b: B, via: VIA });
       n.wire_id = 'W-' + n.id;
     });
@@ -640,7 +696,21 @@ window.EVSE_GEO = (function () {
             if (hitRect(sg[i], r)) return false;
           }
         }
-        if (!ignoreUsed && i > 0 && i < sg.length - 1 && used && tooClose(sg[i], used)) return false;
+        /* Strict production families must reserve every segment, including a
+         * direct one-segment route.  The old first/last shortcut let a whole
+         * wire be placed on top of another one when the candidate had only
+         * one or two segments. */
+        if (!ignoreUsed && used && (strict || (i > 0 && i < sg.length - 1))) {
+          const s = sg[i], at = function (x, y) {
+            return (Math.abs(s.x1 - x) < 0.6 && Math.abs(s.y1 - y) < 0.6) || (Math.abs(s.x2 - x) < 0.6 && Math.abs(s.y2 - y) < 0.6);
+          };
+          const owner = {
+            a: { d: A.dev || ida, p: String(A.pin == null ? '' : A.pin) },
+            b: { d: B.dev || idb, p: String(B.pin == null ? '' : B.pin) },
+            first: at(A.x, A.y), last: at(B.x, B.y)
+          };
+          if (tooClose(s, used, owner)) return false;
+        }
       }
       return true;
     };
@@ -683,25 +753,28 @@ window.EVSE_GEO = (function () {
     /* 第3轮：A* 仅绕器件（允许压文字，C02 优先于 C08） */
     let ap2 = pathFindAdaptive(A, B, ob, soft || [], used, ida, idb, a1, b1, A0, B0, true, strict);
     if (ap2) { const po = orient(ap2, A0); if (ok(po, false)) { VIA = 'astar-nosoft'; return po; } }
-    /* 第4轮：不穿器件优先于间距（C02 > C05），先避文字再不避 */
-    for (let si = 0; si < shapes.length; si++) {
-      for (let k = 0; k < shapes[si].n; k++) {
-        const c = shapes[si].f(k);
-        if (ok(c, true, true)) { VIA = 'shape-nogap'; return orient(c, A0); }
+    /* 第4轮：非严格的草图模式可继续优先连通。MWESS 走线不得以忽略
+     * 已占通道的方式伪装成功；没有合法间距就返回 NO_CLEAR_PATH。 */
+    if (!strict) {
+      for (let si = 0; si < shapes.length; si++) {
+        for (let k = 0; k < shapes[si].n; k++) {
+          const c = shapes[si].f(k);
+          if (ok(c, true, true)) { VIA = 'shape-nogap'; return orient(c, A0); }
+        }
       }
-    }
-    for (let si = 0; si < shapes.length; si++) {
-      for (let k = 0; k < shapes[si].n; k++) {
-        const c = shapes[si].f(k);
-        if (ok(c, false, true)) { VIA = 'shape-hard'; return orient(c, A0); }
+      for (let si = 0; si < shapes.length; si++) {
+        for (let k = 0; k < shapes[si].n; k++) {
+          const c = shapes[si].f(k);
+          if (ok(c, false, true)) { VIA = 'shape-hard'; return orient(c, A0); }
+        }
       }
     }
     /* 第5轮（V2.2）：禁止“穿自体”兜底；无路径时明确失败，交由布局/通道扩容处理 */
     /* V2.2：硬禁区-only 通道兜底——忽略文字/已用通道，仍不得穿越器件与管脚区 */
-    const apH = pathFindAdaptive(A, B, ob, [], null, ida, idb, a1, b1, A0, B0, true, true);
+    const apH = pathFindAdaptive(A, B, ob, [], strict ? used : null, ida, idb, a1, b1, A0, B0, true, true);
     if (apH) {
       const ph = orient(apH, A0);
-      if (ok(ph, false, true)) { VIA = 'astar-hard'; return ph; }
+      if (ok(ph, false, !strict)) { VIA = 'astar-hard'; return ph; }
     }
     /* MWESS 方案禁止穿器件兜底；无路时明确留错并阻止误交付。 */
     if (strict) { VIA = 'NO_CLEAR_PATH'; return null; }
@@ -1109,14 +1182,6 @@ window.EVSE_GEO = (function () {
    * ============================================================ */
   /* v2.25 audit-fix: detouch——异网角点/端点落在对方线内部=短路风险点，垂直挪开 */
   function detouch(design) {
-    const pinSet = {};
-    design.devices.forEach(function (dv) {
-      (dv.sym.pins || []).forEach(function (p) {
-        const q = pinAbs(dv, p);
-        if (!q) return;
-        pinSet[dv.id + ':' + Math.round(q.x) + ',' + Math.round(q.y)] = 1;
-      });
-    });
     for (let pass = 0; pass < 3; pass++) {
       const segs = [];
       design.wires.forEach(function (w) { segsOf(w.pts).forEach(function (s, i) { segs.push({ w: w, i: i, s: s }); }); });
@@ -1125,7 +1190,7 @@ window.EVSE_GEO = (function () {
         const A = segs[i]; if (!A.s.v) continue;
         for (let e = 0; e < 2; e++) {
           const p = e === 0 ? [A.s.x1, A.s.y1] : [A.s.x2, A.s.y2];
-          const isPin = pinSet[A.w.id + ':' + Math.round(p[0]) + ',' + Math.round(p[1])];
+          const isPin = wireTerminatesAtPin(design, A.w, p[0], p[1]);
           for (let j = 0; j < segs.length; j++) {
             const B = segs[j];
             if (B.w.id === A.w.id || B.w.net === A.w.net || B.w.sheet !== A.w.sheet) continue;
@@ -1134,28 +1199,28 @@ window.EVSE_GEO = (function () {
             if (p[0] <= Math.min(B.s.x1, B.s.x2) + 0.5 || p[0] >= Math.max(B.s.x1, B.s.x2) - 0.5) continue;
             if (isPin) { /* 引脚端点不动 → 挪对方横线（端点非引脚时） */
               const bpts = B.w.pts;
-              const bEndsPin = bpts.some(function (q2) { return pinSet[B.w.id + ':' + Math.round(q2[0]) + ',' + Math.round(q2[1])]; });
+              const bEndsPin = bpts.some(function (q2) { return wireTerminatesAtPin(design, B.w, q2[0], q2[1]); });
               if (bEndsPin) continue;
               const dys2 = [6, -6, 12, -12];
               for (let k2 = 0; k2 < dys2.length; k2++) {
                 const ny2 = B.s.y1 + dys2[k2];
                 let ok2 = Math.abs(ny2 - p[1]) > 1.5;
-                if (ok2) for (let j3 = 0; j3 < segs.length && ok2; j3++) {
-                  const C3 = segs[j3];
-                  if (C3.w.id === B.w.id || C3.w.net === B.w.net) continue;
-                  if (Math.abs(C3.s.x1 - C3.s.x2) > 0.5) continue;
-                  if (p[0] > Math.min(C3.s.x1, C3.s.x2) - 0.5 && p[0] < Math.max(C3.s.x1, C3.s.x2) + 0.5 && Math.abs(p[1] - Math.min(C3.s.y1, C3.s.y2)) < 0.5) ok2 = false;
-                }
                 if (!ok2) continue;
                 const bSnap = bpts.map(function (zz) { return zz.slice(); });
                 for (let q3 = 0; q3 < bpts.length; q3++) {
                   if (Math.abs(bpts[q3][1] - B.s.y1) < 0.5 && bpts[q3][0] >= Math.min(B.s.x1, B.s.x2) - 0.5 && bpts[q3][0] <= Math.max(B.s.x1, B.s.x2) + 0.5) bpts[q3][1] = ny2;
                 }
-                if (ptsIntrude(design, B.w, bpts)) { for (let q4 = 0; q4 < bpts.length; q4++) { bpts[q4][0] = bSnap[q4][0]; bpts[q4][1] = bSnap[q4][1]; } continue; }
+                if (ptsIntrude(design, B.w, bpts) || !wireInterferenceClean(design, B.w, bpts)) {
+                  for (let q4 = 0; q4 < bpts.length; q4++) { bpts[q4][0] = bSnap[q4][0]; bpts[q4][1] = bSnap[q4][1]; }
+                  continue;
+                }
                 moved++;
                 break;
               }
               if (moved) break;
+              /* If the offending endpoint is a physical pin, keep it fixed
+               * when no legal reroute for the other wire was found. */
+              continue;
             }
             /* 角点垂直挪动 dy */
             const dys = [6, -6, 12, -12, 18, -18];
@@ -1301,16 +1366,18 @@ window.EVSE_GEO = (function () {
     design.wires.forEach(function (w) {
       [w.pts[0], w.pts[w.pts.length - 1]].forEach(function (p) {
         const k = w.sheet + ':' + Math.round(p[0]) + ',' + Math.round(p[1]);
-        ends[k] = (ends[k] || 0) + 1;
+        const e = ends[k] || (ends[k] = { sheet: w.sheet, x: Math.round(p[0]), y: Math.round(p[1]), wires: [] });
+        if (!e.wires.some(function (q) { return q.id === w.id; })) e.wires.push(w);
       });
     });
     const has = function (sheet, x, y) { return hops.some(function (h) { return h.sheet === sheet && Math.abs(h.x - x) < 1 && Math.abs(h.y - y) < 1; }); };
+    const sameNode = function (netA, netB) { return netA === netB || sharesEndpointPin(design, netA, netB); };
     /* 规则1：竖线完整穿越横线内部 → 半圆在竖线（竖让横） */
     for (let i = 0; i < all.length; i++) {
       const A = all[i]; if (!A.s.v) continue;
       for (let j = 0; j < all.length; j++) {
         const B = all[j];
-        if (B.s.v || A.sheet !== B.sheet || A.net === B.net) continue;
+        if (B.s.v || A.sheet !== B.sheet || sameNode(A.net, B.net)) continue;
         const x = A.s.x1, y = B.s.y1;
         const ay0 = Math.min(A.s.y1, A.s.y2), ay1 = Math.max(A.s.y1, A.s.y2);
         const bx0 = Math.min(B.s.x1, B.s.x2), bx1 = Math.max(B.s.x1, B.s.x2);
@@ -1326,7 +1393,7 @@ window.EVSE_GEO = (function () {
       const ay0 = Math.min(A.s.y1, A.s.y2), ay1 = Math.max(A.s.y1, A.s.y2);
       for (let j = 0; j < all.length; j++) {
         const B = all[j];
-        if (B.s.v || A.sheet !== B.sheet || A.net === B.net) continue;
+        if (B.s.v || A.sheet !== B.sheet || sameNode(A.net, B.net)) continue;
         const y = B.s.y1;
         const bx0 = Math.min(B.s.x1, B.s.x2), bx1 = Math.max(B.s.x1, B.s.x2);
         if (x <= bx0 + 1.5 || x >= bx1 - 1.5) continue;
@@ -1392,22 +1459,16 @@ window.EVSE_GEO = (function () {
         }
       });
     });
-    for (var jI = 0; jI < all.length; jI++) {
-      var A3 = all[jI]; if (!A3.s.v) continue;
-      for (var jJ = 0; jJ < all.length; jJ++) {
-        var B3 = all[jJ];
-        if (B3.s.v || A3.sheet !== B3.sheet || A3.net !== B3.net) continue;
-        var x3 = A3.s.x1, y3 = B3.s.y1;
-        if (x3 <= Math.min(B3.s.x1, B3.s.x2) + 1.5 || x3 >= Math.max(B3.s.x1, B3.s.x2) - 1.5) continue;
-        if (y3 <= Math.min(A3.s.y1, A3.s.y2) + 1.5 || y3 >= Math.max(A3.s.y1, A3.s.y2) - 1.5) continue;
-        ends[A3.sheet + ':' + Math.round(x3) + ',' + Math.round(y3)] = 2;
-      }
-    }
     const junc = [];
     Object.keys(ends).forEach(function (k) {
-      if (ends[k] < 2) return;
-      const parts = k.split(':'), xy = parts[1].split(',');
-      junc.push({ sheet: +parts[0], x: +xy[0], y: +xy[1] });
+      const e = ends[k];
+      if (e.wires.some(function (w) { return wireTerminatesAtPin(design, w, e.x, e.y); })) return;
+      for (let i = 0; i < e.wires.length; i++) for (let j = i + 1; j < e.wires.length; j++) {
+        if (sameNode(e.wires[i].net, e.wires[j].net)) {
+          junc.push({ sheet: e.sheet, x: e.x, y: e.y });
+          return;
+        }
+      }
     });
     /* V12b: 穿他网 pin 电点处也渲染跳线弧——明确“跨越不连接”语义（走廊容量不足无法改道时的诚实画法） */
     (function () {
@@ -1438,7 +1499,7 @@ window.EVSE_GEO = (function () {
      * of the two wires. Legacy special cases above intentionally skip some
      * endpoint/near-end intersections; those still need explicit graphics. */
     crossingPairs(design).forEach(function (pair) {
-      if (!pair.interior || pair.a.w.net === pair.b.w.net || sharedPinAt(design, pair.a, pair.b, pair.x, pair.y)) return;
+      if (!pair.interior || sameNode(pair.a.w.net, pair.b.w.net) || sharedPinAt(design, pair.a, pair.b, pair.x, pair.y)) return;
       const pairHop = hops.some(function (h) {
         return h.sheet === pair.sheet && Math.abs(h.x - pair.x) < 1 && Math.abs(h.y - pair.y) < 1 && (h.w === pair.a.w.id || h.w === pair.b.w.id);
       });
@@ -1447,7 +1508,7 @@ window.EVSE_GEO = (function () {
     /* A same-net perpendicular intersection is a real node, including a T
      * branch where one segment terminates on the middle of another. */
     crossingPairs(design).forEach(function (pair) {
-      if (pair.a.w.net !== pair.b.w.net || sameWireAdjacentAt(pair)) return;
+      if (!sameNode(pair.a.w.net, pair.b.w.net) || sharedPinAt(design, pair.a, pair.b, pair.x, pair.y) || sameWireAdjacentAt(pair)) return;
       if (!hasMarkerAt(junc, pair.sheet, pair.x, pair.y, 1)) junc.push({ sheet: pair.sheet, x: Math.round(pair.x), y: Math.round(pair.y) });
     });
     design.hops = hops; design.junctions = junc;
@@ -1512,7 +1573,7 @@ window.EVSE_GEO = (function () {
       const n = netById(design, w.net);
       if (!n) return;
       const touch = set[n.a.d] || set[n.b.d];
-      if (!touch && !w.dirty) { segsOf(w.pts).forEach(function (s) { addUsed(used[w.sheet], s); }); }
+      if (!touch && !w.dirty) addWireUsed(used[w.sheet], w, n);
     });
     /* v2.24: 重路由对象按引脚坐标排序（消除交叉团） */
     const rrList = [];
@@ -1537,7 +1598,7 @@ window.EVSE_GEO = (function () {
       if (!pts || pts.length < 2) { n.err = 'ROUTE_NO_CLEAR_PATH'; return; }
       w.pts = pts;
       w.a = A; w.b = B;
-      segsOf(w.pts).forEach(function (s) { addUsed(used[w.sheet], s); });
+      addWireUsed(used[w.sheet], w, n);
     });
     crossings(design);
     return design;
@@ -1701,8 +1762,18 @@ window.EVSE_GEO = (function () {
       });
     });
     add('B', 'B01', '无悬空引脚（每个端子都有归属网络）', float_.length === 0, float_.length ? float_.length + ' 个未接：' + float_.slice(0, 14).join('、') + (float_.length > 14 ? ' …' : '') : '全部端子已接线', float_.length ? 'warn' : 'pass');
-    const badPin = design.nets.filter(function (n) { return n.err; });
-    add('B', 'B02', '每条网络两端均落在具名物理端子上', badPin.length === 0, badPin.length ? badPin.length + ' 条网络端子未解析' : design.nets.length + ' 条网络全部 pin→pin 可追溯');
+    const badPin = design.nets.filter(function (n) {
+      return !M[n.a.d] || !M[n.b.d] || !pinOf(M[n.a.d] || {}, n.a.p) || !pinOf(M[n.b.d] || {}, n.b.p);
+    });
+    const routedByNet = {};
+    (design.wires || []).forEach(function (w) { routedByNet[w.net] = (routedByNet[w.net] || 0) + 1; });
+    const missingRoute = design.nets.filter(function (n) { return !routedByNet[n.id]; });
+    const routeFailed = design.nets.filter(function (n) { return n.err === 'ROUTE_NO_CLEAR_PATH'; });
+    const otherNetErrors = design.nets.filter(function (n) { return n.err && n.err !== 'ROUTE_NO_CLEAR_PATH'; });
+    const b02ok = badPin.length === 0 && missingRoute.length === 0 && otherNetErrors.length === 0;
+    add('B', 'B02', '每条网络均绑定真实端子并完成走线', b02ok,
+      b02ok ? design.nets.length + ' 条网络全部 pin→pin 且有唯一走线'
+        : '端子无法解析 ' + badPin.length + ' 条；无合法路径 ' + routeFailed.length + ' 条；未生成走线 ' + missingRoute.length + ' 条；其他网络错误 ' + otherNetErrors.length + ' 条');
     const shared = {};
     design.nets.forEach(function (n) { if (n.cls === 'CTL' || n.cls === 'COMM' || n.cls === 'SAF') { const k = n.a.d + '/' + n.a.p; shared[k] = (shared[k] || 0) + 1; } });
     const busSig = Object.keys(shared).filter(function (k) { return shared[k] > 2 && k.indexOf('WB') !== 0 && k.indexOf('XR') !== 0; }); /* V4-BUS3: 跨页符汇聚点豁免 */
@@ -1828,46 +1899,38 @@ window.EVSE_GEO = (function () {
     design.wires.forEach(function (w) { (bySheet[w.sheet] = bySheet[w.sheet] || []).push(w); });
     Object.keys(bySheet).forEach(function (sh) {
       const arr = [];
-      bySheet[sh].forEach(function (w) { segsOf(w.pts).forEach(function (s) { arr.push({ s: s, net: w.net, w: w }); }); });
-      /* V4-C05EX2: 同节点汇接共线豁免（E1 同名总线 / E2 共享引脚 / E3 器件引脚步段 / E4 母线邻域） */
+      bySheet[sh].forEach(function (w) {
+        const sg = segsOf(w.pts);
+        sg.forEach(function (s, i) { arr.push({ s: s, net: w.net, w: w, i: i, count: sg.length }); });
+      });
+      /* 同名网络仍按一个逻辑网处理；异名网只允许真实公共端子的短引出段共享。 */
       const netByIdX = {};
       design.nets.forEach(function (nn) { netByIdX[nn.id] = nn; });
       const pinKeyX = function (ep) { return ep.d + ':' + ep.p; };
-      const isBusX = function (dname) { const q = design.devices.filter(function (z) { return z.id === dname; })[0]; return q && q.sym.isBus; };
       for (let i = 0; i < arr.length; i++) for (let j = i + 1; j < arr.length; j++) {
         if (arr[i].net === arr[j].net) continue;
         const a = arr[i].s, b = arr[j].s;
         if (a.v !== b.v) continue;
         let overl = false;
-        if (a.v) { if (Math.abs(a.x1 - b.x1) < MIN_CLEAR - 0.5 && Math.max(a.y1, a.y2) > Math.min(b.y1, b.y2) + 3 && Math.min(a.y1, a.y2) < Math.max(b.y1, b.y2) - 3) overl = true; }
-        else { if (Math.abs(a.y1 - b.y1) < MIN_CLEAR - 0.5 && Math.max(a.x1, a.x2) > Math.min(b.x1, b.x2) + 3 && Math.min(a.x1, a.x2) < Math.max(b.x1, b.x2) - 3) overl = true; }
+        if (a.v) {
+          const gap = Math.abs(a.x1 - b.x1);
+          const overlapLen = Math.min(Math.max(a.y1, a.y2), Math.max(b.y1, b.y2)) - Math.max(Math.min(a.y1, a.y2), Math.min(b.y1, b.y2));
+          if (gap < MIN_CLEAR - 0.5 && overlapLen > 3) overl = true;
+        } else {
+          const gap = Math.abs(a.y1 - b.y1);
+          const overlapLen = Math.min(Math.max(a.x1, a.x2), Math.max(b.x1, b.x2)) - Math.max(Math.min(a.x1, a.x2), Math.min(b.x1, b.x2));
+          if (gap < MIN_CLEAR - 0.5 && overlapLen > 3) overl = true;
+        }
         if (!overl) continue;
         const na = netByIdX[arr[i].net], nb = netByIdX[arr[j].net];
         /* E1: 同名网络（总线汇聚多源共享同名网） */
-        if (na && nb && na.name === nb.name) continue;
+        if (na && nb && na.name && nb.name && na.name === nb.name) continue;
         /* 端点引脚集合 */
         const pa = na ? [pinKeyX(na.a), pinKeyX(na.b)] : [], pb = nb ? [pinKeyX(nb.a), pinKeyX(nb.b)] : [];
         /* E2: 共享同一物理引脚（同节点多线汇接，如接触器主触点进线侧熔断+检测） */
         let sharePin = false;
         for (let u = 0; u < pa.length && !sharePin; u++) for (let v = 0; v < pb.length; v++) if (pa[u] === pb[v]) { sharePin = true; break; }
-        if (sharePin) continue;
-        /* E3: 各自为同一器件的引脚步段（器件内部汇接，如接触器上下主触点引出段） */
-        let e3 = false;
-        if (na && nb) {
-          const da = [na.a.d, na.b.d], db = [nb.a.d, nb.b.d];
-          for (let u = 0; u < da.length && !e3; u++) for (let v = 0; v < db.length; v++) if (da[u] === db[v]) { e3 = true; break; }
-        }
-        if (e3) continue;
-        /* E4: 任一端接入母线引脚（WBx）且重叠长度 ≤ 24（母线 tap 邻域汇接） */
-        let e4 = false;
-        if (na && nb) {
-          const touchBus = function (ep) { return isBusX(ep.d); };
-          if ((touchBus(na.a) || touchBus(na.b) || touchBus(nb.a) || touchBus(nb.b))) {
-            const ovl = a.v ? (Math.min(Math.max(a.y1, a.y2), Math.max(b.y1, b.y2)) - Math.max(Math.min(a.y1, a.y2), Math.min(b.y1, b.y2))) : (Math.min(Math.max(a.x1, a.x2), Math.max(b.x1, b.x2)) - Math.max(Math.min(a.x1, a.x2), Math.min(b.x1, b.x2)));
-            if (ovl <= 24) e4 = true;
-          }
-        }
-        if (e4) continue;
+        if (sharePin && commonPinEscapeOnly(a, b, usedOwner(na, arr[i].i, arr[i].count), usedOwner(nb, arr[j].i, arr[j].count))) continue;
         tight++;
         c05pairs.push({ a: arr[i], b: arr[j] });
       }
@@ -1936,10 +1999,10 @@ window.EVSE_GEO = (function () {
     });
     add('C', 'C13', '走线不进入器件虚线禁布框（本体外扩 8px）', dashHit === 0, dashHit ? dashHit + ' 条线进入虚线禁布框' : '0 条线进入虚线禁布框', dashHit ? 'error' : 'pass');    const ctrack = {};
     design.wires.forEach(function (w) {
-      segsOf(w.pts).forEach(function (s) {
+      segsOf(w.pts).forEach(function (s, i) {
         const axis = s.v ? 'V' : 'H', coord = s.v ? s.x1 : s.y1;
         const key = w.sheet + '|' + axis + '|' + Math.round(coord * 2);
-        (ctrack[key] = ctrack[key] || []).push({ w: w, s: s, axis: axis, coord: coord });
+        (ctrack[key] = ctrack[key] || []).push({ w: w, s: s, axis: axis, coord: coord, i: i, count: segsOf(w.pts).length });
       });
     });
     const coincident = {};
@@ -1950,12 +2013,12 @@ window.EVSE_GEO = (function () {
         const a = group[i], b = group[j];
         if (a.w === b.w || a.w.net === b.w.net || Math.abs(a.coord - b.coord) > 0.5) continue;
         const na = netById(design, a.w.net), nb = netById(design, b.w.net);
-        const pk = function (r) { return r ? r.d + ':' + r.p : ''; };
-        if (na && nb && (pk(na.a) === pk(nb.a) || pk(na.a) === pk(nb.b) || pk(na.b) === pk(nb.a) || pk(na.b) === pk(nb.b))) continue;
         const ol = a.s.v
           ? Math.min(Math.max(a.s.y1, a.s.y2), Math.max(b.s.y1, b.s.y2)) - Math.max(Math.min(a.s.y1, a.s.y2), Math.min(b.s.y1, b.s.y2))
           : Math.min(Math.max(a.s.x1, a.s.x2), Math.max(b.s.x1, b.s.x2)) - Math.max(Math.min(a.s.x1, a.s.x2), Math.min(b.s.x1, b.s.x2));
         if (ol <= 0.01) continue;
+        if (na && nb && sharesEndpointPin(design, a.w.net, b.w.net) &&
+            commonPinEscapeOnly(a.s, b.s, usedOwner(na, a.i, a.count), usedOwner(nb, b.i, b.count))) continue;
         const ids = [a.w.id, b.w.id].sort();
         const k2 = ids.join('|') + '|' + key;
         if (coincident[k2]) continue;
@@ -2150,7 +2213,7 @@ window.EVSE_GEO = (function () {
       const offA = A && (Math.abs(w.pts[0][0] - A.x) > 0.6 || Math.abs(w.pts[0][1] - A.y) > 0.6);
       const offB = B && (Math.abs(w.pts[L - 1][0] - B.x) > 0.6 || Math.abs(w.pts[L - 1][1] - B.y) > 0.6);
       if (offA || offB) bad.push({ w: w, n: n, A: A, B: B });
-      else segsOf(w.pts).forEach(function (s) { addUsed(used[w.sheet], s); });
+      else addWireUsed(used[w.sheet], w, n);
     });
     bad.forEach(function (it) {
       const w = it.w, n = it.n, A = it.A, B = it.B;
@@ -2161,7 +2224,7 @@ window.EVSE_GEO = (function () {
       if (!pts || pts.length < 2) { n.err = 'ROUTE_NO_CLEAR_PATH'; return; }
       w.pts = pts;
       w.a = A; w.b = B; w.manual = false;
-      segsOf(w.pts).forEach(function (s) { addUsed(used[w.sheet], s); });
+      addWireUsed(used[w.sheet], w, n);
     });
     design.snapFixed = bad.length;
     return design;
@@ -2193,7 +2256,7 @@ window.EVSE_GEO = (function () {
         A.esc = M[n.a.d].sym.isXref ? 0 : ESC;
         B.esc = M[n.b.d].sym.isXref ? 0 : ESC;
         const used = newUsed();
-        design.wires.forEach(function (o) { if (o !== w) segsOf(o.pts).forEach(function (s) { addUsed(used, s); }); });
+        design.wires.forEach(function (o) { if (o !== w) addWireUsed(used, o, netById(design, o.net)); });
       const pts = solve(A, B, obst[w.sheet], used, n.a.d, n.b.d, (design.soft || {})[w.sheet] || [], n.cls, !!(design.map[n.a.d].sym.noCross || design.map[n.b.d].sym.noCross), !!(design.params && design.params.family === 'mwess')); /* V12: 补 cls/oh */
         if (pts && pts.length > 1) { w.pts = orient(pts, [A.x, A.y]); fixed++; }
       });
@@ -2952,6 +3015,7 @@ window.EVSE_GEO = (function () {
             const ss = segsOf(clean);
             let bad = bodyBad(ss, w.sheet);
             for (let k = 0; k < ss.length && !bad; k++) if (boxHit(ss[k], w.sheet, net).length) bad = true;
+            if (!bad && design.params && design.params.family === 'mwess' && !wireInterferenceClean(design, w, clean)) bad = true;
             if (bad) continue;
             w.pts = clean; w.manual = true; w.via = 'REPAIR-LABEL';
             fixed++; changed = true; done = true;
@@ -3024,6 +3088,7 @@ window.EVSE_GEO = (function () {
             let bad = false;
             const wn = netById(design, w.net);
             for (let k = 0; k < ss.length && !bad; k++) if (hits(ss[k], w.sheet, { n: wn, k: k, total: ss.length }).length) bad = true;
+            if (!bad && design.params && design.params.family === 'mwess' && !wireInterferenceClean(design, w, clean)) bad = true;
             if (bad) continue;
             w.pts = clean;
             w.manual = true;
@@ -3060,6 +3125,41 @@ window.EVSE_GEO = (function () {
         if (own && stub && !bodyHitRect(s, ko.core)) continue;
         if (!bodyHitRect(s, ko.core) && bodyHitRect(s, ko)) return false;
         if (!bodyHitRect(s, db.core) && bodyHitRect(s, db)) return false;
+      }
+    }
+    return true;
+  }
+  /* Strict post-route repairs must preserve the same conductor-clearance
+   * rules as the router. Perpendicular interior crossings remain legal and
+   * are rendered with a hop; endpoint contacts and parallel overlaps are not. */
+  function wireInterferenceClean(design, w, pts) {
+    const n = netById(design, w.net), ss = segsOf(pts || w.pts);
+    if (!n) return false;
+    const atEnd = function (s, x, y) {
+      return (Math.abs(s.x1 - x) < 0.6 && Math.abs(s.y1 - y) < 0.6) || (Math.abs(s.x2 - x) < 0.6 && Math.abs(s.y2 - y) < 0.6);
+    };
+    for (let wi = 0; wi < design.wires.length; wi++) {
+      const o = design.wires[wi];
+      if (o === w || o.id === w.id || o.sheet !== w.sheet || o.net === w.net) continue;
+      const on = netById(design, o.net), os = segsOf(o.pts);
+      for (let i = 0; i < ss.length; i++) for (let j = 0; j < os.length; j++) {
+        const a = ss[i], b = os[j];
+        if (a.v === b.v) {
+          const coordGap = a.v ? Math.abs(a.x1 - b.x1) : Math.abs(a.y1 - b.y1);
+          const overlapLen = a.v
+            ? Math.min(Math.max(a.y1, a.y2), Math.max(b.y1, b.y2)) - Math.max(Math.min(a.y1, a.y2), Math.min(b.y1, b.y2))
+            : Math.min(Math.max(a.x1, a.x2), Math.max(b.x1, b.x2)) - Math.max(Math.min(a.x1, a.x2), Math.min(b.x1, b.x2));
+          if (overlapLen <= 3 || coordGap >= MIN_CLEAR - 0.5) continue;
+          const oa = usedOwner(n, i, ss.length), ob = usedOwner(on, j, os.length);
+          if (commonPinEscapeOnly(a, b, oa, ob)) continue;
+          return false;
+        }
+        const v = a.v ? a : b, h = a.v ? b : a;
+        const x = v.x1, y = h.y1;
+        if (x < Math.min(h.x1, h.x2) - 0.01 || x > Math.max(h.x1, h.x2) + 0.01 ||
+            y < Math.min(v.y1, v.y2) - 0.01 || y > Math.max(v.y1, v.y2) + 0.01) continue;
+        const endpointTouch = atEnd(v, x, y) || atEnd(h, x, y);
+        if (endpointTouch && !sharedPinAt(design, { w: w }, { w: o }, x, y)) return false;
       }
     }
     return true;
@@ -3315,7 +3415,7 @@ const item = candidates[wi];
     const used = newUsed();
     design.wires.forEach(function (q) {
       if (q === w || q.net === w.net || q.sheet !== sheet) return;
-      segsOf(q.pts).forEach(function (s) { addUsed(used, s); });
+      addWireUsed(used, q, netById(design, q.net));
     });
     const soft = (design.soft || {})[sheet] || [];
     A.esc = M[n.a.d] && M[n.a.d].sym.isXref ? 0 : ESC;
@@ -3350,6 +3450,13 @@ const item = candidates[wi];
 
   function emergencyRoute(design) {
     const failed = design.nets.filter(function (n) { return n.err === 'ROUTE_NO_CLEAR_PATH'; });
+    const strict = !!(design.params && design.params.family === 'mwess');
+    const usedBySheet = {};
+    (design.sheets || []).forEach(function (s) { usedBySheet[s.no] = newUsed(); });
+    design.wires.forEach(function (w) {
+      const u = usedBySheet[w.sheet] || (usedBySheet[w.sheet] = newUsed());
+      addWireUsed(u, w, netById(design, w.net));
+    });
     let fixed = 0;
     failed.forEach(function (n) {
       const M = design.map;
@@ -3365,14 +3472,16 @@ const item = candidates[wi];
       const soft = (design.soft || {})[sheet] || [];
       const tried = {};
       let accepted = false;
+      const routeUsed = usedBySheet[sheet] || (usedBySheet[sheet] = newUsed());
+      const modes = strict ? [1] : [0, 1];
       for (let ei = 0; ei < 3 && !accepted; ei++) {
-        for (let si = 0; si < 2 && !accepted; si++) {
+        for (let mi = 0; mi < modes.length && !accepted; mi++) {
           const A2 = pinAbs(M, n.a), B2 = pinAbs(M, n.b);
           if (!A2 || !B2) continue;
           A2.esc = (M[n.a.d].sym.isXref ? 0 : ESC) + ei * 16;
           B2.esc = (M[n.b.d].sym.isXref ? 0 : ESC) + ei * 16;
-          const pts = solve(A2, B2, obst, newUsed(), n.a.d, n.b.d, soft, n.cls,
-            !!(M[n.a.d].sym.noCross || M[n.b.d].sym.noCross), !!si);
+          const pts = solve(A2, B2, obst, routeUsed, n.a.d, n.b.d, soft, n.cls,
+            !!(M[n.a.d].sym.noCross || M[n.b.d].sym.noCross), strict || !!modes[mi]);
           if (!pts || pts.length < 2) continue;
           const key = JSON.stringify(pts);
           if (tried[key]) continue;
@@ -3384,10 +3493,15 @@ const item = candidates[wi];
             c02Hits(design).some(function (h) { return h.wire === w; }) ||
             c11Hits(design).some(function (h) { return h.wire === w; });
           if (bad) { design.wires.pop(); continue; }
-          n.err = null; n.wire_id = w.id; fixed++; accepted = true;
+          n.err = null; n.wire_id = w.id;
+          addWireUsed(routeUsed, w, n);
+          fixed++; accepted = true;
         }
       }
-      if (!accepted) {
+      /* The legacy emergency channel only checked component clearance; it
+       * could silently cross/overlap already routed wires. Keep that visual
+       * fallback available to the non-strict concept generator only. */
+      if (!accepted && !strict) {
         const ys = [];
         const sA = A.d === 'S' ? 1 : A.d === 'N' ? -1 : 1;
         const sB = B.d === 'S' ? 1 : B.d === 'N' ? -1 : -1;
@@ -3488,7 +3602,7 @@ const item = candidates[wi];
       fixC08(d);
       fixClear8(d);
       if (window.EVSE_LABELFIX) window.EVSE_LABELFIX.run(d);
-      snapEnds(d); forceOrtho(d); fitRoutedFrames(d); crossings(d); fixCrossXrefs(d); fixC08(d); repairLabelCross(d); repairBodyCross(d); enforceC13(d); nudgeC14(d); crossings(d); nudgeC14(d); emergencyRoute(d); enforceC13(d); audit(d);
+      snapEnds(d); forceOrtho(d); fitRoutedFrames(d); crossings(d); fixCrossXrefs(d); fixC08(d); repairLabelCross(d); repairBodyCross(d); enforceC13(d); nudgeC14(d); crossings(d); nudgeC14(d); emergencyRoute(d); enforceC13(d); detouch(d); snapEnds(d); forceOrtho(d); crossings(d); audit(d);
       report('正在完成禁布区、重叠与 ERC/DRC 审计');
       if (window.EVSE_GEO) window.EVSE_GEO.lastDesign = d;
       return d;
