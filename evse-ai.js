@@ -185,7 +185,7 @@ window.EVSE_AI = (function () {
               vendor: String(r.vendor || '').slice(0, 160),
               params: String(r.params || '').slice(0, 300),
               note: String(r.note || '').slice(0, 300),
-              doc: /^https?:\/\//.test(r.doc || '') ? r.doc : '',
+              doc: validateDocUrl(r.doc),
               conf: ['high', 'med', 'low'].indexOf(r.conf) >= 0 ? r.conf : 'low',
               src: 'AI_SUGGESTED'
             };

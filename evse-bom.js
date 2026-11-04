@@ -349,7 +349,7 @@ window.EVSE_BOM = (function () {
     const rows = Object.keys(groups).map(function (k) { return groups[k]; });
     rows.forEach(function (r) {
       const d = docLink(r);
-      r.doc = d.url; r.docKind = d.kind; r.docVendor = d.vendor;
+      r.doc = validHttpUrl(d.url); r.docKind = d.kind; r.docVendor = d.vendor;
     });
     rows.sort(function (a, b) {
       const ia = CATS.indexOf(a.cat), ib = CATS.indexOf(b.cat);

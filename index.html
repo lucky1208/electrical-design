@@ -135,6 +135,13 @@
     background:linear-gradient(90deg,#2f6fdc,#22d3ee);box-shadow:0 0 12px rgba(34,211,238,.65)}
   .rtab:focus-visible,.sheets button:focus-visible{outline:2px solid #2f6fdc;outline-offset:-2px}
   .search{position:relative;display:flex;align-items:center;gap:6px;flex:0 0 auto;padding-left:9px}
+  .ribtoggle{flex:0 0 auto;display:inline-flex;align-items:center;gap:4px;height:26px;padding:0 9px;margin-left:2px;
+    background:#1c232b;border:1px solid #2b333d;color:#9aa5b1;border-radius:5px;font-size:11.5px;cursor:pointer;font-family:inherit;white-space:nowrap}
+  .ribtoggle:hover{background:#232c36;color:#e6eaf0;border-color:#3a4552}
+  #app.rib-collapsed .ribbon,#app.rib-collapsed .drawer{display:none !important}
+  .footer{flex:0 0 22px;height:22px;display:flex;align-items:center;justify-content:center;gap:10px;
+    background:#12171d;border-top:1px solid #232b34;color:#5f6b78;font-size:10.5px;letter-spacing:.1em}
+  .footer b{color:#7c8794;font-weight:400}
   .search::before{content:"";position:absolute;left:-9px;top:50%;transform:translateY(-50%);width:1px;height:24px;background:#262f39}
   .sicon{position:absolute;left:18px;top:50%;width:10px;height:10px;border:1.5px solid #5f6b78;border-radius:50%;
     transform:translateY(-60%);pointer-events:none}
@@ -197,6 +204,7 @@
   .calccheck{display:flex;gap:8px;align-items:flex-start;padding:5px 3px;border-bottom:1px solid #1a2027;font-size:11px;line-height:1.5}
   .calccheck .dot{width:8px;height:8px;border-radius:50%;flex:0 0 8px;margin-top:4px;background:#64748b}
   .calccheck.pass .dot{background:#22c55e}.calccheck.warn .dot{background:#e0a83a}
+  .calccheck.assumed .dot{background:#60a5fa}
   .calccheck.fail .dot{background:#ef4444}.calccheck.unknown .dot{background:#64748b}
   .calccheck.na .dot{background:#334155}
   .calccheck .ct{flex:1;min-width:0}
@@ -266,6 +274,7 @@
       <input id="q" class="q" title="Enter 跳转 · 再次 Enter 循环匹配" aria-label="搜索位号、网络、线号或跨页编号" placeholder="搜索位号 / 网络 / 线号 / 跨页" />
       <span id="qcnt" class="badge"></span>
     </div>
+    <button class="ribtoggle" id="ribToggle" type="button" title="收起或展开工具栏与参数面板，给画布腾出空间" aria-label="收起或展开工具栏与参数面板">▴ 收起</button>
   </div>
 
   <div class="ribbon" id="ribbon">
@@ -437,6 +446,7 @@
       </div>
     </div>
   </div>
+  <div class="footer"><b>Copyright@Lu</b> 15026953905</div>
 </div>
 
 <div id="aiDlg" style="display:none;position:fixed;inset:0;background:rgba(6,9,13,.72);z-index:99;align-items:center;justify-content:center">
@@ -590,8 +600,14 @@
 (function () {
   'use strict';
   var $ = function (id) { return document.getElementById(id); };
-  var esc = function (s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); };
-  var escAttr = function (s) { return esc(s).replace(/"/g, '&quot;').replace(/'/g, '&#39;'); };
+  var esc = function (s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;'); };
+  var escAttr = function (s) { return esc(s); };
+  var safeUrl = function (u) {
+    try {
+      var x = new URL(String(u == null ? '' : u).trim(), location.href);
+      return /^https?:$/.test(x.protocol) ? x.href : '';
+    } catch (e) { return ''; }
+  };
 
   var EVSE_STD = ['gb', 'ccs2', 'ccs1', 'nacs', 'chademo'];
   var EVSE_DEFAULTS = { name: '示范站 240kW 储能超充桩', family: 'evse', std: 'gb', kw: 240, guns: 2, gunA: 250,
@@ -1641,9 +1657,40 @@
     dl('EVSE工程-' + ((D.params && D.params.name) || '未命名') + '.json', s, 'application/json');
     msg('工程已保存到浏览器并导出 JSON（' + D.devices.length + ' 器件 / ' + D.nets.length + ' 网络 / ' + D.sheets.length + ' 页）');
   }
+  function validateImportedDesign(dd) {
+    var bad = function (m) { throw new Error('工程文件结构无效：' + m); };
+    if (!dd || typeof dd !== 'object') bad('不是对象');
+    if (!Array.isArray(dd.sheets) || !dd.sheets.length) bad('缺少 sheets');
+    if (!Array.isArray(dd.devices)) bad('devices 不是数组');
+    if (!Array.isArray(dd.nets)) bad('nets 不是数组');
+    if (!Array.isArray(dd.wires)) bad('wires 不是数组');
+    var seen = {};
+    dd.devices.forEach(function (d, i) {
+      if (!d || typeof d.id !== 'string' || !d.id) bad('devices[' + i + '].id 无效');
+      if (seen[d.id]) bad('devices[' + i + '].id 重复：' + d.id);
+      seen[d.id] = 1;
+      if (d.x != null && !isFinite(Number(d.x))) bad('devices[' + i + '].x 无效');
+      if (d.y != null && !isFinite(Number(d.y))) bad('devices[' + i + '].y 无效');
+      if (!d.sym || typeof d.sym !== 'object' || !Array.isArray(d.sym.draw) || !Array.isArray(d.sym.pins)) bad('devices[' + i + '].sym 结构无效');
+      if (!isFinite(Number(d.sym.w)) || !isFinite(Number(d.sym.h)) || Number(d.sym.w) <= 0 || Number(d.sym.h) <= 0) bad('devices[' + i + '].sym 尺寸无效');
+      d.sym.draw.forEach(function (pr, j) { if (!Array.isArray(pr) || !pr.length) bad('devices[' + i + '].sym.draw[' + j + '] 无效'); });
+    });
+    dd.wires.forEach(function (w, i) {
+      if (!w || typeof w.id !== 'string' || !w.id) bad('wires[' + i + '].id 无效');
+      if (!Array.isArray(w.pts) || w.pts.length < 2) bad('wires[' + i + '].pts 无效');
+      w.pts.forEach(function (p, j) {
+        if (!Array.isArray(p) || p.length < 2 || !isFinite(Number(p[0])) || !isFinite(Number(p[1]))) bad('wires[' + i + '].pts[' + j + '] 不是数值坐标');
+      });
+    });
+    dd.nets.forEach(function (n, i) {
+      if (!n || !n.a || !n.b) bad('nets[' + i + '] 缺少端点');
+    });
+    return dd;
+  }
   function loadPrjStr(str) {
     var o = JSON.parse(str), dd = o && o.D ? o.D : o;
     if (!dd || !dd.sheets || !dd.devices) throw new Error('不是有效的工程文件');
+    validateImportedDesign(dd);
     dd.map = {}; dd.devices.forEach(function (x) { dd.map[x.id] = x; });
     dd.nets = dd.nets || []; dd.wires = dd.wires || []; dd.junctions = dd.junctions || []; dd.boxes = dd.boxes || []; dd.hops = dd.hops || [];
     dd.sheets.forEach(function (s) { if (!s.frame) s.frame = { x: 60, y: 60, w: 1680, h: 1188 }; });
@@ -1705,7 +1752,7 @@
         ? '<select data-k="' + f.k + '"' + (dependent ? ' disabled aria-disabled="true"' : '') + '>' + f.o.map(function (o) {
             return '<option value="' + o[0] + '"' + (String(v) === o[0] ? ' selected' : '') + '>' + esc(o[1]) + '</option>';
           }).join('') + '</select>'
-        : '<input type="' + (f.kind === 'num' ? 'number' : 'text') + '" data-k="' + f.k + '" value="' + esc(v) + '"' + (dis ? ' disabled aria-disabled="true"' : '') + '/>';
+        : '<input type="' + (f.kind === 'num' ? 'number' : 'text') + '" data-k="' + escAttr(f.k) + '" value="' + escAttr(v) + '"' + (dis ? ' disabled aria-disabled="true"' : '') + '/>';
       return '<label class="f' + (dependent ? ' off' : '') + '"><span>' + esc(f.t) + '</span>' + ctl + '</label>';
     }).join('');
     $('fields').querySelectorAll('[data-k]').forEach(function (el) {
@@ -1730,7 +1777,7 @@
     });
   }
   function calcStatusText(st) {
-    return { pass: '通过', warn: '注意', fail: '不通过', unknown: '待证据', na: '不适用' }[st] || st;
+    return { pass: '通过', assumed: '假设', warn: '注意', fail: '不通过', unknown: '待证据', na: '不适用' }[st] || st;
   }
   function sourceTag(id) {
     var s = window.EVSE_SOURCE && window.EVSE_SOURCE.byId(id);
@@ -1795,7 +1842,7 @@
       var covered = st0 ? (st0.requirementsByStatus.covered || 0) : 0;
       sum.innerHTML = '<div class="calccard"><b>—</b><span>待运行电气校核</span></div>' +
         '<div class="calccard"><b>' + covered + '</b><span>已关闭要求</span></div>' +
-        '<div class="calccard"><b>?</b><span>未知项不判通过</span></div>';
+        '<div class="calccard"><b>?</b><span>未知/假设不判通过</span></div>';
       out.innerHTML = '<div class="calcempty">点击「运行电气校核」生成短路、载流、压降、保护、储能与消防校核结果。</div>' + renderCalcSourceSummary();
       return;
     }
@@ -1803,7 +1850,8 @@
     sum.innerHTML =
       '<div class="calccard"><b>' + s.score + '</b><span>' + esc(s.scoreLabel) + '</span></div>' +
       '<div class="calccard"><b style="color:#22c55e">' + s.pass + '</b><span>通过</span></div>' +
-      '<div class="calccard"><b style="color:#e0a83a">' + s.warn + '</b><span>注意 / 假设</span></div>' +
+      '<div class="calccard"><b style="color:#60a5fa">' + (s.assumed || 0) + '</b><span>默认假设</span></div>' +
+      '<div class="calccard"><b style="color:#e0a83a">' + s.warn + '</b><span>注意</span></div>' +
       '<div class="calccard"><b style="color:#ef4444">' + s.fail + '</b><span>不通过</span></div>' +
       '<div class="calccard"><b style="color:#94a3b8">' + s.unknown + '</b><span>待证据</span></div>';
     var groups = {}, order = [];
@@ -1849,7 +1897,7 @@
     CALC_STALE = false;
     renderCalcResult();
     updateCalcMeta();
-    msg('电气校核完成：通过 ' + CALC_RESULT.summary.pass + ' / 注意 ' + CALC_RESULT.summary.warn + ' / 不通过 ' + CALC_RESULT.summary.fail + ' / 未知 ' + CALC_RESULT.summary.unknown + '（方案级预审，非合规认证）');
+    msg('电气校核完成：通过 ' + CALC_RESULT.summary.pass + ' / 假设 ' + (CALC_RESULT.summary.assumed || 0) + ' / 注意 ' + CALC_RESULT.summary.warn + ' / 不通过 ' + CALC_RESULT.summary.fail + ' / 未知 ' + CALC_RESULT.summary.unknown + '（方案级预审，非合规认证）');
     return true;
   }
   function exportCalcPack() {
@@ -2099,8 +2147,8 @@
     cdPins.forEach(function (p, i) {
       var mk = function (cls, opts, cur, labels) { return '<select class="q ' + cls + '" style="padding:3px 2px;font-size:11px">' + opts.map(function (o) { return '<option value="' + o + '"' + (o === cur ? ' selected' : '') + '>' + esc(labels && labels[o] || o) + '</option>'; }).join('') + '</select>'; };
       h += '<div style="display:flex;gap:4px;margin-bottom:4px;align-items:center" data-i="' + i + '">'
-        + '<input class="q cd-n" style="width:52px;padding:3px 6px;font-size:11px" value="' + esc(p.n) + '" placeholder="脚号">'
-        + '<input class="q cd-name" style="width:86px;padding:3px 6px;font-size:11px" value="' + esc(p.name) + '" placeholder="名称">'
+        + '<input class="q cd-n" style="width:52px;padding:3px 6px;font-size:11px" value="' + escAttr(p.n) + '" placeholder="脚号">'
+        + '<input class="q cd-name" style="width:86px;padding:3px 6px;font-size:11px" value="' + escAttr(p.name) + '" placeholder="名称">'
         + mk('cd-side', ['left', 'right', 'top', 'bottom'], p.side)
         + mk('cd-k', KDOMS, p.k)
         + mk('cd-t', ['in', 'out', 'bi'], p.t)
@@ -2221,9 +2269,31 @@
     if (name === 'calc') renderCalc();
     try { localStorage.setItem('evse.ribbon', name); localStorage.setItem('evse.drawer', drawerOpen ? '1' : '0'); } catch (e) {}
   }
-  document.querySelectorAll('#rtabs .rtab').forEach(function (b) { b.onclick = function () { switchRibbon(b.getAttribute('data-rt'), true); }; });
+  document.querySelectorAll('#rtabs .rtab').forEach(function (b) { b.onclick = function () {
+    if (document.getElementById('app').classList.contains('rib-collapsed')) setRibCollapsed(false);
+    switchRibbon(b.getAttribute('data-rt'), true);
+  }; });
   switchRibbon((function () { try { return localStorage.getItem('evse.ribbon') || 'file'; } catch (e) { return 'file'; } })(), false,
     (function () { try { return localStorage.getItem('evse.drawer') === '1'; } catch (e) { return false; } })());
+  /* V16: 工具栏/参数面板整体收起——给画布腾出高度；状态记忆在 localStorage */
+  function setRibCollapsed(v) {
+    var app = document.getElementById('app'), b = $('ribToggle');
+    if (!app) return;
+    app.classList.toggle('rib-collapsed', !!v);
+    if (b) {
+      b.textContent = v ? '▾ 展开' : '▴ 收起';
+      b.title = v ? '展开工具栏与参数面板' : '收起工具栏与参数面板，给画布腾出空间';
+      b.setAttribute('aria-expanded', v ? 'false' : 'true');
+    }
+    try { localStorage.setItem('evse.ribcollapsed', v ? '1' : '0'); } catch (e) {}
+    window.dispatchEvent(new Event('resize'));
+  }
+  if ($('ribToggle')) {
+    $('ribToggle').onclick = function () {
+      setRibCollapsed(!document.getElementById('app').classList.contains('rib-collapsed'));
+    };
+    setRibCollapsed((function () { try { return localStorage.getItem('evse.ribcollapsed') === '1'; } catch (e) { return false; } })());
+  }
   ['rtabs', 'sheets'].forEach(function (id) {
     var el = $(id);
     if (!el) return;
@@ -2239,7 +2309,7 @@
   function renderLib() {
     if (!D) return;
     var q = (($('libQ') && $('libQ').value) || '').trim().toLowerCase();
-    var html = '<div style="display:flex;gap:5px;margin-bottom:6px"><input id="libQ" class="q" style="flex:1;min-width:0" placeholder="搜索 ' + LIBCAT.length + ' 项元器件（名称/位号/分类）…" value="' + esc(q) + '" oninput="renderLib()"><button class="btn" style="flex:0 0 auto;padding:4px 9px" title="新建自定义元器件：手动定义引脚或 AI 识图生成" onclick="window.__CUSTOM_NEW()">🧩 新建</button></div>';
+    var html = '<div style="display:flex;gap:5px;margin-bottom:6px"><input id="libQ" class="q" style="flex:1;min-width:0" placeholder="搜索 ' + LIBCAT.length + ' 项元器件（名称/位号/分类）…" value="' + escAttr(q) + '" oninput="renderLib()"><button class="btn" style="flex:0 0 auto;padding:4px 9px" title="新建自定义元器件：手动定义引脚或 AI 识图生成" onclick="window.__CUSTOM_NEW()">🧩 新建</button></div>';
     var groups = {}, matched = 0;
     LIBCAT.forEach(function (pre, idx) {
       if (q && (pre.name + pre.tag + pre.g).toLowerCase().indexOf(q) < 0) return;
@@ -2468,14 +2538,18 @@
       var model = (ai && ai.model) || r.model;
       var vend = (ai && ai.vendor) || r.vendors.join(' / ');
       var doc = window.EVSE_BOM.docLabel(r);
+var docHref = safeUrl(doc.url);
 var docHtml = '';
-if (doc.url) {
-  var alts = (doc.alt && doc.alt.length > 1) ? doc.alt.map(function (a) { return '<a href="' + a.url + '" target="_blank" style="color:#5cc8ff;font-size:10px">' + a.vendor + '</a>'; }).join(' ') : '';
-  var warnMark = doc.warn ? ' <span title="' + esc(doc.hint || '链接待人工复核') + '" style="color:#e0a83a;font-size:9.5px;border:1px solid #e0a83a;border-radius:2px;padding:0 3px;cursor:help">待复核</span>' : '';
-  docHtml = '<a href="' + doc.url + '" target="_blank" style="color:' + (doc.warn ? '#e0a83a' : '#5cc8ff') + ';font-size:11px">' + doc.text + '</a>' + warnMark + (alts ? ' <span style="font-size:10px;color:#555">|</span> ' + alts : '');
+if (docHref) {
+  var alts = (doc.alt && doc.alt.length > 1) ? doc.alt.map(function (a) {
+    var href = safeUrl(a.url);
+    return href ? '<a href="' + escAttr(href) + '" target="_blank" rel="noopener" style="color:#5cc8ff;font-size:10px">' + esc(a.vendor) + '</a>' : '';
+  }).join(' ') : '';
+  var warnMark = doc.warn ? ' <span title="' + escAttr(doc.hint || '链接待人工复核') + '" style="color:#e0a83a;font-size:9.5px;border:1px solid #e0a83a;border-radius:2px;padding:0 3px;cursor:help">待复核</span>' : '';
+  docHtml = '<a href="' + escAttr(docHref) + '" target="_blank" rel="noopener" style="color:' + (doc.warn ? '#e0a83a' : '#5cc8ff') + ';font-size:11px">' + esc(doc.text) + '</a>' + warnMark + (alts ? ' <span style="font-size:10px;color:#555">|</span> ' + alts : '');
 } else if (doc.hint) {
-  docHtml = '<span title="' + esc(doc.hint) + '" style="color:#8a6d4f;font-size:10px;cursor:help">' + doc.text + '（无公开手册）</span>';
-} else { docHtml = '<span style="color:#555;font-size:10px">' + doc.text + '</span>'; }
+  docHtml = '<span title="' + escAttr(doc.hint) + '" style="color:#8a6d4f;font-size:10px;cursor:help">' + esc(doc.text) + '（无公开手册）</span>';
+} else { docHtml = '<span style="color:#555;font-size:10px">' + esc(doc.text) + '</span>'; }
       var badge = ai ? '<span style="color:' + (ai.conf === 'high' ? '#63b37a' : ai.conf === 'med' ? '#e0a83a' : '#d4756a')
         + ';font-size:9px;border:1px solid currentColor;border-radius:2px;padding:0 3px;margin-left:4px">AI·' + ai.conf + '</span>' : '';
       h += '<div style="border:1px solid #232b34;border-radius:5px;padding:7px 8px;margin-bottom:6px;background:#11161c">'
@@ -2487,10 +2561,10 @@ if (doc.url) {
         + '<div class="kv"><b>关键参数</b><s>' + esc(r.params + (ai && ai.params ? '；' + ai.params : '')) + '</s></div>'
         + '<div class="kv"><b>位号</b><s style="color:#7c8794;font-size:10.5px">' + esc(r.tags.join(' ')) + '</s></div>'
         + '<div class="kv"><b>说明</b><s style="color:#a7b1bd;font-size:10.5px">' + esc((ai && ai.note) ? ai.note : r.note) + '</s></div>'
-        + '<div class="kv"><b>手册</b><s>' + (doc.url
-          ? '<a href="' + esc(doc.url) + '" target="_blank" rel="noopener" title="' + escAttr(doc.url) + '" style="font-size:10.5px">' + esc(doc.text) + ' ↗</a>'
+        + '<div class="kv"><b>手册</b><s>' + (docHref
+          ? '<a href="' + escAttr(docHref) + '" target="_blank" rel="noopener" title="' + escAttr(docHref) + '" style="font-size:10.5px">' + esc(doc.text) + ' ↗</a>'
             + (doc.ai ? '<span style="color:#a78bfa;font-size:9.5px"> AI 提供·需核验</span>' : '<span style="color:#6f7a87;font-size:9.5px"> 原厂·按型号检索</span>')
-            + '<span style="display:block;font-size:9px;color:#6f7a87;word-break:break-all">' + esc(doc.url) + '</span>'
+            + '<span style="display:block;font-size:9px;color:#6f7a87;word-break:break-all">' + esc(docHref) + '</span>'
           : '<span style="color:#8a93a0;font-size:10.5px">' + esc(doc.text) + '</span>') + '</s></div>'
         + '</div>';
     });
@@ -2777,9 +2851,10 @@ if (doc.url) {
           Object.keys(out).forEach(function (i) {
             var r = out[i];
             var tr = tbody.children[i];
-            if (tr && r.doc) {
+            var aiDoc = r.doc && window.EVSE_AI && window.EVSE_AI.validateDocUrl ? window.EVSE_AI.validateDocUrl(r.doc) : safeUrl(r.doc);
+            if (tr && aiDoc) {
               var td = tr.querySelector('td:last-child');
-              if (td) td.innerHTML = '<a href="' + r.doc + '" target="_blank" title="' + (r.vendor || 'AI推荐') + '">📄 AI推荐</a>';
+              if (td) td.innerHTML = '<a href="' + escAttr(aiDoc) + '" target="_blank" rel="noopener" title="' + escAttr(r.vendor || 'AI推荐') + '">📄 AI推荐</a>';
             }
           });
         }

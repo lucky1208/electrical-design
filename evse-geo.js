@@ -865,11 +865,16 @@ window.EVSE_GEO = (function () {
     return res;
   }
 
-  /* 自适应边界盒：小盒快，失败则逐级扩大到足以绕过大母排群（C02 主因） */
+  /* 自适应边界盒：小盒快，失败则逐级扩大到足以绕过大母排群（C02 主因）。
+   * V13-GRID：大图回流后引脚间距可达 4000+ 单位，固定 52/80 个网格坐标意味着
+   * 60~120px 的栅距，穿不进 MIN_CLEAR=8 的通道。仅在长跨度且后两轮盒子上
+   * 放大网格（上限 220），搜索预算同步受控——全量放大曾把 MWESS 拖到 17 分钟。 */
   function pathFindAdaptive(A, B, hard, soft, used, ida, idb, a1, b1, A0, B0, noSoft, strict) {
-    const BOXES = strict ? [190, 560, 1120, 2240] : [190, 560];
+    const BOXES = strict ? [190, 560, 1120, 2240, 4480] : [190, 560];
+    const span = Math.abs(a1[0] - b1[0]) + Math.abs(a1[1] - b1[1]);
     for (let i = 0; i < BOXES.length; i++) {
-      const cap = strict && i >= 2 ? 80 : 52;
+      let cap = strict && i >= 2 ? 80 : 52;
+      if (strict && i >= 3 && span > 1200) cap = Math.max(cap, Math.min(220, Math.round(span / 16)));
       const r = pathFind(A, B, hard, soft, used, ida, idb, a1, b1, A0, B0, noSoft, BOXES[i], cap, strict);
       if (r) return r;
     }
@@ -877,7 +882,8 @@ window.EVSE_GEO = (function () {
   }
 
   function pathFind(A, B, hard, soft, used, ida, idb, a1, b1, A0, B0, noSoft, padx, cap, strict) {
-    const PADX = padx || 190, CAP = cap || 52, MAXPOP = strict && CAP >= 80 ? 100000 : 26000;
+    const PADX = padx || 190, CAP = cap || 52;
+    const MAXPOP = strict ? (CAP >= 150 ? 220000 : (CAP >= 80 ? 120000 : 60000)) : 26000;
     const bb = { x: Math.min(a1[0], b1[0]) - PADX, y: Math.min(a1[1], b1[1]) - PADX, w: Math.abs(a1[0] - b1[0]) + 2 * PADX, h: Math.abs(a1[1] - b1[1]) + 2 * PADX };
     const H = [], S = [], xv = [], yv = [];
     const LANES = [PAD, PAD + MIN_CLEAR, PAD + 2 * MIN_CLEAR];

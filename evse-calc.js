@@ -5,16 +5,31 @@
 })(typeof window !== 'undefined' ? window : globalThis, function (root) {
   'use strict';
 
-  var VERSION = '1.0.0';
+  var VERSION = '1.1.0';
   var STD_RATINGS = [16, 20, 25, 32, 40, 50, 63, 80, 100, 125, 160, 200, 250, 320, 400, 500, 630, 800, 1000, 1250, 1600, 2000, 2500, 3200, 4000, 5000, 6300];
+  /* IEC 60364-5-52 C 法、三根负载导体的参考载流量（A，30 °C 环境）。
+   * pvc = 70 °C 导体（表 B.52.4），xlpe = 90 °C 导体（表 B.52.12）。
+   * 这两列是冷启动参考值，必须由标准原文/厂家数据复核后才能用于正式选型。 */
   var CABLE_TABLE = [
-    { size: 2.5, iz: 24 }, { size: 4, iz: 32 }, { size: 6, iz: 41 }, { size: 10, iz: 57 },
-    { size: 16, iz: 76 }, { size: 25, iz: 96 }, { size: 35, iz: 119 }, { size: 50, iz: 144 },
-    { size: 70, iz: 184 }, { size: 95, iz: 223 }, { size: 120, iz: 257 }, { size: 150, iz: 296 },
-    { size: 185, iz: 341 }, { size: 240, iz: 400 }
+    { size: 2.5, pvc: 24, xlpe: 29 }, { size: 4, pvc: 32, xlpe: 38 }, { size: 6, pvc: 41, xlpe: 48 },
+    { size: 10, pvc: 57, xlpe: 66 }, { size: 16, pvc: 76, xlpe: 88 }, { size: 25, pvc: 96, xlpe: 117 },
+    { size: 35, pvc: 119, xlpe: 144 }, { size: 50, pvc: 144, xlpe: 175 }, { size: 70, pvc: 184, xlpe: 222 },
+    { size: 95, pvc: 223, xlpe: 269 }, { size: 120, pvc: 257, xlpe: 312 }, { size: 150, pvc: 296, xlpe: 358 },
+    { size: 185, pvc: 341, xlpe: 412 }, { size: 240, pvc: 400, xlpe: 486 }, { size: 300, pvc: 458, xlpe: 556 }
   ];
-  var AMBIENT = [
-    { c: 30, f: 1 }, { c: 35, f: 0.94 }, { c: 40, f: 0.87 }, { c: 45, f: 0.79 }, { c: 50, f: 0.71 }
+  /* 铝芯按铜芯约 0.78 折算（IEC 同截面 Al/Cu 载流量比 0.76–0.80 区间），必须由标准原文复核。 */
+  var AL_FACTOR = 0.78;
+  var CONDUCTOR_TEMP_C = { pvc: 70, xlpe: 90 };
+  var RHO_20 = { cu: 0.0175, al: 0.0282 };
+  var ALPHA_20 = { cu: 0.00393, al: 0.00403 };
+  /* IEC 60364-5-52 环境温度修正：PVC 70°C 与 XLPE 90°C 导体分列（XLPE 高温降容更缓）。 */
+  var AMBIENT_PVC = [
+    { c: 30, f: 1 }, { c: 35, f: 0.94 }, { c: 40, f: 0.87 }, { c: 45, f: 0.79 },
+    { c: 50, f: 0.71 }, { c: 55, f: 0.61 }, { c: 60, f: 0.50 }
+  ];
+  var AMBIENT_XLPE = [
+    { c: 30, f: 1 }, { c: 35, f: 0.96 }, { c: 40, f: 0.91 }, { c: 45, f: 0.87 },
+    { c: 50, f: 0.82 }, { c: 55, f: 0.76 }, { c: 60, f: 0.71 }
   ];
   var GROUPING = [
     { n: 1, f: 1 }, { n: 2, f: 0.8 }, { n: 3, f: 0.7 }, { n: 4, f: 0.65 }, { n: 5, f: 0.6 }, { n: 6, f: 0.57 }
@@ -34,7 +49,7 @@
     faultClearSec: 0.1, acBreakerIcuKa: 36, dcBreakerIcuKa: 25, gunFuseIcuKa: 25,
     acBreakerA: null, dcBreakerA: null, gunFuseA: null, essBreakerA: null,
     acCableSize: null, dcCableSize: null, gunCableSize: null, essCableSize: null,
-    dcIscKa: null, batteryIscKa: null, upstreamBreakerA: null,
+    dcIscKa: null, batteryIscKa: null, dcRatedVoltage: null, dcLrMs: null, dcBreakingKa: null, upstreamBreakerA: null,
     upstreamCurve: 'SI', upstreamPickupA: null, upstreamTms: null,
     downstreamCurve: 'SI', downstreamPickupA: null, downstreamTms: null,
     selectivityMarginSec: 0.2,
@@ -60,11 +75,12 @@
     for (var i = 0; i < STD_RATINGS.length; i++) if (STD_RATINGS[i] >= current) return STD_RATINGS[i];
     return STD_RATINGS[STD_RATINGS.length - 1];
   }
-  function ambientFactor(c) {
+  function ambientFactor(c, opts) {
+    var table = (opts && opts.insulation) === 'pvc' ? AMBIENT_PVC : AMBIENT_XLPE;
     var t = num(c, 35);
     if (t <= 30) return 1;
-    for (var i = 0; i < AMBIENT.length; i++) if (t <= AMBIENT[i].c) return AMBIENT[i].f;
-    return 0.71;
+    for (var i = 0; i < table.length; i++) if (t <= table[i].c) return table[i].f;
+    return table[table.length - 1].f;
   }
   function groupFactor(n) {
     var x = Math.max(1, Math.round(num(n, 1)));
@@ -72,7 +88,14 @@
     return 0.57;
   }
   function normalizeOpts(o) {
-    var x = Object.assign({}, DEFAULT_OPTS, o || {});
+    var raw = o && typeof o === 'object' ? o : {};
+    var provided = {};
+    Object.keys(raw).forEach(function (k) {
+      if (k.indexOf('__') === 0) return;
+      if (raw[k] != null && raw[k] !== '') provided[k] = true;
+    });
+    var x = Object.assign({}, DEFAULT_OPTS, raw);
+    x.__provided = provided;
     ['acVoltage', 'pf', 'efficiency', 'ambientC', 'grouping', 'acCableM', 'dcCableM', 'gunCableM', 'essCableM',
       'voltageDropLimitAc', 'voltageDropLimitDc', 'transformerKva', 'transformerZPct', 'gridIkKa', 'faultClearSec',
       'acBreakerIcuKa', 'dcBreakerIcuKa', 'gunFuseIcuKa', 'essDod', 'essSoh', 'essCycleLife', 'essCyclesPerDay',
@@ -102,7 +125,7 @@
     x.upstreamCurve = IEC_CURVES[x.upstreamCurve] ? x.upstreamCurve : 'SI';
     x.downstreamCurve = IEC_CURVES[x.downstreamCurve] ? x.downstreamCurve : 'SI';
     ['acBreakerA', 'dcBreakerA', 'gunFuseA', 'essBreakerA', 'acCableSize', 'dcCableSize', 'gunCableSize', 'essCableSize',
-      'dcIscKa', 'batteryIscKa', 'upstreamBreakerA', 'upstreamPickupA', 'upstreamTms', 'downstreamPickupA', 'downstreamTms',
+      'dcIscKa', 'batteryIscKa', 'dcRatedVoltage', 'dcLrMs', 'dcBreakingKa', 'upstreamBreakerA', 'upstreamPickupA', 'upstreamTms', 'downstreamPickupA', 'downstreamTms',
       'essPowerKw', 'airflowM3h', 'capexYuan', 'annualDischargeMwh', 'targetLcosYuan'].forEach(function (k) {
       x[k] = optNum(x[k]);
     });
@@ -115,36 +138,50 @@
     for (var i = 0; i < CABLE_TABLE.length; i++) if (CABLE_TABLE[i].size === size) return CABLE_TABLE[i];
     return null;
   }
-  function cableIz(size, opts) { var e = cableEntry(size); return e ? e.iz * ambientFactor(opts.ambientC) * groupFactor(opts.grouping) : null; }
+  function cableBaseIz(size, opts) {
+    var e = cableEntry(size);
+    if (!e) return null;
+    var v = e[opts.insulation === 'pvc' ? 'pvc' : 'xlpe'];
+    if (typeof v !== 'number') return null;
+    return opts.cableMaterial === 'al' ? v * AL_FACTOR : v;
+  }
+  function cableIz(size, opts) {
+    var base = cableBaseIz(size, opts);
+    return base == null ? null : base * ambientFactor(opts.ambientC, opts) * groupFactor(opts.grouping);
+  }
   function selectCable(required, opts, forcedSize) {
-    var der = ambientFactor(opts.ambientC) * groupFactor(opts.grouping);
+    var der = ambientFactor(opts.ambientC, opts) * groupFactor(opts.grouping);
     if (forcedSize) {
-      var e0 = cableEntry(forcedSize);
-      if (!e0) return { size: forcedSize, izBase: null, iz: 0, derated: false, ok: false, note: '指定截面不在参考表' };
-      return { size: e0.size, izBase: e0.iz, iz: e0.iz * der, ambientFactor: ambientFactor(opts.ambientC), groupFactor: groupFactor(opts.grouping), derated: true, ok: e0.iz * der >= required, note: '用户指定截面' };
+      var b0 = cableBaseIz(forcedSize, opts);
+      if (b0 == null) return { size: forcedSize, izBase: null, iz: 0, derated: false, ok: false, note: '指定截面不在参考表' };
+      return { size: forcedSize, izBase: b0, iz: b0 * der, ambientFactor: ambientFactor(opts.ambientC, opts), groupFactor: groupFactor(opts.grouping), derated: true, ok: b0 * der >= required, note: '用户指定截面' };
     }
     for (var i = 0; i < CABLE_TABLE.length; i++) {
-      var iz = CABLE_TABLE[i].iz * der;
-      if (iz >= required) return { size: CABLE_TABLE[i].size, izBase: CABLE_TABLE[i].iz, iz: iz, ambientFactor: ambientFactor(opts.ambientC), groupFactor: groupFactor(opts.grouping), derated: true, ok: true, note: '' };
+      var base = cableBaseIz(CABLE_TABLE[i].size, opts);
+      var iz = base * der;
+      if (iz >= required) return { size: CABLE_TABLE[i].size, izBase: base, iz: iz, ambientFactor: ambientFactor(opts.ambientC, opts), groupFactor: groupFactor(opts.grouping), derated: true, ok: true, note: '' };
     }
-    var last = CABLE_TABLE[CABLE_TABLE.length - 1];
-    return { size: last.size, izBase: last.iz, iz: last.iz * der, ambientFactor: ambientFactor(opts.ambientC), groupFactor: groupFactor(opts.grouping), derated: true, ok: false, note: '超过参考表最大截面，需并联或母排校核' };
+    var lastBase = cableBaseIz(CABLE_TABLE[CABLE_TABLE.length - 1].size, opts);
+    return { size: CABLE_TABLE[CABLE_TABLE.length - 1].size, izBase: lastBase, iz: lastBase * der, ambientFactor: ambientFactor(opts.ambientC, opts), groupFactor: groupFactor(opts.grouping), derated: true, ok: false, note: '超过参考表最大截面，需并联或母排校核' };
+  }
+  function conductorRho(opts) {
+    var mat = opts.cableMaterial === 'al' ? 'al' : 'cu';
+    var temp = CONDUCTOR_TEMP_C[opts.insulation] || 90;
+    return RHO_20[mat] * (1 + ALPHA_20[mat] * (temp - 20));
   }
   function voltageDropAC(current, lengthM, size, opts) {
     if (!(current > 0) || !(lengthM > 0) || !(size > 0)) return null;
-    var rho = opts.cableMaterial === 'al' ? 0.0282 : 0.0175;
-    var r = rho * lengthM / size;
+    var r = conductorRho(opts) * lengthM / size;
     var x = 0.00008 * lengthM;
     var sin = Math.sqrt(Math.max(0, 1 - opts.pf * opts.pf));
     var du = Math.sqrt(3) * current * (r * opts.pf + x * sin);
-    return { volts: du, pct: du / opts.acVoltage * 100 };
+    return { volts: du, pct: du / opts.acVoltage * 100, rho: conductorRho(opts) };
   }
   function voltageDropDC(current, lengthM, size, opts) {
     if (!(current > 0) || !(lengthM > 0) || !(size > 0)) return null;
-    var rho = opts.cableMaterial === 'al' ? 0.0282 : 0.0175;
-    var r = rho * lengthM / size;
+    var r = conductorRho(opts) * lengthM / size;
     var du = 2 * current * r;
-    return { volts: du, pct: du / opts.busVoltage * 100 };
+    return { volts: du, pct: du / opts.busVoltage * 100, rho: conductorRho(opts) };
   }
   function thermalMinSize(ikA, tSec, opts) {
     if (!(ikA > 0) || !(tSec > 0)) return null;
@@ -173,7 +210,10 @@
       out.acFeeds = Math.max(1, Math.round(num(p.acIn, 2)));
       out.acCurrent = out.acPowerKw * 1000 / (Math.sqrt(3) * acVoltage * pf);
       out.acCurrentPerFeed = out.acCurrent / out.acFeeds;
-      out.dcBusCurrent = out.acDcKw * 1000 / out.busVoltage;
+      out.acDcBusCurrent = out.acDcKw * 1000 / out.busVoltage;
+      out.dcDcBusCurrent = out.dcDcKw * 1000 / out.busVoltage;
+      out.dcBusCurrent = Math.max(out.acDcBusCurrent, out.dcDcBusCurrent);
+      out.dcBusCurrentBasis = out.dcDcBusCurrent > out.acDcBusCurrent ? 'DC/DC 总额定（最不利工况）' : 'AC/DC 总额定';
       out.guns = Math.max(1, Math.round(num(p.gunCount, 2)));
       out.gunV = Math.max(1, num(p.gunV, out.busVoltage));
       out.gunA = Math.max(1, num(p.gunA, 1500));
@@ -185,7 +225,10 @@
       out.acFeeds = 1;
       out.acCurrent = out.acPowerKw * 1000 / (Math.sqrt(3) * acVoltage * pf);
       out.acCurrentPerFeed = out.acCurrent;
-      out.dcBusCurrent = out.dcKw * 1000 / out.busVoltage;
+      out.acDcBusCurrent = out.dcKw * 1000 / out.busVoltage;
+      out.dcDcBusCurrent = out.acDcBusCurrent;
+      out.dcBusCurrent = out.acDcBusCurrent;
+      out.dcBusCurrentBasis = '充电模块总额定';
       out.guns = Math.max(1, Math.round(num(p.guns, 2)));
       out.gunV = Math.max(1, num(p.busV, 750));
       out.gunA = Math.max(1, num(p.gunA, 250));
@@ -199,6 +242,17 @@
   }
   function add(list, item) { list.push(item); return item; }
   function statusOf(ok, warn) { return ok ? 'pass' : (warn ? 'warn' : 'fail'); }
+  function providedAll(opts, keys) {
+    return keys.every(function (k) { return !!(opts.__provided && opts.__provided[k]); });
+  }
+  function evidenceStatus(ok, opts, keys) {
+    if (ok == null) return 'unknown';
+    if (!ok) return 'fail';
+    return providedAll(opts, keys) ? 'pass' : 'assumed';
+  }
+  function assumedText(opts, keys) {
+    return providedAll(opts, keys) ? '' : '；输入为默认假设，未提供铭牌/协议/试验数据';
+  }
   function src(id) { return id; }
   function result(id, cat, title, status, value, unit, detail, sourceIds, assumptions, formula, remediation) {
     return { id: id, cat: cat, title: title, status: status, value: value == null ? '' : value, unit: unit || '', detail: detail || '', sourceIds: sourceIds || [], assumptions: assumptions || [], formula: formula || '', remediation: remediation || '' };
@@ -212,32 +266,141 @@
       : voltageDropAC(circuit.current, circuit.length, cable.size, opts);
     var limit = circuit.limit;
     var cableOk = cable.ok && (cable.iz >= required);
+    var insulationLabel = opts.insulation === 'pvc' ? 'PVC 70°C' : 'XLPE 90°C';
     out.push(result(prefix + '-CABLE', '电缆与载流', title + '电缆截面选择',
-      statusOf(cableOk, !cable.ok && cable.size === 240),
+      cableOk ? 'pass' : 'fail',
       cable.size, 'mm²',
-      '设计电流 ' + round(circuit.current, 1) + ' A；保护额定 ' + round(required, 0) + ' A；降容后 Iz ' + round(cable.iz, 1) + ' A' + (cable.note ? '；' + cable.note : ''),
+      '设计电流 ' + round(circuit.current, 1) + ' A；保护额定 ' + round(required, 0) + ' A；降容后 Iz ' + round(cable.iz, 1) + ' A' + (cable.note ? '；' + cable.note : '') + (cableOk ? '' : '；截面/并联方案不满足载流，需重新选型'),
       ['STD-IEC-60364-5-52', 'ASM-CABLE-AMPACITY'],
-      ['载流量按 Cu/XLPE C 法参考表，环境 ' + opts.ambientC + '°C，成组 ' + opts.grouping + ' 回路；须以厂家/标准原文复核'],
+      ['载流量按 ' + insulationLabel + ' C 法参考表，环境 ' + opts.ambientC + '°C，成组 ' + opts.grouping + ' 回路；须以厂家/标准原文复核'],
       'Iz = I_table × k_amb × k_group ≥ In', '增大截面、减少并联回路或调整敷设/环境温度'));
     var vdOk = vd && vd.pct <= limit;
+    var vdValid = cableOk && cable.iz >= circuit.current;
     out.push(result(prefix + '-VDROP', '电缆与载流', title + '电压降',
-      vd ? statusOf(vdOk, vd.pct <= limit * 1.2) : 'unknown',
-      vd ? round(vd.pct, 2) : '', '%',
-      vd ? 'ΔU ' + round(vd.volts, 1) + ' V / 限值 ' + limit + '%；长度 ' + circuit.length + ' m' : '缺少电流/长度/截面',
+      !vd ? 'unknown' : (!vdValid ? 'unknown' : statusOf(vdOk, vd.pct <= limit * 1.2)),
+      vd && vdValid ? round(vd.pct, 2) : '', '%',
+      !vd ? '缺少电流/长度/截面'
+        : 'ΔU ' + round(vd.volts, 1) + ' V / 限值 ' + limit + '%；长度 ' + circuit.length + ' m；ρ=' + round(vd.rho, 5) + ' Ω·mm²/m（' + Math.round(CONDUCTOR_TEMP_C[opts.insulation] || 90) + '°C）'
+          + (vdValid ? '' : '；电缆载流不合格（Iz ' + round(cable.iz, 1) + ' A < Ib ' + round(circuit.current, 1) + ' A），压降结论不成立'),
       ['STD-IEC-60364-5-52'],
-      ['按集总参数、忽略并联与谐波；须以现场长度与实测校核'],
-      circuit.dc ? 'ΔU = 2·I·ρL/A' : 'ΔU = √3·I·L·(R·cosφ + X·sinφ)', '缩短电缆、增大截面或提高母线电压'));
-    return { cable: cable, required: required, vd: vd, results: out };
+      ['按集总参数、运行温度修正电阻率、忽略并联与谐波；须以现场长度与实测校核'],
+      circuit.dc ? 'ΔU = 2·I·ρ(T)·L/A' : 'ΔU = √3·I·L·(R(T)·cosφ + X·sinφ)', '缩短电缆、增大截面或提高母线电压'));
+    return { cable: cable, required: required, vd: vd, vdValid: vdValid, results: out };
+  }
+  function safetyLoop(D) {
+    var devices = (D && D.devices) || [];
+    var nets = (D && D.nets) || [];
+    var pk = function (d, p) { return String(d) + ':' + String(p); };
+    var adj = {};
+    var link = function (a, b) { (adj[a] = adj[a] || []).push(b); (adj[b] = adj[b] || []).push(a); };
+    nets.forEach(function (n) { if (n && n.a && n.b) link(pk(n.a.d, n.a.p), pk(n.b.d, n.b.p)); });
+    /* 母排器件：同名母线杆上的所有抽头引脚是同一电气节点（如 WBT1.IN.V+ 与 WBT1.SB1.V+）。 */
+    devices.forEach(function (d) {
+      if (!d || !d.sym || !d.sym.isBus) return;
+      var byBar = {};
+      (d.sym.pins || []).forEach(function (p) {
+        var n = String(p.n || '');
+        var bar = n.slice(n.lastIndexOf('.') + 1);
+        (byBar[bar] = byBar[bar] || []).push(n);
+      });
+      Object.keys(byBar).forEach(function (bar) {
+        var ps = byBar[bar];
+        for (var i = 1; i < ps.length; i++) link(pk(d.id, ps[0]), pk(d.id, ps[i]));
+      });
+    });
+    devices.forEach(function (d) {
+      if (!d || !/^(SB|SQ|FR)/.test(String(d.id || d.tag || ''))) return;
+      var names = {};
+      ((d.sym && d.sym.pins) || []).forEach(function (p) { names[String(p.n)] = true; });
+      ['11', '21', '13', '23', '31', '41', '51', '61'].forEach(function (a) {
+        var b = String(Number(a) + 1);
+        if (names[a] && names[b]) link(pk(d.id, a), pk(d.id, b));
+      });
+    });
+    var coils = [], sources = [];
+    devices.forEach(function (d) {
+      if (!d) return;
+      if (/^SR\d/.test(String(d.id || ''))) ((d.sym && d.sym.pins) || []).forEach(function (p) {
+        if (String(p.n) === 'A1' || /线圈|coil/i.test(String(p.name || ''))) coils.push(pk(d.id, p.n));
+      });
+      if (/^(T\d|WB|PWR|PS)/.test(String(d.id || ''))) ((d.sym && d.sym.pins) || []).forEach(function (p) {
+        if (/V\+|24V\+|L\+/.test(String(p.n || '') + ' ' + String(p.name || ''))) sources.push(pk(d.id, p.n));
+      });
+    });
+    var maskOf = function (k) {
+      var id = k.slice(0, k.indexOf(':'));
+      if (/^SB\d/.test(id)) return 1;
+      if (/^(SQ|FR)\d/.test(id)) return 2;
+      return 0;
+    };
+    var found = null;
+    for (var si = 0; si < sources.length && !found; si++) {
+      var start = sources[si];
+      var q = [{ k: start, mask: maskOf(start) }], seen = {}, parent = {};
+      seen[start + '|' + maskOf(start)] = true;
+      for (var qi = 0; qi < q.length && !found; qi++) {
+        var cur = q[qi];
+        if (cur.mask === 3 && coils.indexOf(cur.k) >= 0) { found = cur; break; }
+        var next = adj[cur.k] || [];
+        for (var ni = 0; ni < next.length; ni++) {
+          var nk = next[ni], mask = cur.mask | maskOf(nk);
+          var sk = nk + '|' + mask;
+          if (seen[sk]) continue;
+          seen[sk] = true; parent[sk] = cur.k + '|' + cur.mask;
+          q.push({ k: nk, mask: mask });
+        }
+      }
+      if (found) {
+        var path = [], key = found.k + '|' + found.mask;
+        while (key) {
+          path.unshift(key.slice(0, key.indexOf('|')));
+          key = parent[key];
+        }
+        var chain = [];
+        path.forEach(function (k) { var id = k.slice(0, k.indexOf(':')); if (chain[chain.length - 1] !== id) chain.push(id); });
+        return { ok: true, chain: chain, coils: coils, sources: sources };
+      }
+    }
+    return { ok: false, chain: [], coils: coils, sources: sources };
   }
   function safetyCheck(D) {
     var devices = (D && D.devices) || [];
+    var nets = (D && D.nets) || [];
     var has = function (re) { return devices.some(function (d) { return re.test(String(d.id || '')) || re.test(String(d.tag || '')) || re.test(String(d.name || '')); }); };
     var out = [];
     var ess = !!(D && D.params && (D.params.family === 'mwess' || D.params.ess));
+    var loop = safetyLoop(D);
+    var hasSb = has(/^SB\d/), hasSq = has(/^SQ\d/), hasSr = has(/^SR\d/);
+    var loopStatus = (!hasSb || !hasSq) ? 'fail' : (loop.ok ? 'pass' : 'warn');
+    var loopDetail = (!hasSb || !hasSq)
+      ? '缺少急停或门禁触点符号'
+      : (loop.ok
+        ? '网表拓扑已识别串联安全链：' + loop.chain.join(' → ')
+        : '符号齐备，但网表未识别到“急停→门禁→安全继电器线圈”的串联回路；可能为并联接入控制器，需接线复核/测试');
     out.push(result('SAFE-ESTOP', '安全', '急停 / 门禁 / 安全继电器',
-      (has(/^SB\d/) && has(/^SQ\d/)) ? (has(/^SR\d/) ? 'pass' : 'warn') : 'fail',
-      (has(/^SB\d/) ? 'SB' : '') + (has(/^SQ\d/) ? ' SQ' : '') + (has(/^SR\d/) ? ' SR' : ''),
-      '', '急停与门禁硬线链路；MWESS 另需安全继电器', ['STD-GB-18487-1', 'STD-GB-42288'], ['图中符号存在不等于回路动作正确，需接线检查/测试'], '', '补齐急停、门禁、安全继电器与硬线切除路径'));
+      loopStatus,
+      (hasSb ? 'SB' : '') + (hasSq ? ' SQ' : '') + (hasSr ? ' SR' : ''),
+      '', loopDetail, ['STD-GB-18487-1', 'STD-GB-42288'],
+      ['检查基于网表拓扑，不替代触点动作、断线检测与功能安全验证'], '', '补齐急停、门禁、安全继电器与硬线切除路径'));
+    var srDevices = devices.filter(function (d) { return /^SR\d/.test(String(d.id || '')); });
+    if (srDevices.length) {
+      var missingOut = [];
+      srDevices.forEach(function (d) {
+        [['1', '2'], ['3', '4']].forEach(function (pair) {
+          var terminalNet = function (pin) {
+            return nets.some(function (n) {
+              return (n.a && n.a.d === d.id && String(n.a.p) === pin) || (n.b && n.b.d === d.id && String(n.b.p) === pin);
+            });
+          };
+          if (!terminalNet(pair[0]) || !terminalNet(pair[1])) missingOut.push(d.id + ':' + pair.join('/'));
+        });
+      });
+      out.push(result('SAFE-LOOP-OUT', '安全', '安全继电器输出通道接线',
+        missingOut.length ? 'warn' : 'pass',
+        missingOut.length ? missingOut.length + ' 路缺线' : srDevices.length + ' 台安全继电器输出成对',
+        '', missingOut.length ? '输出触点未成对接线：' + missingOut.join('、') : 'SR 输出触点两端均绑定网络',
+        ['STD-GB-18487-1'], ['未验证触点容量、冗余通道与诊断覆盖率'], '', '补齐安全继电器输出通道并做断线/粘连诊断'));
+    }
     out.push(result('SAFE-FIRE', '安全', '储能消防与热失控证据',
       !ess ? 'na' : (has(/^FR\d/) ? 'warn' : 'fail'),
       !ess ? '不适用' : (has(/^FR\d/) ? '消防系统块' : '缺失'),
@@ -246,9 +409,9 @@
       ['消防系统块的存在不代表满足 NFPA 855/GB 51048；需布置图、设备证书、探测与联锁逻辑'],
       '', '补充气体/烟感/温感、泄压、防火间距、水消防与应急联锁证据'));
     out.push(result('SAFE-GAS', '安全', '可燃气体 / 烟感 / 温感探测',
-      !ess ? 'na' : (has(/气体|GAS|烟感|温感|可燃/) ? 'pass' : 'warn'),
-      !ess ? '不适用' : (has(/气体|GAS|烟感|温感|可燃/) ? '已见' : '未见'),
-      '', !ess ? '未配置储能' : 'BESS 舱/柜应独立配置可燃气体、烟感、温感并与消防/通风联锁', ['STD-NFPA-855', 'STD-GB-51048'], ['需厂家消防系统 datasheet 与联锁逻辑'], '', '增加探测点并明确报警/排风/切断策略'));
+      !ess ? 'na' : (has(/气体|GAS|烟感|温感|可燃/) ? 'assumed' : 'warn'),
+      !ess ? '不适用' : (has(/气体|GAS|烟感|温感|可燃/) ? '已见（按名称）' : '未见'),
+      '', !ess ? '未配置储能' : 'BESS 舱/柜应独立配置可燃气体、烟感、温感并与消防/通风联锁；当前仅按器件命名匹配，不构成探测点/联锁证据', ['STD-NFPA-855', 'STD-GB-51048'], ['名称匹配不等于探测点布置、定值与联锁逻辑正确；需厂家消防系统 datasheet'], '', '增加探测点并明确报警/排风/切断策略'));
     var fireVerified = false;
     try {
       var src = root.EVSE_SOURCE;
@@ -316,28 +479,32 @@
     var gunRating = opts.gunFuseA || stdRating(inputs.gunA);
     var essCurrent = inputs.essPowerKw ? inputs.essPowerKw * 1000 / inputs.busVoltage : null;
     var circuits = [
-      { id: 'AC-IN', title: '交流进线（每路）', current: inputs.acCurrentPerFeed, length: opts.acCableM, voltage: opts.acVoltage, dc: false, limit: opts.voltageDropLimitAc, breakerA: acBreaker, forcedSize: opts.acCableSize, icu: opts.acBreakerIcuKa, ik: acIk, thermal: acThermal },
-      { id: 'DC-BUS', title: '直流母线', current: inputs.dcBusCurrent, length: opts.dcCableM, voltage: inputs.busVoltage, dc: true, limit: opts.voltageDropLimitDc, breakerA: dcBreaker, forcedSize: opts.dcCableSize, icu: opts.dcBreakerIcuKa, ik: optNum(opts.dcIscKa), thermal: null },
-      { id: 'GUN', title: '充电枪回路', current: inputs.gunA, length: opts.gunCableM, voltage: inputs.gunV, dc: true, limit: opts.voltageDropLimitDc, breakerA: gunRating, forcedSize: opts.gunCableSize, icu: opts.gunFuseIcuKa, ik: optNum(opts.dcIscKa), thermal: null }
+      { id: 'AC-IN', title: '交流进线（每路）', current: inputs.acCurrentPerFeed, length: opts.acCableM, voltage: opts.acVoltage, dc: false, limit: opts.voltageDropLimitAc, breakerA: acBreaker, breakerKey: 'acBreakerA', forcedSize: opts.acCableSize, icu: opts.acBreakerIcuKa, ik: acIk, thermal: acThermal },
+      { id: 'DC-BUS', title: '直流母线', current: inputs.dcBusCurrent, length: opts.dcCableM, voltage: inputs.busVoltage, dc: true, limit: opts.voltageDropLimitDc, breakerA: dcBreaker, breakerKey: 'dcBreakerA', forcedSize: opts.dcCableSize, icu: opts.dcBreakerIcuKa, ik: optNum(opts.dcIscKa), thermal: null },
+      { id: 'GUN', title: '充电枪回路', current: inputs.gunA, length: opts.gunCableM, voltage: inputs.gunV, dc: true, limit: opts.voltageDropLimitDc, breakerA: gunRating, breakerKey: 'gunFuseA', forcedSize: opts.gunCableSize, icu: opts.gunFuseIcuKa, ik: optNum(opts.dcIscKa), thermal: null }
     ];
-    if (inputs.hasEss && essCurrent) circuits.push({ id: 'ESS', title: '储能支路', current: essCurrent, length: opts.essCableM, voltage: inputs.busVoltage, dc: true, limit: opts.voltageDropLimitDc, breakerA: opts.essBreakerA || stdRating(essCurrent), forcedSize: opts.essCableSize, icu: opts.dcBreakerIcuKa, ik: optNum(opts.batteryIscKa || opts.dcIscKa), thermal: null });
+    if (inputs.hasEss && essCurrent) circuits.push({ id: 'ESS', title: '储能支路', current: essCurrent, length: opts.essCableM, voltage: inputs.busVoltage, dc: true, limit: opts.voltageDropLimitDc, breakerA: opts.essBreakerA || stdRating(essCurrent), breakerKey: 'essBreakerA', forcedSize: opts.essCableSize, icu: opts.dcBreakerIcuKa, ik: optNum(opts.batteryIscKa || opts.dcIscKa), thermal: null });
     res.push(result('INPUT-AC', '设计输入', '交流侧计算电流', 'pass', round(inputs.acCurrentPerFeed, 1), 'A', '总交流功率 ' + round(inputs.acPowerKw, 1) + ' kW；' + inputs.acFeeds + ' 路；PF ' + opts.pf + '；效率 ' + opts.efficiency, ['ASM-CONVERSION'], ['效率/功率因数为工程假设'], 'I = P/(√3·U·PF·η)', '用实测 PF/效率修正'));
-    res.push(result('INPUT-DC', '设计输入', '直流母线计算电流', 'pass', round(inputs.dcBusCurrent, 1), 'A', '母线电压 ' + inputs.busVoltage + ' V；枪峰值 ' + inputs.gunA + ' A', ['ASM-CONVERSION'], [], 'I = P/U', ''));
+    res.push(result('INPUT-DC', '设计输入', '直流母线计算电流', 'pass', round(inputs.dcBusCurrent, 1), 'A',
+      '母线电压 ' + inputs.busVoltage + ' V；AC/DC 折算 ' + round(inputs.acDcBusCurrent, 1) + ' A；DC/DC 折算 ' + round(inputs.dcDcBusCurrent, 1) + ' A；取 ' + inputs.dcBusCurrentBasis + '；枪峰值 ' + inputs.gunA + ' A',
+      ['ASM-CONVERSION'], ['按额定功率折算，不含同时率、效率曲线与短时过载；最不利工况需按真实能量流确认'], 'I = P/U', '用实测/厂家效率与运行策略修正'));
     circuits.forEach(function (c) {
       var r = circuitResult(c.id, c.title, c, opts);
       res.push.apply(res, r.results);
       if (c.id === 'AC-IN') {
         var scOk = acIk > 0 ? (acIk <= c.icu) : null;
+        var acEvidenceKeys = ['gridIkKa', 'transformerKva', 'transformerZPct', 'acBreakerIcuKa'];
         var thermalTxt = acThermal == null ? '数据缺失' : (round(acThermal, 1) + ' mm²');
-        res.push(result('SC-AC', '短路与保护', '交流侧短路电流与开断能力', scOk == null ? 'unknown' : (scOk ? 'pass' : 'fail'), acIk > 0 ? round(acIk, 2) : '数据缺失', 'kA',
-          '电网/变压器估算 Ik=' + (acIk > 0 ? round(acIk, 2) : '—') + ' kA；断路器 Icu=' + c.icu + ' kA；电缆热稳定最小截面 ' + thermalTxt,
+        res.push(result('SC-AC', '短路与保护', '交流侧短路电流与开断能力', evidenceStatus(scOk, opts, acEvidenceKeys), acIk > 0 ? round(acIk, 2) : '数据缺失', 'kA',
+          '电网/变压器估算 Ik=' + (acIk > 0 ? round(acIk, 2) : '—') + ' kA；断路器 Icu=' + c.icu + ' kA；电缆热稳定最小截面 ' + thermalTxt + assumedText(opts, acEvidenceKeys),
           ['STD-IEC-60909', 'ASM-PROTECTION'], ['Ik 由电网或变压器阻抗估算；未做完整阻抗网络与电动机反馈'], 'Ik3 ≈ S/(√3·U·Z)', '获取电网短路容量、变压器阻抗与保护定值；做完整短路计算'));
         var thermalOk = acThermal != null && r.cable.size >= acThermal;
-        res.push(result('SC-AC-THERMAL', '短路与保护', '交流电缆短路热稳定', acThermal == null ? 'unknown' : (thermalOk ? 'pass' : 'fail'), acThermal == null ? '数据缺失' : round(acThermal, 1), 'mm²',
-          '按 Ik=' + round(acIk, 2) + ' kA、t=' + opts.faultClearSec + ' s、k=' + K_THERMAL[opts.cableMaterial][opts.insulation] + '；所选 ' + r.cable.size + ' mm²',
+        var thermalKeys = ['gridIkKa', 'transformerKva', 'transformerZPct', 'faultClearSec'];
+        res.push(result('SC-AC-THERMAL', '短路与保护', '交流电缆短路热稳定', evidenceStatus(acThermal == null ? null : thermalOk, opts, thermalKeys), acThermal == null ? '数据缺失' : round(acThermal, 1), 'mm²',
+          '按 Ik=' + round(acIk, 2) + ' kA、t=' + opts.faultClearSec + ' s、k=' + K_THERMAL[opts.cableMaterial][opts.insulation] + '；所选 ' + r.cable.size + ' mm²' + assumedText(opts, thermalKeys),
           ['STD-IEC-60364-5-52', 'STD-IEC-60909'], ['清除时间取假设值；需保护曲线/整定校核'], 'S ≥ Ik·√t / k', '增大截面或缩短清除时间'));
         var acProtOk = (c.breakerA >= inputs.acCurrentPerFeed) && (c.breakerA <= r.cable.iz);
-        res.push(result('PROT-AC', '短路与保护', '交流保护与电缆配合', acProtOk ? 'pass' : 'fail', c.breakerA + ' / ' + round(r.cable.iz, 1), 'A',
+        res.push(result('PROT-AC', '短路与保护', '交流保护与电缆配合', evidenceStatus(acProtOk, opts, ['acBreakerA']), c.breakerA + ' / ' + round(r.cable.iz, 1), 'A',
           'In=' + c.breakerA + ' A；Ib=' + round(inputs.acCurrentPerFeed, 1) + ' A；Iz=' + round(r.cable.iz, 1) + ' A', ['ASM-PROTECTION', 'STD-IEC-60364-5-52'], ['保护额定值为默认/用户输入；需厂家曲线'], 'Ib ≤ In ≤ Iz', '调整保护额定值或电缆截面'));
         var selOk = opts.upstreamBreakerA ? (opts.upstreamBreakerA >= c.breakerA * 1.6) : null;
         res.push(result('PROT-SELECT', '短路与保护', '上下级选择性（启发式）', selOk == null ? 'unknown' : (selOk ? 'pass' : 'warn'), opts.upstreamBreakerA ? opts.upstreamBreakerA + ' / ' + c.breakerA : '未输入', '',
@@ -361,35 +528,62 @@
         res.push(result('SC-' + c.id, '短路与保护', c.title + '短路与开断', dcOk == null ? 'unknown' : (dcOk ? 'pass' : 'fail'), ik ? round(ik, 2) : '数据缺失', 'kA',
           ik ? 'Ik=' + round(ik, 2) + ' kA；保护 Icu=' + c.icu + ' kA' : '缺少电池/变流器原始短路数据或直流侧故障水平',
           ['STD-IEC-60909', 'DS-DC-CONTACTOR', 'DS-FUSE-AR', 'DS-BMS'], ['未做电池簇 Thevenin/厂家短路模型；需 datasheet/试验报告'], 'Icu ≥ Ik', '导入电池/变流器短路数据并做直流短路计算'));
+        var dcEvidence = opts.dcRatedVoltage != null && opts.dcBreakingKa != null;
+        var dcVoltOk = dcEvidence ? opts.dcRatedVoltage >= c.voltage : null;
+        /* 无直流短路电流时不得判分断能力通过：!ik 只能视为证据缺失 */
+        var dcBreakOk = (dcEvidence && ik != null) ? opts.dcBreakingKa >= ik : null;
+        var dcRatingStatus = !dcEvidence ? 'unknown'
+          : (dcVoltOk === false ? 'fail'
+            : (dcBreakOk == null ? 'unknown'
+              : (dcVoltOk && dcBreakOk ? (opts.dcLrMs == null ? 'assumed' : 'pass') : 'fail')));
+        res.push(result('DC-RATING-' + c.id, '短路与保护', c.title + '直流保护参数',
+          dcRatingStatus,
+          dcEvidence ? round(opts.dcRatedVoltage, 0) + ' V / ' + round(opts.dcBreakingKa, 1) + ' kA' : '待输入',
+          '', !dcEvidence
+            ? '缺少保护器件直流电压等级与分断能力；1500 V DC 不能按 AC 或默认 Icu 推定'
+            : '器件 ' + opts.dcRatedVoltage + ' V / ' + opts.dcBreakingKa + ' kA；回路 ' + c.voltage + ' V / Ik ' + (ik != null ? round(ik, 2) + ' kA' : '未提供——无法校核直流分断，结论 unknown')
+              + '；L/R ' + (opts.dcLrMs == null ? '未提供，直流分断仍需厂家试验' : opts.dcLrMs + ' ms'),
+          ['STD-IEC-60909', 'DS-DC-CONTACTOR', 'DS-FUSE-AR'],
+          ['直流分断能力与 L/R 时间常数必须来自厂家 datasheet/型式试验；不能由 AC 参数替代'],
+          'Ue ≥ U_system；Icu(DC) ≥ Ik(DC)', '补录直流断路器/熔断器的 1500 V DC 额定值与 L/R 试验条件'));
         if (ik) {
           var th = thermalMinSize(ik, opts.faultClearSec, opts);
-          res.push(result('SC-' + c.id + '-THERMAL', '短路与保护', c.title + '短路热稳定', r.cable.size >= th ? 'pass' : 'fail', round(th, 1), 'mm²',
-            '最小 ' + round(th, 1) + ' mm²；所选 ' + r.cable.size + ' mm²', ['STD-IEC-60364-5-52'], ['清除时间与 k 为假设'], 'S ≥ Ik·√t/k', '增大截面或缩短清除时间'));
+          var dcThermalKeys = ['dcIscKa', 'faultClearSec'];
+          if (c.id === 'ESS') dcThermalKeys = [opts.batteryIscKa != null ? 'batteryIscKa' : 'dcIscKa', 'faultClearSec'];
+          res.push(result('SC-' + c.id + '-THERMAL', '短路与保护', c.title + '短路热稳定', evidenceStatus(r.cable.size >= th, opts, dcThermalKeys), round(th, 1), 'mm²',
+            '最小 ' + round(th, 1) + ' mm²；所选 ' + r.cable.size + ' mm²' + assumedText(opts, dcThermalKeys), ['STD-IEC-60364-5-52'], ['清除时间与 k 为假设'], 'S ≥ Ik·√t/k', '增大截面或缩短清除时间'));
         }
         var pOk = (c.breakerA >= c.current) && (c.breakerA <= r.cable.iz);
-        res.push(result('PROT-' + c.id, '短路与保护', c.title + '保护与电缆配合', pOk ? 'pass' : 'fail', c.breakerA + ' / ' + round(r.cable.iz, 1), 'A',
+        res.push(result('PROT-' + c.id, '短路与保护', c.title + '保护与电缆配合', evidenceStatus(pOk, opts, [c.breakerKey]), c.breakerA + ' / ' + round(r.cable.iz, 1), 'A',
           'In=' + c.breakerA + ' A；Ib=' + round(c.current, 1) + ' A；Iz=' + round(r.cable.iz, 1) + ' A', ['ASM-PROTECTION', 'STD-IEC-60364-5-52'], ['保护额定值为默认/用户输入；需厂家曲线'], 'Ib ≤ In ≤ Iz', '调整保护额定值或电缆截面'));
       }
     });
     var trKva = opts.transformerKva > 0 ? opts.transformerKva : null;
     var trReq = inputs.acPowerKw / opts.pf * 1.1;
-    res.push(result('TRANSFORMER', '电源与并网', '变压器容量', trKva ? (trKva >= trReq ? 'pass' : 'fail') : 'unknown', round(trReq, 1), 'kVA',
-      trKva ? '需求 ' + round(trReq, 1) + ' kVA（含 10% 裕量）；现有 ' + trKva + ' kVA' : '未提供变压器容量/阻抗',
+    var trKeys = ['transformerKva'];
+    res.push(result('TRANSFORMER', '电源与并网', '变压器容量',
+      evidenceStatus(trKva ? (trKva >= trReq) : null, opts, trKeys), round(trReq, 1), 'kVA',
+      trKva ? '需求 ' + round(trReq, 1) + ' kVA（含 10% 裕量）；现有 ' + trKva + ' kVA' + assumedText(opts, trKeys) : '未提供变压器容量/阻抗',
       siteSrc.concat(['STD-IEC-60909']), ['按视在功率与 10% 裕量估算；未考虑同时率、谐波与未来扩容'], 'S_req = P/(PF)·1.1', '导入变压器铭牌/并网协议并复核'));
     var sLoadMva = inputs.acPowerKw / opts.pf / 1000;
     var trLoadPct = trKva ? (sLoadMva * 1000 / trKva * 100) : null;
-    res.push(result('TRANSFORMER-LOAD', '电源与并网', '变压器负载率', trLoadPct == null ? 'unknown' : (trLoadPct <= opts.transformerLoadLimitPct ? 'pass' : (trLoadPct <= 100 ? 'warn' : 'fail')), trLoadPct == null ? '数据缺失' : round(trLoadPct, 1), '%',
-      trLoadPct == null ? '未提供变压器容量' : '视在负载 ' + round(sLoadMva * 1000, 1) + ' kVA / 变压器 ' + trKva + ' kVA；建议限值 ' + opts.transformerLoadLimitPct + '%',
+    var trLoadStatus = trLoadPct == null ? 'unknown'
+      : (trLoadPct <= opts.transformerLoadLimitPct ? evidenceStatus(true, opts, trKeys) : (trLoadPct <= 100 ? 'warn' : 'fail'));
+    res.push(result('TRANSFORMER-LOAD', '电源与并网', '变压器负载率', trLoadStatus, trLoadPct == null ? '数据缺失' : round(trLoadPct, 1), '%',
+      trLoadPct == null ? '未提供变压器容量' : '视在负载 ' + round(sLoadMva * 1000, 1) + ' kVA / 变压器 ' + trKva + ' kVA；建议限值 ' + opts.transformerLoadLimitPct + '%' + assumedText(opts, trKeys),
       siteSrc.concat(['STD-IEC-60909']), ['未考虑同时率、谐波、温升与短时过载'], 'Load% = S_load/S_tr×100', '导入铭牌/负荷曲线；评估扩容或限功率'));
     var sScMva = opts.gridIkKa > 0 ? Math.sqrt(3) * (opts.acVoltage / 1000) * opts.gridIkKa : null;
     if (sScMva && sLoadMva > 0) {
       var scr = sScMva / sLoadMva;
-      res.push(result('GRID-SCR', '并网与电能质量', '短路比 SCR', scr >= 3 ? 'pass' : (scr >= 2 ? 'warn' : 'fail'), round(scr, 2), '',
-        '并网点 S_sc=' + round(sScMva, 2) + ' MVA；负载 S=' + round(sLoadMva, 2) + ' MVA；SCR<3 视为弱电网筛查阈值',
+      var gridKeys = ['gridIkKa'];
+      res.push(result('GRID-SCR', '并网与电能质量', '短路比 SCR',
+        scr >= 3 ? evidenceStatus(true, opts, gridKeys) : (scr >= 2 ? 'warn' : 'fail'), round(scr, 2), '',
+        '并网点 S_sc=' + round(sScMva, 2) + ' MVA；负载 S=' + round(sLoadMva, 2) + ' MVA；SCR<3 视为弱电网筛查阈值' + assumedText(opts, gridKeys),
         ['STD-GB-36547', 'STD-IEEE-1547'].concat(siteSrc), ['SCR 由短路电流反推；弱电网阈值需按当地电网代码/变流器手册确认'], 'SCR = S_sc/S_load', '获取电网短路容量与变流器弱网特性；必要时降低容量或加装支撑'));
       var vPct = 100 * sLoadMva / sScMva;
-      res.push(result('GRID-VOLTAGE', '并网与电能质量', '并网点电压变化（筛查）', vPct <= opts.voltageLimitPct ? 'pass' : (vPct <= opts.voltageLimitPct * 1.2 ? 'warn' : 'fail'), round(vPct, 2), '%',
-        '近似 ΔU≈S_load/S_sc；限值 ' + opts.voltageLimitPct + '%；未做潮流/多机叠加',
+      res.push(result('GRID-VOLTAGE', '并网与电能质量', '并网点电压变化（筛查）',
+        vPct <= opts.voltageLimitPct ? evidenceStatus(true, opts, gridKeys) : (vPct <= opts.voltageLimitPct * 1.2 ? 'warn' : 'fail'), round(vPct, 2), '%',
+        '近似 ΔU≈S_load/S_sc；限值 ' + opts.voltageLimitPct + '%；未做潮流/多机叠加' + assumedText(opts, gridKeys),
         ['STD-GB-12325', 'STD-IEEE-1547'].concat(siteSrc), ['单机近似；未考虑线路阻抗、变压器分接头、无功补偿与多桩同时率'], 'ΔU% ≈ 100·S_load/S_sc', '导入电网阻抗/线路参数并做潮流计算；配置无功/调压'));
     } else {
       res.push(result('GRID-SCR', '并网与电能质量', '短路比 SCR', 'unknown', '数据缺失', '', '未提供并网点短路电流', ['STD-GB-36547', 'STD-IEEE-1547'].concat(siteSrc), [], 'SCR = S_sc/S_load', '导入电网短路容量'));
@@ -406,8 +600,9 @@
         '额定 ' + round(inputs.essEnergyKwh, 1) + ' kWh；可用 ' + round(essE, 1) + ' kWh（DoD ' + opts.essDod + '，SOH ' + opts.essSoh + '）' + (cRate == null ? '；未输入 PCS/DC-DC 功率' : ''),
         ['ASM-BESS', 'DS-PCS', 'DS-BMS'], ['DoD/SOH/最大 C-rate 为假设；需电池与 PCS datasheet'], 'E_usable=E·DoD·SOH；C=P/E', '导入电池/PCS 手册并做运行策略仿真'));
       var lifeYears = opts.essCycleLife / Math.max(0.01, opts.essCyclesPerDay * 365);
-      res.push(result('ESS-LIFE', '储能', '循环寿命与更换周期', lifeYears >= 10 ? 'pass' : 'warn', round(lifeYears, 1), '年',
-        '循环寿命 ' + opts.essCycleLife + ' 次；' + opts.essCyclesPerDay + ' 次/日；RTEF ' + opts.essRte,
+      var lifeKeys = ['essCycleLife', 'essCyclesPerDay'];
+      res.push(result('ESS-LIFE', '储能', '循环寿命与更换周期', lifeYears >= 10 ? evidenceStatus(true, opts, lifeKeys) : 'warn', round(lifeYears, 1), '年',
+        '循环寿命 ' + opts.essCycleLife + ' 次；' + opts.essCyclesPerDay + ' 次/日；RTEF ' + opts.essRte + assumedText(opts, lifeKeys),
         ['ASM-BESS', 'DS-BMS'], ['循环寿命/日循环数为假设；未考虑温度/倍率/DoD 加速衰减'], 'Years = N_cycle/(365·n_day)', '导入电池老化曲线与运行策略'));
     }
     var lossKw = Math.max(0, inputs.convLossKw);
@@ -431,7 +626,7 @@
       for (var y = 1; y <= N; y++) pvCost += opts.opexYuanPerYear / Math.pow(1 + r, y);
       pvCost -= opts.capexYuan * opts.residualPct / Math.pow(1 + r, N);
       var pvEnergy = 0;
-      for (var y2 = 0; y2 < N; y2++) pvEnergy += annualMwh * 1000 * Math.pow(1 - deg, y2) / Math.pow(1 + r, y2);
+      for (var y2 = 1; y2 <= N; y2++) pvEnergy += annualMwh * 1000 * Math.pow(1 - deg, y2 - 1) / Math.pow(1 + r, y2);
       var lcos = pvCost / pvEnergy;
       var target = opts.targetLcosYuan;
       var lcosStatus = target ? (lcos <= target ? 'pass' : 'fail') : 'warn';
@@ -456,9 +651,9 @@
           ['KB-VENDOR'], ['来源登记中的 metadata/pending 不代表已取得原文或已核验'], '', '导入标准原文、datasheet、现场与测试证据后重新评估'));
       }
     } catch (e) {}
-    var counts = { pass: 0, warn: 0, fail: 0, unknown: 0, na: 0 };
+    var counts = { pass: 0, assumed: 0, warn: 0, fail: 0, unknown: 0, na: 0 };
     res.forEach(function (r) { counts[r.status] = (counts[r.status] || 0) + 1; });
-    var denom = counts.pass + counts.warn + counts.fail + counts.unknown;
+    var denom = counts.pass + counts.assumed + counts.warn + counts.fail + counts.unknown;
     var score = denom ? Math.round(100 * (counts.pass + counts.warn * 0.5) / denom) : 0;
     var resultObj = {
       schema: 'evse-electrical-audit/v1',
@@ -468,7 +663,7 @@
       project: { name: (D && D.params && D.params.name) || '', params: clone((D && D.params) || {}) },
       inputs: inputs,
       assumptions: opts,
-      summary: { pass: counts.pass, warn: counts.warn, fail: counts.fail, unknown: counts.unknown, na: counts.na, score: score, scoreLabel: '综合校核分（未知=0，非合规认证）' },
+      summary: { pass: counts.pass, assumed: counts.assumed, warn: counts.warn, fail: counts.fail, unknown: counts.unknown, na: counts.na, score: score, scoreLabel: '综合校核分（未知/假设=0，非合规认证）' },
       results: res,
       disclaimer: '方案级预审结果，不替代注册电气工程师复核、并网试验、消防审批与型式试验。'
     };
@@ -506,7 +701,7 @@
   return {
     VERSION: VERSION, DEFAULT_OPTS: DEFAULT_OPTS, CABLE_TABLE: CABLE_TABLE, STD_RATINGS: STD_RATINGS, IEC_CURVES: IEC_CURVES,
     normalizeOpts: normalizeOpts, stdRating: stdRating, ambientFactor: ambientFactor, groupFactor: groupFactor,
-    cableIz: cableIz, selectCable: selectCable, voltageDropAC: voltageDropAC, voltageDropDC: voltageDropDC,
+    cableIz: cableIz, selectCable: selectCable, voltageDropAC: voltageDropAC, voltageDropDC: voltageDropDC, conductorRho: conductorRho,
     thermalMinSize: thermalMinSize, transformerIsc: transformerIsc, curveTime: curveTime, designInputs: designInputs,
     auditDesign: auditDesign, toCSV: toCSV, toEvidencePack: toEvidencePack, hash: hash
   };

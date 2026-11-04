@@ -1,0 +1,63 @@
+{
+  "schema": "evse-e2e-baseline/v1",
+  "generatedAt": "2026-11-04T13:04:22.062Z",
+  "note": "违规计数只允许下降。修复后运行 node scripts/audit-snapshot.js --update-baseline。",
+  "scenarios": {
+    "evse": {
+      "name": "EVSE 默认（双枪 + 储能）",
+      "params": {
+        "name": "示例站 240kW 智能充电桩",
+        "family": "evse",
+        "std": "gb",
+        "kw": 240,
+        "guns": 2,
+        "gunA": 250,
+        "moduleKw": 40,
+        "ess": true,
+        "essKwh": 200,
+        "essClusters": 2,
+        "coupling": "dc"
+      },
+      "devices": 223,
+      "nets": 314,
+      "wires": 314,
+      "unrouted": 0,
+      "grade": "D",
+      "status": "BLOCKED",
+      "blocking": [
+        "C03",
+        "C05",
+        "C07",
+        "C14"
+      ],
+      "violations": {
+        "C03": 19,
+        "C05": 10,
+        "C14": 8,
+        "C07": 1,
+        "C08": 13
+      }
+    },
+    "mwess": {
+      "name": "MWESS 默认（7 页）",
+      "params": {
+        "family": "mwess"
+      },
+      "devices": 785,
+      "nets": 1122,
+      "wires": 1085,
+      "unrouted": 37,
+      "grade": "D",
+      "status": "BLOCKED",
+      "blocking": [
+        "B02",
+        "C03"
+      ],
+      "violations": {
+        "B02": 37,
+        "C03": 60,
+        "C08": 18
+      }
+    }
+  }
+}

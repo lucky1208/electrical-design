@@ -26,9 +26,9 @@
 | `evse-vendor-kb.js` | **厂家电路对比知识库**：7 家 × 13 单元 × 30+ 做法 → 28 条判定规则 | ~220 |
 | `evse-source.js` | **原始来源登记 + 证据图谱（V2）**：标准/器件手册/试验/现场/运行/经济/事故/假设的来源台账、要求覆盖、来源包导入导出 | ~250 |
 | `evse-calc.js` | **工程校核内核（V2）**：载流/降容/压降/短路/保护曲线/变压器/储能/热/并网/电能质量/消防/单点/LCOS；输出证据包与 CSV | ~520 |
-| `tests/` | Node 单元测试：公式、取参、来源导入与追溯 | — |
+| `tests/` | Node 单元测试 + 两个真实 `generate()` 端到端基线；`scripts/audit-snapshot.js` 生成审计产物 | — |
 | `sources/source-pack.example.json` | 来源包导入模板（标准/手册/现场/运行/测试占位） | — |
-| `proxy.js` | 本地开发服务器（默认端口 5173）：静态文件按磁盘动态服务 + `/bailian/` 反代百炼 API | ~120 |
+| `proxy.js` | 本地开发服务器（默认仅 127.0.0.1:5173）：静态文件白名单 + `/bailian/` 反代；上游/端口/CORS 用环境变量配置 | ~200 |
 | `manual-db.example.json` | 手册库导入模板 | — |
 
 加载顺序在 `index.html` 中已固定，**不要改动**：`core → mwess-core → vendor-kb → source → calc → geo → labelfix → render → sim → manual-kb → bom → ai → export`（`mwess-core` 紧随 `core`，因为其符号工厂复用 `EVSE_CORE`；`calc` 依赖 `source`，其余相对次序保持原样）。
@@ -197,11 +197,11 @@ docker build -t evse-schematic . && docker run -p 8080:80 evse-schematic
 - **图纸评分**仍由原七维 DRC 给出，衡量完整性、连接、制图、可读性、符号、文档与安全单元。
 - **工程校核**由 `evse-calc.js` 独立计算：交流/直流计算电流、电缆载流与降容、交直流压降、短路电流与热稳定、保护额定/开断/选择性、变压器容量/负载率、储能可用容量/C-rate/循环寿命、变流损耗与通风、并网与电能质量、储能消防与气体探测、BMS/IMD/辅源单点、LCOS、厂家安全单元检查。
 - **第二阶段新增**：IEC 60255 反时限曲线（SI/VI/EI/LTI）与上下级时间级差；并网点 SCR、电压变化、变压器负载率、THD/不平衡限值筛查；BESS 消防/热失控测试证据状态；NPV/LCOS（CAPEX、OPEX、年放电量、折现、衰减、残值、目标值）。这些是筛查，不是完整潮流/继保整定或消防审批。
-- 每个结果都有 `pass / warn / fail / unknown / na` 五种状态，并附带公式、输入、假设与来源 ID。**`unknown` 不会按通过计算**；综合校核分只代表“当前证据下的预审通过率”，不是合规认证。
+- 每个结果都有 `pass / assumed / warn / fail / unknown / na` 六种状态，并附带公式、输入、假设与来源 ID。**`unknown` 和 `assumed` 都不会按通过计算**；综合校核分只代表“当前证据下的预审通过率”，不是合规认证。
 - 左侧是可编辑的校核边界：并网点短路电流、变压器容量/阻抗、功率因数、效率、环境温度、成组回路、AC/DC/枪/储能电缆长度、储能功率、电池/直流短路电流等；高级区可填上下级曲线/启动值/TMS、THD/不平衡/电压/变压器负载限值、CAPEX/OPEX/年放电量/折现/衰减/残值/目标 LCOS。默认值均按工程假设处理并在结果中标注。
 - **原始来源登记**由 `evse-source.js` 管理：标准、datasheet、型式试验、现场资料、运行数据、经济数据、事故案例、文献与假设。来源状态为 `metadata / pending` 时不计入“已核验”；要求按 `open / partial / covered` 追踪。
 - 「导入来源包」接受 `sources/source-pack.example.json` 格式；`type=site` 来源的 `data` 字段会自动预填校核边界（界面手输值优先），相关结果会记录站点来源 ID。导出证据包输出项目参数、校核结果、假设、来源登记、要求矩阵与参数/结果哈希；「导出校核 CSV」用于评审记录。
-- 单元测试：`npm test`（Node 内置 test runner，25 项：载流/压降/短路公式、反时限曲线、电网筛查、LCOS、EVSE/MWESS 取参、来源导入与追溯、手册 URL 校验与 AI 覆盖、MWESS 跨页符字段）。
+- 测试：`npm test`（Node 内置 test runner）包含单元测试与两个真实 `generate()` 端到端场景；`npm run test:unit` 只跑快速单元测试，`npm run test:e2e` 只跑端到端。端到端会写 `out_audit/*.json`，并对照 `tests/e2e-baseline.json` 断言违规数不得上升。
 
 > 证据原则：标准原文、厂家 datasheet、现场实测、运行与测试记录才是事实源；内置参考表、默认值、二手厂家库只作为冷启动假设，必须由项目责任人用原始资料替换并归档。校核结果不替代注册电气工程师复核、并网试验、消防审批与型式试验。
 
@@ -240,26 +240,20 @@ docker build -t evse-schematic . && docker run -p 8080:80 evse-schematic
 
 ---
 
-## 五、当前基线与已知缺口（诚实清单，V12e · 2026-10-08）
+## 五、当前基线与已知缺口（诚实清单，2026-11-01）
 
-11 预设矩阵：**6×S + 5×A**（V12c 为 4×S+7×A）：
+当前 strict 路由的真实结果（详细数字由 `scripts/audit-snapshot.js` 生成，见 [`docs/audit-status.md`](docs/audit-status.md)）：
 
-```
-240+200 储能    98.4 S        EU+AC          98.4 S
-CCS2/CCS1/NACS/CHAdeMO  95.5 S ×4
-120/240/480/600kW       93.9 A ×4（120kW：CAN 链 B01 warn + C08×2）
-480+400 双枪储能        92.2 A（ownBody 1 warn：N208/GB4）
-默认 240kW 方案          C02/C05/C11 error = 0，生成耗时 ~10s（V12c 为 2.9s，待优化）
-```
+| 场景 | 器件 / 网络 / 走线 | 未布线 | 等级 | 阻断项 | 主要违规 |
+|---|---:|---:|---|---|---|
+| EVSE 默认（双枪 + 储能） | 223 / 314 / 314 | 0 | D / BLOCKED | C03、C05、C07、C14 | C03=19、C05=10、C14=8、C08=13 |
+| MWESS 默认（7 页） | 785 / 1122 / 1085 | 37 | D / BLOCKED | B02、C03 | B02=37、C03=60、C08=18 |
 
-遗留项（warn 级，不压 A 级下限）：
+MWESS 的交流分配已改为**母线抽头模型**（进线 WQA、相线分配 WBA、24V 分配 WBT1/WBT2、DC/DC 并汇 WBD、PE 母排逐负载抽头），未布线从 221 条降到 37 条，C05/C07/C09/C14 已清零；模块 L1~N 供电 23/24 已出线，剩余 1 条（A6-L2）与部分跨页长线仍无合法路径，B02 会如实阻断。
 
-| 项 | 现状 | 根因/计划 |
-|---|---|---|
-| 120kW CAN 链 | B01 warn（CANH2/CANL2 未达引脚）+ C08×2 | 定向布线修复待做 |
-| 480+400 ownBody | 1 warn（N208/GB4） | 需逐轮次精准拒绝（全局硬障碍实验已回滚） |
-| 生成耗时 | ~10s | fixClear8 全审计迭代；计划增量审计缓存降到 <5s |
-| 线-线 <8px 残余 | 5 对（CAN 差分对 + AUX 短桩） | 引脚固定，物理不可移 |
+这不是可交付状态。MWESS 的 221 条未布线主要来自电源分配与通信高扇出（sheet1 AC/PE、sheet6 CTL/AUX、DC 页）；修复方向是先做母线与网络标号，再改约束求解式布线。详见 [`UPGRADE_PLAN.md`](UPGRADE_PLAN.md)。
+
+历史 `out_mwess/` SVG/JSON 是 2026-10-20 的旧快照，不代表当前代码结果；`MWESS_DESIGN.md` 中的旧分数已改为当前状态说明。
 
 ---
 

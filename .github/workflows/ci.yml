@@ -1,0 +1,26 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Run unit + end-to-end tests
+        run: npm test
+      - name: Upload audit snapshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: audit-snapshots
+          path: |
+            out_audit/
+            docs/audit-status.md
+          if-no-files-found: ignore

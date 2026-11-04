@@ -1,5 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
 global.window = global;
 require('../evse-manual-kb.js');
 require('../evse-bom.js');
@@ -79,4 +81,17 @@ test('MWESS cross-page flags expose labels and pair tags for jump', () => {
   const pair = xs.filter(x => x.xrefTag === first.xrefTag);
   assert.equal(pair.length, 2);
   assert.notEqual(pair[0].sheet, pair[1].sheet);
+});
+
+test('audit status document matches the e2e baseline', () => {
+  const root = path.join(__dirname, '..');
+  const base = JSON.parse(fs.readFileSync(path.join(root, 'tests', 'e2e-baseline.json'), 'utf8'));
+  const md = fs.readFileSync(path.join(root, 'docs', 'audit-status.md'), 'utf8');
+  Object.keys(base.scenarios).forEach(key => {
+    const s = base.scenarios[key];
+    assert.ok(md.includes(s.name), key + ': scenario name missing from audit-status.md');
+    assert.ok(md.includes('| ' + s.devices + ' | ' + s.nets + ' | ' + s.wires + ' | ' + s.unrouted + ' |'), key + ': counts missing');
+    assert.ok(md.includes(s.blocking.join(', ')), key + ': blocking list missing');
+    Object.keys(s.violations).forEach(id => assert.ok(md.includes(id + '=' + s.violations[id]), key + ': ' + id + ' count missing'));
+  });
 });

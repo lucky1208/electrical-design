@@ -21,26 +21,34 @@ window.EVSE_RENDER = (function () {
     spec: 'font-size:7px;fill:#6b7480',
     xrtag: 'font-size:6.5px;font-weight:600;fill:#1e5cc8' /* v2.12: 跨页配对编号 */
   };
-  const esc = (s) => String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  const esc = (s) => String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+  const safeHref = (u) => { try { const x = new URL(String(u || '')); return /^https?:$/.test(x.protocol) ? x.href : ''; } catch (e) { return ''; } };
+  /* XSS 防线：拼进 SVG 属性的动态值一律走 esc（字符串）或 num（数值）；
+   * path d 只允许坐标/命令字符，其余丢弃。工程导入的恶意 JSON 不能再注入 onload 等事件属性。 */
+  const num = (v) => { const n = Number(v); return isFinite(n) ? n : 0; };
+  const safePathD = (d) => {
+    const s = String(d == null ? '' : d);
+    return /^[A-Za-z0-9 ,.\-+eE]*$/.test(s) ? s : '';
+  };
   const anch = { m: 'middle', s: 'start', e: 'end' };
   const n2 = (v) => Math.round(v * 100) / 100;
 
   function primSVG(pr) {
     const t = pr[0];
-    if (t === 'L') return '<line x1="' + n2(pr[1]) + '" y1="' + n2(pr[2]) + '" x2="' + n2(pr[3]) + '" y2="' + n2(pr[4]) + '" stroke="#101418" stroke-width="' + (pr[5] || 0.9) + '" stroke-linecap="square"/>';
-    if (t === 'D') return '<line x1="' + n2(pr[1]) + '" y1="' + n2(pr[2]) + '" x2="' + n2(pr[3]) + '" y2="' + n2(pr[4]) + '" stroke="#101418" stroke-width="0.7" stroke-dasharray="4 3"/>';
-    if (t === 'R') return '<rect x="' + n2(pr[1]) + '" y="' + n2(pr[2]) + '" width="' + n2(pr[3]) + '" height="' + n2(pr[4]) + '" rx="' + (pr[5] || 0) + '" fill="#fff" stroke="#101418" stroke-width="1"/>';
-    if (t === 'C') return '<circle cx="' + n2(pr[1]) + '" cy="' + n2(pr[2]) + '" r="' + n2(pr[3]) + '" fill="none" stroke="#101418" stroke-width="0.9"/>';
-    if (t === 'CF') return '<circle cx="' + n2(pr[1]) + '" cy="' + n2(pr[2]) + '" r="' + n2(pr[3]) + '" fill="#101418"/>';
+    if (t === 'L') return '<line x1="' + n2(num(pr[1])) + '" y1="' + n2(num(pr[2])) + '" x2="' + n2(num(pr[3])) + '" y2="' + n2(num(pr[4])) + '" stroke="#101418" stroke-width="' + num(pr[5] || 0.9) + '" stroke-linecap="square"/>';
+    if (t === 'D') return '<line x1="' + n2(num(pr[1])) + '" y1="' + n2(num(pr[2])) + '" x2="' + n2(num(pr[3])) + '" y2="' + n2(num(pr[4])) + '" stroke="#101418" stroke-width="0.7" stroke-dasharray="4 3"/>';
+    if (t === 'R') return '<rect x="' + n2(num(pr[1])) + '" y="' + n2(num(pr[2])) + '" width="' + n2(num(pr[3])) + '" height="' + n2(num(pr[4])) + '" rx="' + num(pr[5] || 0) + '" fill="#fff" stroke="#101418" stroke-width="1"/>';
+    if (t === 'C') return '<circle cx="' + n2(num(pr[1])) + '" cy="' + n2(num(pr[2])) + '" r="' + n2(num(pr[3])) + '" fill="none" stroke="#101418" stroke-width="0.9"/>';
+    if (t === 'CF') return '<circle cx="' + n2(num(pr[1])) + '" cy="' + n2(num(pr[2])) + '" r="' + n2(num(pr[3])) + '" fill="#101418"/>';
     if (t === 'A') {
-      const a0 = pr[4] * Math.PI / 180, a1 = pr[5] * Math.PI / 180, r = pr[3];
-      const x0 = pr[1] + r * Math.cos(a0), y0 = pr[2] + r * Math.sin(a0);
-      const x1 = pr[1] + r * Math.cos(a1), y1 = pr[2] + r * Math.sin(a1);
-      return '<path d="M ' + n2(x0) + ' ' + n2(y0) + ' A ' + r + ' ' + r + ' 0 0 1 ' + n2(x1) + ' ' + n2(y1) + '" fill="none" stroke="#101418" stroke-width="0.9"/>';
+      const a0 = num(pr[4]) * Math.PI / 180, a1 = num(pr[5]) * Math.PI / 180, r = num(pr[3]);
+      const x0 = num(pr[1]) + r * Math.cos(a0), y0 = num(pr[2]) + r * Math.sin(a0);
+      const x1 = num(pr[1]) + r * Math.cos(a1), y1 = num(pr[2]) + r * Math.sin(a1);
+      return '<path d="M ' + n2(x0) + ' ' + n2(y0) + ' A ' + n2(r) + ' ' + n2(r) + ' 0 0 1 ' + n2(x1) + ' ' + n2(y1) + '" fill="none" stroke="#101418" stroke-width="0.9"/>';
     }
-    if (t === 'P') return '<path d="' + pr[1] + '" fill="none" stroke="#101418" stroke-width="0.9"/>';
-    if (t === 'M') return '<rect x="' + n2(pr[1]) + '" y="' + n2(pr[2]) + '" width="' + n2(pr[3]) + '" height="' + n2(pr[4]) + '" fill="#fff" stroke="none"/>';
-    if (t === 'T') return '<text x="' + n2(pr[1]) + '" y="' + n2(pr[2]) + '" text-anchor="' + (anch[pr[5]] || 'start') + '" style="' + (TS[pr[6]] || TS.dim) + '">' + esc(pr[3]) + '</text>';
+    if (t === 'P') return '<path d="' + esc(safePathD(pr[1])) + '" fill="none" stroke="#101418" stroke-width="0.9"/>';
+    if (t === 'M') return '<rect x="' + n2(num(pr[1])) + '" y="' + n2(num(pr[2])) + '" width="' + n2(num(pr[3])) + '" height="' + n2(num(pr[4])) + '" fill="#fff" stroke="none"/>';
+    if (t === 'T') return '<text x="' + n2(num(pr[1])) + '" y="' + n2(num(pr[2])) + '" text-anchor="' + (anch[pr[5]] || 'start') + '" style="' + (TS[pr[6]] || TS.dim) + '">' + esc(pr[3]) + '</text>';
     return '';
   }
 
@@ -48,19 +56,19 @@ window.EVSE_RENDER = (function () {
 
   function devSVG(dv, opts) {
     const o = opts || {};
-    let s = '<g class="dev" data-k="dev" data-id="' + dv.id + '" transform="translate(' + n2(dv.x) + ',' + n2(dv.y) + ')">';
-    if (dv.rot) s += '<g transform="rotate(' + dv.rot + ',' + n2(dv.sym.w / 2) + ',' + n2(dv.sym.h / 2) + ')">';
-    s += '<rect class="devhit" x="' + (-14) + '" y="' + (-14) + '" width="' + (dv.sym.w + 28) + '" height="' + (dv.sym.h + 28) + '" fill="transparent"/>';
-    if (!dv.sym.isBus && !dv.sym.isXref && !dv.pwr) s += '<rect x="-8" y="-8" width="' + (dv.sym.w + 16) + '" height="' + (dv.sym.h + 16) + '" fill="none" stroke="#1e5cc8" stroke-width="0.7" stroke-dasharray="4 3" opacity="0.4"/>'; /* V7-PIN3: 蓝色禁布框常显 = 走线/挪动禁入区 */
+    let s = '<g class="dev" data-k="dev" data-id="' + esc(dv.id) + '" transform="translate(' + n2(num(dv.x)) + ',' + n2(num(dv.y)) + ')">';
+    if (dv.rot) s += '<g transform="rotate(' + num(dv.rot) + ',' + n2(num(dv.sym.w) / 2) + ',' + n2(num(dv.sym.h) / 2) + ')">';
+    s += '<rect class="devhit" x="-14" y="-14" width="' + (num(dv.sym.w) + 28) + '" height="' + (num(dv.sym.h) + 28) + '" fill="transparent"/>';
+    if (!dv.sym.isBus && !dv.sym.isXref && !dv.pwr) s += '<rect x="-8" y="-8" width="' + (num(dv.sym.w) + 16) + '" height="' + (num(dv.sym.h) + 16) + '" fill="none" stroke="#1e5cc8" stroke-width="0.7" stroke-dasharray="4 3" opacity="0.4"/>'; /* V7-PIN3: 蓝色禁布框常显 = 走线/挪动禁入区 */
     dv.sym.draw.forEach(function (pr) { s += primSVG(pr); });
     dv.sym.pins.forEach(function (p) {
       const v = OFF[p.d] || [1, 0];
       const ext = 0; /* V11b: 外伸腿取消；平齐由框线=pin 线保证 */
-      const tx = p.x + v[0] * ext, ty = p.y + v[1] * ext;
-      if (p.len) s += '<line x1="' + n2(p.x) + '" y1="' + n2(p.y) + '" x2="' + n2(p.x - v[0] * p.len) + '" y2="' + n2(p.y - v[1] * p.len) + '" stroke="#101418" stroke-width="0.9"/>';
+      const tx = num(p.x) + v[0] * ext, ty = num(p.y) + v[1] * ext;
+      if (p.len) s += '<line x1="' + n2(num(p.x)) + '" y1="' + n2(num(p.y)) + '" x2="' + n2(num(p.x) - v[0] * num(p.len)) + '" y2="' + n2(num(p.y) - v[1] * num(p.len)) + '" stroke="#101418" stroke-width="0.9"/>';
       const conn = o.connPins && o.connPins[dv.id + ':' + p.n];
       /* V11-FLUSH: 外伸腿取消——pin 电气点已与外边框平齐，框线→端子内线由符号自画 */
-      s += '<circle class="pin" data-k="pin" data-id="' + dv.id + '/' + p.n + '" cx="' + n2(tx) + '" cy="' + n2(ty) + '" r="7" fill="transparent"/>'; /* v2.27: 命中圈加大 */
+      s += '<circle class="pin" data-k="pin" data-id="' + esc(dv.id) + '/' + esc(p.n) + '" cx="' + n2(tx) + '" cy="' + n2(ty) + '" r="7" fill="transparent"/>'; /* v2.27: 命中圈加大 */
       if (o.pinName && p.name && dv.sym.nameIn) {
         let ix, iy, a;
         if (p.d === 'N') { ix = p.x; iy = p.y - 27; a = 'm'; }            /* V7-PIN2: 顶部引脚名让开外伸腿 */
@@ -127,13 +135,13 @@ window.EVSE_RENDER = (function () {
       if (o.layers && o.layers[w.cls] === false) return;
       const c = C[w.cls] || C.CTL;
       const hi = o.hiNet === w.net || (o.selWires && o.selWires[w.id]);
-      s += '<path data-k="wireview" data-cls="' + w.cls + '" data-id="' + w.id + '" d="' + wirePath(w, hopsBy[w.id]) + '" fill="none" stroke="' + (hi ? '#0ea5e9' : c.color) + '" stroke-width="' + (hi ? c.w + 1.6 : c.w) + '" stroke-linejoin="round" stroke-linecap="round"/>';
+      s += '<path data-k="wireview" data-cls="' + esc(w.cls) + '" data-id="' + esc(w.id) + '" d="' + esc(wirePath(w, hopsBy[w.id])) + '" fill="none" stroke="' + (hi ? '#0ea5e9' : c.color) + '" stroke-width="' + (hi ? c.w + 1.6 : c.w) + '" stroke-linejoin="round" stroke-linecap="round"/>';
     });
     design.wires.forEach(function (w) {
       if (w.sheet !== no) return;
       if (o.layers && o.layers[w.cls] === false) return;
       window.EVSE_GEO.segsOf(w.pts).forEach(function (sg, i) {
-        s += '<line class="whit" data-k="wire" data-id="' + w.id + '" data-seg="' + i + '" x1="' + n2(sg.x1) + '" y1="' + n2(sg.y1) + '" x2="' + n2(sg.x2) + '" y2="' + n2(sg.y2) + '" stroke="transparent" stroke-width="7"/>';
+        s += '<line class="whit" data-k="wire" data-id="' + esc(w.id) + '" data-seg="' + i + '" x1="' + n2(num(sg.x1)) + '" y1="' + n2(num(sg.y1)) + '" x2="' + n2(num(sg.x2)) + '" y2="' + n2(num(sg.y2)) + '" stroke="transparent" stroke-width="7"/>';
       });
     });
     (design.junctions || []).forEach(function (j, i) {
@@ -146,7 +154,9 @@ window.EVSE_RENDER = (function () {
   /* ---------- 图框 / 标题栏 / 图例 / 明细表 ---------- */
   function frameSVG(design, no, opts) {
     const sh = design.sheets.filter(function (s) { return s.no === no; })[0];
-    const F = sh.frame, C = NETC();
+    const FR = sh.frame || {};
+    const F = { x: num(FR.x), y: num(FR.y), w: num(FR.w), h: num(FR.h) };
+    const C = NETC();
     let s = '<rect x="0" y="0" width="' + (F.w + 120) + '" height="' + (F.h + 120) + '" fill="#ffffff"/>';
     s += '<rect x="' + F.x + '" y="' + F.y + '" width="' + F.w + '" height="' + F.h + '" fill="none" stroke="#101418" stroke-width="2.4"/>';
     s += '<rect x="' + (F.x + 14) + '" y="' + (F.y + 14) + '" width="' + (F.w - 28) + '" height="' + (F.h - 28) + '" fill="none" stroke="#101418" stroke-width="0.8"/>';
@@ -279,7 +289,8 @@ window.EVSE_RENDER = (function () {
             + (ci === 5 ? ' text-anchor="middle"' : '')
             + ' style="font-size:' + FS + 'px;' + (bold ? 'font-weight:700;' : '')
             + (isDoc && rc.dl.url ? 'text-decoration:underline;' : '') + 'fill:' + fill + '">' + esc(ln) + '</text>';
-          s += (isDoc && rc.dl.url) ? '<a href="' + esc(rc.dl.url) + '" target="_blank"><title>' + esc(rc.dl.url) + '</title>' + body + '</a>' : body;
+          const href = isDoc ? safeHref(rc.dl.url) : '';
+          s += href ? '<a href="' + esc(href) + '" target="_blank" rel="noopener"><title>' + esc(href) + '</title>' + body + '</a>' : body;
         });
         x += CW[ci];
       });
