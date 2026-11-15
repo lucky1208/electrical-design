@@ -94,8 +94,8 @@ window.EVSE_CORE = (function () {
       /* V-DRV-01：线圈必须画续流/钳位回路（阴极朝 A1 正端） */
       d.push(['L', cx, 12, cx + 20, 12], ['L', cx + 20, 12, cx + 20, 48], ['L', cx, 48, cx + 20, 48]);
       d.push(['P', 'M ' + (cx + 15) + ' 36 l 10 0 l -5 -9 z'], ['L', cx + 15, 27, cx + 25, 27]);
-      pins.push(P('A1', 'A1', cx, 0, 'N', 'CTL', 'in', 8, 'passive'));
-      pins.push(P('A2', 'A2', cx, 60, 'S', 'CTL', 'in', 8, 'passive'));
+      pins.push(P('A1', 'A1', cx, 0, 'N', opt.coilK || 'CTL', 'in', 8, 'passive'));
+      pins.push(P('A2', 'A2', cx, 60, 'S', opt.coilK || 'CTL', 'in', 8, 'passive'));
       w = cx + 25;
     }
     return { w: w, h: 60, draw: d, pins: pins, isSwitch: true, hasCoil: !!opt.coil, coilDiode: !!opt.coil, noCross: true, tagAt: { x: -16, y: 4, a: 'e' } }; /* V13: isSwitch 供通电仿真识别 */
@@ -284,7 +284,8 @@ window.EVSE_CORE = (function () {
       d.push(['L', w + 14, y, w + 24, y]);
       pins.push(P(p[0], p[1], w + 24, y, 'E', i === 0 ? 'CTL' : 'AUX', i === 0 ? 'out' : 'in', 0));
     });
-    return { w: w, h: 76, draw: d, pins: pins, tagAt: { x: -22, y: 38, a: 'e' } };
+    /* AUDIT-FIX: 穿芯式 RCM 主回路逐相导通（仿真）——旧实现视为终端负载，交流主链在 RCM 处断开 */
+    return { w: w, h: 76, draw: d, pins: pins, conductPairs: [['1', '2'], ['3', '4'], ['5', '6'], ['7', '8']], tagAt: { x: -22, y: 38, a: 'e' } };
   };
 
   /* 交流电能表 */
@@ -303,20 +304,23 @@ window.EVSE_CORE = (function () {
       d.push(['L', w + 12, y, w + 22, y]);
       pins.push(P(p[0], 'RS485-' + p[0], w + 22, y, 'E', p[1], 'out', 0));
     });
-    return { w: w, h: 70, draw: d, pins: pins, tagAt: { x: -20, y: 35, a: 'e' } };
+    /* AUDIT-FIX: 串联接入式电能表电流线圈逐相导通（仿真） */
+    return { w: w, h: 70, draw: d, pins: pins, conductPairs: [['1', '2'], ['3', '4'], ['5', '6'], ['7', '8']], tagAt: { x: -20, y: 35, a: 'e' } };
   };
 
   /* 霍尔电流传感器（穿芯） */
   S.hall = function () {
     const d = [['R', -14, 0, 76, 70], ['L', 16, -8, 16, 78], ['C', 16, 35, 15], ['C', 16, 35, 11]], pins = [];
     pins.push(P('P1', 'P1', 16, -8, 'N', 'DC', 'in', 0), P('P2', 'P2', 16, 78, 'S', 'DC', 'out', 0));
-    [['5V+', 'AUX', 'in'], ['OUT', 'CTL', 'out'], ['GND', 'AUX', 'in']].forEach(function (p, i) {
+    /* AUDIT-FIX(P1): 引脚名 5V+→24V+——网表接 24V 轨，旧名按 5V 器件施工即烧毁 */
+    [['24V+', 'AUX', 'in'], ['OUT', 'CTL', 'out'], ['GND', 'AUX', 'in']].forEach(function (p, i) {
       const y = 17 + i * 18;
       d.push(['L', 46, y, 62, y]);
       pins.push(P(p[0], p[0], 62, y, 'E', p[1], p[2], 0));
     });
     d.push(['T', 40, 66, 'HALL', 7, 'm', 'dim']);
-    return { w: 62, h: 70, draw: d, pins: pins, nameIn: true, tagAt: { x: -20, y: 35, a: 'e' } };
+    /* AUDIT-FIX: 穿芯霍尔主回路导通（仿真） */
+    return { w: 62, h: 70, draw: d, pins: pins, conductPairs: [['P1', 'P2']], nameIn: true, tagAt: { x: -20, y: 35, a: 'e' } };
   };
 
   /* 直流电能表 */
@@ -334,7 +338,8 @@ window.EVSE_CORE = (function () {
       const y = 22 + i * 28; d.push(['L', 104, y, 114, y]);
       pins.push(P(nm, 'RS485-' + nm, 114, y, 'E', 'COMM', 'out', 0));
     });
-    return { w: 114, h: 72, draw: d, pins: pins, nameIn: true, tagAt: { x: 0, y: -34, a: 's' } };
+    /* AUDIT-FIX: 直流表电流线圈正/负极各自导通（仿真） */
+    return { w: 114, h: 72, draw: d, pins: pins, conductPairs: [['1', '2'], ['3', '4']], nameIn: true, tagAt: { x: 0, y: -34, a: 's' } };
   };
 
   /* 绝缘监测装置 IMD */
@@ -463,7 +468,9 @@ window.EVSE_CORE = (function () {
   };
   /* 跨页连接符（off-page connector, IEC 61082）
      信号线头用电气符号惯用的 "》" 双折人字形，不占面积；标签紧随其后 */
-  S.xref = function (label, dir, tag) {
+  S.xref = function (label, dir, tag, kdom) {
+    /* AUDIT-FIX: 跨页符引脚电气域随网络类别（旧实现恒为 CTL，AC/PE/COMM 跨页域标注失真） */
+    const xd = kdom || 'CTL';
     const tagPrim = tag ? ['T', 0, -5, tag, 6.5, 's', 'xrtag'] : null; /* v2.12: 跨页配对编号（两页同名） */
     if (dir === 'S') { /* v2.0.2 audit-fix: 垂直跨页符——引脚在顶、人字朝下，消除横向扫线 */
       const CHv = 9, GAPv = 4;
@@ -474,7 +481,7 @@ window.EVSE_CORE = (function () {
         ['T', 2 * CHv + GAPv, CHv + 3, label, 7.2, 's', 'xref']
       ];
       if (tagPrim) dv.unshift(tagPrim);
-      return { w: wv, h: hv, draw: dv, pins: [P('1', '', CHv, 0, 'N', 'CTL', 'bi', 0)], isXref: true, tagAt: null };
+      return { w: wv, h: hv, draw: dv, pins: [P('1', '', CHv, 0, 'N', xd, 'bi', 0)], isXref: true, tagAt: null };
     }
     if (dir === 'N') { /* v2.0.3 audit-fix: 垂直跨页符·引脚在底/人字朝上（入线自下来） */
       const CHn = 9, GAPn = 4;
@@ -485,7 +492,7 @@ window.EVSE_CORE = (function () {
         ['T', 2 * CHn + GAPn, CHn + 3, label, 7.2, 's', 'xref']
       ];
       if (tagPrim) { tagPrim[1] = hn + 11; dn.unshift(tagPrim); }
-      return { w: wn, h: hn, draw: dn, pins: [P('1', '', CHn, hn, 'S', 'CTL', 'bi', 0)], isXref: true, tagAt: null };
+      return { w: wn, h: hn, draw: dn, pins: [P('1', '', CHn, hn, 'S', xd, 'bi', 0)], isXref: true, tagAt: null };
     }
     const flip = (dir === 'W');
     const CH = 9, GAP = 4;                       // 人字半高 / 与文字间隙
@@ -502,7 +509,7 @@ window.EVSE_CORE = (function () {
          ['T', CH * 1.7 + GAP, CH + 3, label, 7.2, 's', 'xref']];
     if (tagPrim) d.unshift(tagPrim);
     const px = flip ? w : 0, pd = flip ? 'E' : 'W';
-    return { w: w, h: 2 * CH, draw: d, pins: [P('1', '', px, CH, pd, 'CTL', 'bi', 0)], isXref: true, tagAt: null };
+    return { w: w, h: 2 * CH, draw: d, pins: [P('1', '', px, CH, pd, xd, 'bi', 0)], isXref: true, tagAt: null };
   };
 
   /* ============================================================
@@ -572,28 +579,39 @@ window.EVSE_CORE = (function () {
         ['P', 'M 106 58 l 0 12 l 9 -6 z'], ['L', 115, 58, 115, 70]]
     });
   };
-  /* 进线 EMC / 防雷前置（分流元件）—— EN科技范式 ★★★★★：X/Y + 压敏 + 高等级 GDT */
+  /* 进线 EMC / 防雷前置（分流元件）—— EN科技范式 ★★★★★：X/Y + 压敏 + 高等级 GDT
+   * AUDIT-FIX: 旧画法把 MOV+X 电容串在相线中且四相在底部共轨短接——按图施工即相间短路。
+   * 现改为正确分流拓扑：X 电容相-相之间；每相 MOV 与 Y 电容并联分流到 PE 汇流排；
+   * 汇流排经 GDT 接 PE 引脚。网表语义（上引脚 L1/L2/L3/N + PE）保持不变。 */
   S.emcFront = function () {
     const pitch = 26, d = [], pins = [];
     PHASE4.forEach(function (nm, i) {
       const x = i * pitch;
-      d.push(['L', x, 0, x, 16]);
-      d.push(['R', x - 6, 16, 12, 18], ['L', x - 8, 20, x + 8, 30]);        /* 压敏电阻 */
-      d.push(['L', x, 34, x, 44]);
-      d.push(['L', x - 7, 44, x + 7, 44], ['L', x - 7, 49, x + 7, 49]);      /* X 电容 */
-      d.push(['L', x, 49, x, 60]);
+      d.push(['L', x, 0, x, 12]);                                   /* 相线引入 */
+      d.push(['L', x - 9, 12, x + 9, 12]);                          /* 分流横排 */
+      d.push(['L', x - 5, 12, x - 5, 18]);                          /* MOV 支路 */
+      d.push(['R', x - 9, 18, 8, 14], ['L', x - 9, 32, x - 1, 18]); /* 压敏电阻（矩形+斜线） */
+      d.push(['L', x - 5, 32, x - 5, 56]);
+      d.push(['L', x + 5, 12, x + 5, 24]);                          /* Y 电容支路 */
+      d.push(['L', x + 1, 24, x + 9, 24], ['L', x + 1, 29, x + 9, 29]);
+      d.push(['L', x + 5, 29, x + 5, 56]);
       pins.push(P(nm, nm, x, 0, 'N', 'AC', 'in', 0));
     });
+    for (let i = 0; i < 3; i++) {                                   /* X 电容：相-相之间 */
+      const x = i * pitch;
+      d.push(['L', x, 6, x + 8, 6], ['L', x + 8, 2, x + 8, 10], ['L', x + 18, 2, x + 18, 10], ['L', x + 18, 6, x + pitch, 6]);
+    }
     const cx = 1.5 * pitch;
-    d.push(['L', -8, 60, 3 * pitch + 8, 60, 2.2]);
-    d.push(['L', cx, 60, cx, 70]);
-    d.push(['L', cx - 8, 70, cx + 8, 70], ['L', cx - 8, 75, cx + 8, 75]);    /* Y 电容 */
-    d.push(['L', cx, 75, cx, 84]);
-    d.push(['R', cx - 8, 84, 16, 18], ['L', cx - 5, 89, cx + 5, 89], ['L', cx - 5, 97, cx + 5, 97]);  /* GDT */
-    d.push(['L', cx, 102, cx, 112]);
-    d.push(['T', cx, -8, 'X/Y 电容 + 压敏 + GDT', 7, 'm', 'dim'], ['T', 3 * pitch + 16, 92, 'GDT 3500V', 6.6, 's', 'dim']);
-    pins.push(P('PE', 'PE', cx, 112, 'S', 'PE', 'out', 0));
-    return { w: 3 * pitch, h: 112, draw: d, pins: pins, tagAt: { x: -20, y: 56, a: 'e' } };
+    d.push(['L', -9, 56, 3 * pitch + 9, 56, 2.2]);                  /* PE 汇流排 */
+    d.push(['L', cx, 56, cx, 64]);
+    d.push(['L', cx - 7, 64, cx + 7, 64], ['L', cx - 7, 70, cx + 7, 70]);  /* GDT 双极板 */
+    d.push(['L', cx, 70, cx, 84]);
+    d.push(['T', cx, -8, 'X/Y 电容 + 压敏 + GDT（分流）', 7, 'm', 'dim'],
+      ['T', 3 * pitch + 14, 67, 'GDT 3500V', 6.6, 's', 'dim'],
+      ['T', -14, 26, 'MOV', 6, 'e', 'dim'], ['T', 3 * pitch + 12, 27, 'Y', 6, 's', 'dim'],
+      ['T', cx, 4, 'X', 6, 'm', 'dim']);
+    pins.push(P('PE', 'PE', cx, 84, 'S', 'PE', 'out', 0));
+    return { w: 3 * pitch, h: 84, draw: d, pins: pins, tagAt: { x: -20, y: 42, a: 'e' } };
   };
 
   /* ============================================================
@@ -650,12 +668,14 @@ window.EVSE_CORE = (function () {
     const acTaps = [{ id: 'IN', wires: PHASE4, side: 'N', label: '进线', gap: 120 }];
     for (let i = 1; i <= modShown; i++) acTaps.push({ id: 'M' + i, wires: PHASE4, side: 'S', label: 'M' + i, gap: 128 }); /* V12e: 110→128 模块走廊加宽至 40px（8px 净空规则下容纳 4 车道干线） */
     acTaps.push({ id: 'SPD', wires: PHASE4, side: 'S', label: 'SPD', gap: 60 });
-    acTaps.push({ id: 'T1', wires: ['L1', 'N'], side: 'S', label: 'T1', gap: 40 });
-    acTaps.push({ id: 'T2', wires: ['L2', 'N'], side: 'S', label: 'T2', gap: 40 });
+    /* AUDIT-FIX(P0): T1/T2 辅源取电移出 WB1（KM1 负载侧）——旧接法上电自激死锁：
+     * KM1 分→WB1 无电→T1 无 24V→CCU 失电→KM1 永远无法合闸。改由 QF3 从 QF1 负载侧取电。 */
     acTaps.push({ id: 'PEC', wires: ['L1', 'N'], side: 'S', label: 'PE检测', gap: 40 });
     if (p.ess && p.coupling === 'ac') acTaps.push({ id: 'PCS', wires: PHASE4, side: 'S', label: 'PCS', gap: 60 });
     dev({ id: 'WB1', sheet: SH1, zone: 'Z1', tag: 'WB1', name: '交流分配母排', spec: acV + 'V ' + pickA(acA * 1.25) + 'A', sym: makeBus({ bars: [{ name: 'L1', k: 'AC' }, { name: 'L2', k: 'AC' }, { name: 'L3', k: 'AC' }, { name: 'N', k: 'AC' }], taps: acTaps, dropPitch: 26 }) });
     dev({ id: 'QF2', sheet: SH1, zone: 'Z1', tag: 'QF2', name: 'SPD 后备断路器', spec: '4P 63A gG', sym: makeSwitch({ poles: 4, marker: 'cb' }) });
+    /* AUDIT-FIX(P0): 辅源独立断路器——QF1 负载侧（KM1 上游）取电，控制电源不依赖 KM1 */
+    dev({ id: 'QF3', sheet: SH1, zone: 'Z1', tag: 'QF3', name: '辅助电源断路器', spec: '2P 16A C 曲线', sym: makeSwitch({ poles: 2, marker: 'cb', names: ['L', 'N'] }) });
     dev({ id: 'FV1', sheet: SH1, zone: 'Z1', tag: 'FV1', name: '电源电涌保护器', spec: 'T2 3P+N Up 待评估', sym: S.spd() });
     dev({ id: 'FE1', sheet: SH1, zone: 'Z1', tag: 'FE1', name: '进线 EMC / 防雷前置', spec: 'X/Y 电容 + 压敏 + GDT 3500V（分流）', sym: S.emcFront() });
     dev({ id: 'PEC1', sheet: SH1, zone: 'Z1', tag: 'PEC1', name: 'PE 有效性检测单元', spec: '双运放差分精密检测', sym: S.peDet() });
@@ -682,7 +702,7 @@ window.EVSE_CORE = (function () {
     dev({ id: 'TA1', sheet: SH1, zone: 'Z3', tag: 'TA1', name: '直流霍尔电流传感器', spec: '±' + pickA(p.kw * 1000 / p.busV * 1.5) + 'A 开环', sym: S.hall() });
     dev({ id: 'PJ2', sheet: SH1, zone: 'Z3', tag: 'PJ2', name: '直流电能表', spec: '1000V / ' + pickA(p.kw * 1000 / p.busV * 1.3) + 'A', sym: S.meterDC() });
     dev({ id: 'RI1', sheet: SH1, zone: 'Z3', tag: 'RI1', name: '直流绝缘监测装置', spec: '判据按 GB/T 18487.1 项目确认', sym: S.imd() });
-    dev({ id: 'K0', sheet: SH1, zone: 'Z3', tag: 'K0', name: '泄放接触器', spec: '1P 10A 线圈 DC24V', sym: makeSwitch({ poles: 1, marker: 'km', coil: true, names: ['DC+'], k: 'DC' }) });
+    dev({ id: 'K0', sheet: SH1, zone: 'Z3', tag: 'K0', name: '泄放接触器', spec: '1P 10A 线圈 DC24V · CCU 主动泄放（全站失电放电需硬件复核）', sym: makeSwitch({ poles: 1, marker: 'km', coil: true, names: ['DC+'], k: 'DC' }) });
     dev({ id: 'RS0', sheet: SH1, zone: 'Z3', tag: 'RS0', name: '母线泄放电阻', spec: '阻值待电容量核算', sym: makeRes({ k: 'DC' }) });
 
     const dcTaps = [];
@@ -697,7 +717,9 @@ window.EVSE_CORE = (function () {
       dev({ id: 'FU' + (g + 1), sheet: SH1, zone: 'Z4', tag: 'FU' + (g + 1), name: '枪' + g + ' 直流快熔', spec: 'aR ' + pickA(p.gunA * 1.25) + 'A / 1000VDC', sym: makeFuse({}) });
       dev({ id: 'K' + g + 'P', sheet: SH1, zone: 'Z4', tag: 'K' + g + 'P', name: '枪' + g + ' 正极直流接触器', spec: pickA(p.gunA * 1.15) + 'A 线圈 DC24V', sym: makeSwitch({ poles: 1, marker: 'km', coil: true, names: ['DC+'], k: 'DC' }) });
       dev({ id: 'K' + g + 'N', sheet: SH1, zone: 'Z4', tag: 'K' + g + 'N', name: '枪' + g + ' 负极直流接触器', spec: pickA(p.gunA * 1.15) + 'A 线圈 DC24V', sym: makeSwitch({ poles: 1, marker: 'km', coil: true, names: ['DC-'], k: 'DC' }) });
-      dev({ id: 'YV' + g, sheet: SH1, zone: 'Z4', tag: 'YV' + g, name: '枪' + g + ' 电子锁', spec: 'DC12V 含锁到位反馈', sym: S.lock() });
+      /* AUDIT-FIX(P1): 锁改 DC24V——旧 DC12V 锁由 24V 域 CCU 输出驱动且 12V-/24V- 不共地，
+       * 回路不完整且过压。现与 CCU 输出同域，回 24V- 轨。 */
+      dev({ id: 'YV' + g, sheet: SH1, zone: 'Z4', tag: 'YV' + g, name: '枪' + g + ' 电子锁', spec: 'DC24V 含锁到位反馈', sym: S.lock() });
       dev({ id: 'KF' + g, sheet: SH1, zone: 'Z4', tag: 'KF' + g, name: '枪' + g + ' 接触器粘连检测', spec: '阻容分压 + ADC（正/负极均覆盖）', sym: S.stickDet() });
       dev({ id: 'SC' + g, sheet: SH1, zone: 'Z4', tag: 'SC' + g, name: '枪' + g + ' 合闸前短路检测', spec: '双继电器 + 光耦隔离', sym: S.scDet() });
       dev({ id: 'XS' + g, sheet: SH1, zone: 'Z4', tag: 'XS' + g, name: '枪' + g + ' 充电连接器', spec: SD.spec + ' ' + p.gunA + 'A', sym: S.gun(p.std, gunTerms) });
@@ -738,20 +760,21 @@ window.EVSE_CORE = (function () {
     }
 
     /* ---------- 页 2：二次控制、通信与辅助电源 ---------- */
-    dev({
-      id: 'T1', sheet: SH2, zone: 'Z7', tag: 'T1', name: '开关电源 DC24V', spec: '4500W 24V', sym: makeBox({
-        w: 120, minH: 84, glyph: 'acdc', title: '开关电源', sub: 'AC→DC 24V',
-        left: [{ n: 'L', name: 'L', k: 'AC', t: 'in' }, { n: 'N', name: 'N', k: 'AC', t: 'in' }, { n: 'PE', name: 'PE', k: 'PE', t: 'in' }],
-        right: [{ n: 'V+', name: '24V+', k: 'AUX', t: 'out' }, { n: 'V-', name: '24V-', k: 'AUX', t: 'out' }]
-      })
+    /* AUDIT-FIX: 辅源 AC→DC 导通建模（通电仿真用）——L→V+、N→V-，使 24V/12V 轨可带电传播 */
+    const t1sym = makeBox({
+      w: 120, minH: 84, glyph: 'acdc', title: '开关电源', sub: 'AC→DC 24V',
+      left: [{ n: 'L', name: 'L', k: 'AC', t: 'in' }, { n: 'N', name: 'N', k: 'AC', t: 'in' }, { n: 'PE', name: 'PE', k: 'PE', t: 'in' }],
+      right: [{ n: 'V+', name: '24V+', k: 'AUX', t: 'out' }, { n: 'V-', name: '24V-', k: 'AUX', t: 'out' }]
     });
-    dev({
-      id: 'T2', sheet: SH2, zone: 'Z7', tag: 'T2', name: '开关电源 DC12V', spec: '360W 12V', sym: makeBox({
-        w: 120, minH: 84, glyph: 'acdc', title: '开关电源', sub: 'AC→DC 12V',
-        left: [{ n: 'L', name: 'L', k: 'AC', t: 'in' }, { n: 'N', name: 'N', k: 'AC', t: 'in' }, { n: 'PE', name: 'PE', k: 'PE', t: 'in' }],
-        right: [{ n: 'V+', name: '12V+', k: 'AUX', t: 'out' }, { n: 'V-', name: '12V-', k: 'AUX', t: 'out' }]
-      })
+    t1sym.conductPairs = [['L', 'V+'], ['N', 'V-']];
+    dev({ id: 'T1', sheet: SH2, zone: 'Z7', tag: 'T1', name: '开关电源 DC24V', spec: '4500W 24V', sym: t1sym });
+    const t2sym = makeBox({
+      w: 120, minH: 84, glyph: 'acdc', title: '开关电源', sub: 'AC→DC 12V',
+      left: [{ n: 'L', name: 'L', k: 'AC', t: 'in' }, { n: 'N', name: 'N', k: 'AC', t: 'in' }, { n: 'PE', name: 'PE', k: 'PE', t: 'in' }],
+      right: [{ n: 'V+', name: '12V+', k: 'AUX', t: 'out' }, { n: 'V-', name: '12V-', k: 'AUX', t: 'out' }]
     });
+    t2sym.conductPairs = [['L', 'V+'], ['N', 'V-']];
+    dev({ id: 'T2', sheet: SH2, zone: 'Z7', tag: 'T2', name: '开关电源 DC12V', spec: '360W 12V', sym: t2sym });
     const COILS = [{ id: 'KM1' }, { id: 'K0' }];
     for (let g = 1; g <= p.guns; g++) COILS.push({ id: 'K' + g + 'P' }, { id: 'K' + g + 'N' });
     if (p.ess) for (let i = 1; i <= Math.max(1, p.essClusters); i++) COILS.push({ id: 'KB' + i + 'P' }, { id: 'KB' + i + 'N' }, { id: 'KB' + i + 'R' });
@@ -791,6 +814,12 @@ window.EVSE_CORE = (function () {
       ccuLeft.push({ n: 'X7.' + g, name: 'SC' + g + '-DO', k: 'CTL', t: 'in' });
     }
     ccuLeft.push({ n: 'X5.4', name: 'PE-ADC', k: 'CTL', t: 'in' });
+    /* AUDIT-FIX: 无储能时 CANH2/CANL2 未使用——不声明引脚，避免悬空端子（B01） */
+    if (!p.ess) {
+      for (let i = ccuLeft.length - 1; i >= 0; i--) {
+        if (ccuLeft[i].n === 'X2.3' || ccuLeft[i].n === 'X2.4') ccuLeft.splice(i, 1);
+      }
+    }
     const ccuRight = [{ n: 'Y0.1', name: 'KM1', k: 'CTL', t: 'out' }, { n: 'Y0.2', name: 'K0', k: 'CTL', t: 'out' }];
     for (let g = 1; g <= p.guns; g++) {
       ccuRight.push({ n: 'Y' + g + '.1', name: 'K' + g + 'P', k: 'CTL', t: 'out' });
@@ -823,10 +852,12 @@ window.EVSE_CORE = (function () {
       })
     });
     dev({
-      id: 'A3', sheet: SH2, zone: 'Z6', tag: 'A3', name: '4G/以太网路由器', spec: '含三合一天线', sym: makeBox({
+      /* AUDIT-FIX(P1): ANT 是射频口不是以太网口——旧网表 A3:ANT→A4:LAN1 误接。
+       * 改 LAN2 供 HMI；天线内置（spec 声明），不再引出 ANT 引脚。 */
+      id: 'A3', sheet: SH2, zone: 'Z6', tag: 'A3', name: '4G/以太网路由器', spec: '含三合一天线（内置）', sym: makeBox({
         w: 140, title: '路由器', sub: 'A3',
         left: [{ n: 'X1.1', name: '12V+', k: 'AUX', t: 'in' }, { n: 'X1.2', name: '12V-', k: 'AUX', t: 'in' }],
-        right: [{ n: 'LAN1', name: 'LAN1', k: 'COMM', t: 'bi' }, { n: 'ANT', name: 'ANT', k: 'COMM', t: 'bi' }]
+        right: [{ n: 'LAN1', name: 'LAN1', k: 'COMM', t: 'bi' }, { n: 'LAN2', name: 'LAN2', k: 'COMM', t: 'bi' }]
       })
     });
     dev({
@@ -841,6 +872,9 @@ window.EVSE_CORE = (function () {
       dev({ id: 'CG' + g, sheet: SH2, zone: 'Z6', tag: 'CG' + g, name: '枪' + g + ' 充电控制引导单元', spec: sig === 'gb' ? '发生+检测+二极管存在（GB/T 18487.1）' : sig === 'chademo' ? 'CP 检测 + CAN 收发（CHAdeMO）' : 'CP PWM 图腾柱 + 线性采样 + 二极管存在', sym: S.guide(sig) });
     }
     dev({ id: 'SQ1', sheet: SH2, zone: 'Z6', tag: 'SQ1', name: '柜门门禁/防拆开关', spec: '常闭', sym: S.posSwitch() });
+    /* AUDIT-FIX(P1): 硬件安全链——急停+门禁串联驱动 SR1 线圈，SR1 触点硬切接触器线圈回线。
+     * 旧接法 SB1/SQ1 仅为 CCU 并联软件输入，CCU 失效/输出粘连时无法断开接触器。 */
+    dev({ id: 'SR1', sheet: SH2, zone: 'Z6', tag: 'SR1', name: '安全继电器', spec: '急停+门禁串联输入；触点硬切线圈回线（充电/储能分极）', sym: makeSwitch({ poles: 2, marker: 'km', coil: true, names: ['SAFE1', 'SAFE2'], k: 'AUX', coilK: 'SAF' }) });
     dev({ id: 'HL1', sheet: SH2, zone: 'Z6', tag: 'HL1', name: '状态指示灯', spec: 'DC24V 三色', sym: S.lamp() });
     dev({ id: 'MF1', sheet: SH2, zone: 'Z7', tag: 'MF1', name: '热管理风机', spec: '轴流 DC24V 含转速反馈', sym: S.motor('M') });
     dev({ id: 'PE2', sheet: SH2, zone: 'Z0', tag: 'PE2', name: '二次侧保护接地端子排', spec: '与页 1 PE1 等电位', sym: makeBus({ bars: [{ name: 'PE', k: 'PE' }], taps: [{ id: 'IN', wires: ['PE'], side: 'N', label: '←页1', gap: 70 }, { id: 'T1', wires: ['PE'], side: 'N', label: 'T1', gap: 70 }, { id: 'T2', wires: ['PE'], side: 'N', label: 'T2', gap: 70 }, { id: 'A1', wires: ['PE'], side: 'N', label: 'A1', gap: 70 }], out: 18 }) });
@@ -869,6 +903,9 @@ window.EVSE_CORE = (function () {
       net(pin('WB1', 'SPD.' + nm), pin('QF2', String(2 * i + 1)), 'AC', { name: 'AC-SPD-QF2-' + nm });
       net(pin('QF2', String(2 * i + 2)), pin('FV1', nm), 'AC', { name: 'AC-SPD-' + nm });
     });
+    /* AUDIT-FIX(P0): 辅源支路 QF1 负载侧 → QF3 → T1/T2（KM1 上游，上电即可得控制电） */
+    net(pin('QF1', '2'), pin('QF3', '1'), 'AC', { name: 'AC-AUX-TAKE-L' });
+    net(pin('QF1', '8'), pin('QF3', '3'), 'AC', { name: 'AC-AUX-TAKE-N' });
     net(pin('XT1', 'PE'), pin('PE1', 'IN.PE'), 'PE', { name: 'PE-IN' });
     net(pin('PE1', 'CAB.PE'), pin('PE0', 'PE'), 'PE', { name: 'PE-EARTH' });
     /* 进线 EMC 分流元件（V-EMC-01：X 与 Y 路径均必备） */
@@ -928,7 +965,9 @@ window.EVSE_CORE = (function () {
         net(pin('GB' + i, '+'), pin('FB' + i, '2'), 'ESS', { name: 'ESS-B' + i + '-FUSE' }); /* V12: 链序修正 GB→熔断开侧(下) */
         net(pin('FB' + i, '1'), pin('KB' + i + 'P', '2'), 'ESS', { name: 'ESS-B' + i + '-KP' }); /* V12: 熔断进侧(上)→接触器开侧(下) */
         net(pin('KB' + i + 'P', '1'), pin('WB3', 'B' + i + '.B+'), 'ESS', { name: 'ESS-B' + i + '-BUS-P' }); /* V12: 接触器进侧(上)→母线 */
-        net(pin('FB' + i, '2'), pin('KB' + i + 'R', '1'), 'ESS', { name: 'ESS-B' + i + '-PRE-IN' });
+        /* AUDIT-FIX(P1): 预充取电点 FB.2（电池侧）→ FB.1（熔断器负载侧），
+         * 使簇熔断器同时覆盖主回路与预充支路；旧接法预充支路故障时熔断器不起作用。 */
+        net(pin('FB' + i, '1'), pin('KB' + i + 'R', '1'), 'ESS', { name: 'ESS-B' + i + '-PRE-IN' });
         net(pin('KB' + i + 'R', '2'), pin('RB' + i, '1'), 'ESS', { name: 'ESS-B' + i + '-PRE-R' });
         net(pin('RB' + i, '2'), pin('WB3', 'B' + i + 'R.B+'), 'ESS', { name: 'ESS-B' + i + '-PRE-BUS' });
         net(pin('GB' + i, '-'), pin('KB' + i + 'N', '2'), 'ESS', { name: 'ESS-B' + i + '-KN' }); /* V12: 链序修正 */
@@ -962,6 +1001,8 @@ window.EVSE_CORE = (function () {
     net(pin('WB4', 'HL.24V-'), pin('HL1', 'X2'), 'AUX', { name: 'AUX-HL1-N' });
     net(pin('WB4', 'MF.24V+'), pin('MF1', 'U'), 'AUX', { name: 'AUX-MF1-P' });
     net(pin('WB4', 'MF.24V-'), pin('MF1', 'V'), 'AUX', { name: 'AUX-MF1-N' });
+    /* AUDIT-FIX(P1): 24V-/12V- 0V 共地——跨域信号（CCU↔12V 设备）需要共同参考电位 */
+    net(pin('T1', 'V-'), pin('T2', 'V-'), 'AUX', { name: '0V-BOND' });
     net(pin('T1', 'PE'), pin('PE2', 'T1.PE'), 'PE', { name: 'PE-T1' });
     net(pin('T2', 'PE'), pin('PE2', 'T2.PE'), 'PE', { name: 'PE-T2' });
     net(pin('A1', 'PE'), pin('PE2', 'A1.PE'), 'PE', { name: 'PE-A1' });
@@ -985,13 +1026,17 @@ window.EVSE_CORE = (function () {
       }
     }
     /* 二次信号（页2 内部） */
+    /* AUDIT-FIX(P1): 24V+ → SB1(NC) → SQ1(NC) → SR1 线圈 → 24V- 串联硬线安全链；
+     * CCU 仅并接高阻状态采样（SB1:12 / SQ1:12 节点），不再承担安全分断职能。 */
     net(pin('SB1', '12'), pin('A1', 'X4.1'), 'SAF', { name: 'SAF-ESTOP' });
     net(pin('SQ1', '12'), pin('A1', 'X4.2'), 'SAF', { name: 'SAF-DOOR' });
     net(pin('WB4', 'SAF.24V+'), pin('SB1', '11'), 'SAF', { name: 'SAF-ESTOP-24V' });
-    net(pin('WB4', 'SAF.24V-'), pin('SQ1', '11'), 'SAF', { name: 'SAF-DOOR-24V' });
+    net(pin('SB1', '12'), pin('SQ1', '11'), 'SAF', { name: 'SAF-ESTOP-DOOR' });
+    net(pin('SQ1', '12'), pin('SR1', 'A1'), 'SAF', { name: 'SAF-DOOR-SR1' });
+    net(pin('WB4', 'SAF.24V-'), pin('SR1', 'A2'), 'SAF', { name: 'SAF-SR1-N' });
     net(pin('A1', 'ETH1'), pin('A2', 'ETH1'), 'COMM', { name: 'COMM-A1-A2' });
     net(pin('A2', 'ETH2'), pin('A3', 'LAN1'), 'COMM', { name: 'COMM-A2-A3' });
-    net(pin('A3', 'ANT'), pin('A4', 'LAN1'), 'COMM', { name: 'COMM-A3-A4' });
+    net(pin('A3', 'LAN2'), pin('A4', 'LAN1'), 'COMM', { name: 'COMM-A3-A4' });
     if (p.ess) {
       net(pin('A5', 'X3.1'), pin('A1', 'X2.3'), 'COMM', { name: 'COMM-A5-A1-H' });
       net(pin('A5', 'X3.2'), pin('A1', 'X2.4'), 'COMM', { name: 'COMM-A5-A1-L' });
@@ -1000,18 +1045,25 @@ window.EVSE_CORE = (function () {
     /* ---------- 跨页网络（一次 ↔ 二次），全部逐 pin 明确 ---------- */
     const X = [];
     const xnet = function (a, b, cls, nm) { X.push({ a: a, b: b, cls: cls, name: nm }); };
-    xnet(pin('WB1', 'T1.L1'), pin('T1', 'L'), 'AC', 'AC-T1-L');
-    xnet(pin('WB1', 'T1.N'), pin('T1', 'N'), 'AC', 'AC-T1-N');
-    xnet(pin('WB1', 'T2.L2'), pin('T2', 'L'), 'AC', 'AC-T2-L');
-    xnet(pin('WB1', 'T2.N'), pin('T2', 'N'), 'AC', 'AC-T2-N');
+    /* AUDIT-FIX(P1): SR1 触点换接安全回线轨：24V- → SR1 极1 → 24VS-（充电侧线圈）；
+     * 24V- → SR1 极2 → 24VSE-（储能侧线圈）。K0 泄放线圈不经过 SR1——安全跳闸后仍需泄放。 */
+    xnet(pin('WB4', 'SR1.24V-'), pin('SR1', '1'), 'AUX', 'AUX-SR1-N');
+    xnet(pin('WB4', 'SR1.24VS-'), pin('SR1', '2'), 'AUX', 'AUX-SR1-SAFE');
+    xnet(pin('WB4', 'SR1E.24V-'), pin('SR1', '3'), 'AUX', 'AUX-SR1E-N');
+    xnet(pin('WB4', 'SR1E.24VSE-'), pin('SR1', '4'), 'AUX', 'AUX-SR1E-SAFE');
+    /* AUDIT-FIX(P0): 辅源进线改自 QF3（KM1 上游），不再取 WB1 母排 */
+    xnet(pin('QF3', '2'), pin('T1', 'L'), 'AC', 'AC-T1-L');
+    xnet(pin('QF3', '4'), pin('T1', 'N'), 'AC', 'AC-T1-N');
+    xnet(pin('QF3', '2'), pin('T2', 'L'), 'AC', 'AC-T2-L');
+    xnet(pin('QF3', '4'), pin('T2', 'N'), 'AC', 'AC-T2-N');
     xnet(pin('PE1', 'AUX.PE'), pin('PE2', 'IN.PE'), 'PE', 'PE-SEC');
     xnet(pin('A1', 'Y0.1'), pin('KM1', 'A1'), 'CTL', 'CTL-KM1');
-    xnet(pin('WB4', 'CKM1.24V-'), pin('KM1', 'A2'), 'AUX', 'AUX-KM1-N');
+    xnet(pin('WB4', 'CKM1.24VS-'), pin('KM1', 'A2'), 'AUX', 'AUX-KM1-N'); /* AUDIT-FIX(P1): 经 SR1 极1 安全回线 */
     xnet(pin('A1', 'Y0.2'), pin('K0', 'A1'), 'CTL', 'CTL-K0');
     xnet(pin('WB4', 'CK0.24V-'), pin('K0', 'A2'), 'AUX', 'AUX-K0-N');
     xnet(pin('RCM1', 'ALM'), pin('A1', 'X5.3'), 'CTL', 'CTL-RCM-ALM');
     xnet(pin('TA1', 'OUT'), pin('A1', 'X5.1'), 'CTL', 'CTL-TA1-OUT');
-    xnet(pin('WB4', 'TA1.24V+'), pin('TA1', '5V+'), 'AUX', 'AUX-TA1-P');
+    xnet(pin('WB4', 'TA1.24V+'), pin('TA1', '24V+'), 'AUX', 'AUX-TA1-P');
     xnet(pin('WB4', 'TA1.24V-'), pin('TA1', 'GND'), 'AUX', 'AUX-TA1-N');
     xnet(pin('RI1', 'ALM'), pin('A1', 'X5.2'), 'CTL', 'CTL-IMD-ALM');
     xnet(pin('RI1', 'A'), pin('A1', 'X3.1'), 'COMM', 'COMM-IMD-A');
@@ -1033,13 +1085,13 @@ window.EVSE_CORE = (function () {
     }
     for (let g = 1; g <= p.guns; g++) {
       xnet(pin('A1', 'Y' + g + '.1'), pin('K' + g + 'P', 'A1'), 'CTL', 'CTL-K' + g + 'P');
-      xnet(pin('WB4', 'CK' + g + 'P.24V-'), pin('K' + g + 'P', 'A2'), 'AUX', 'AUX-K' + g + 'P-N');
+      xnet(pin('WB4', 'CK' + g + 'P.24VS-'), pin('K' + g + 'P', 'A2'), 'AUX', 'AUX-K' + g + 'P-N'); /* AUDIT-FIX(P1): 经 SR1 极1 */
       xnet(pin('A1', 'Y' + g + '.2'), pin('K' + g + 'N', 'A1'), 'CTL', 'CTL-K' + g + 'N');
-      xnet(pin('WB4', 'CK' + g + 'N.24V-'), pin('K' + g + 'N', 'A2'), 'AUX', 'AUX-K' + g + 'N-N');
+      xnet(pin('WB4', 'CK' + g + 'N.24VS-'), pin('K' + g + 'N', 'A2'), 'AUX', 'AUX-K' + g + 'N-N'); /* AUDIT-FIX(P1): 经 SR1 极1 */
       xnet(pin('A1', 'Y' + g + '.3'), pin('YV' + g, 'V+'), 'CTL', 'CTL-YV' + g);
-      xnet(pin('WB4', 'YV' + g + '.12V-'), pin('YV' + g, 'V-'), 'AUX', 'AUX-YV' + g + '-N');
+      xnet(pin('WB4', 'YV' + g + '.24V-'), pin('YV' + g, 'V-'), 'AUX', 'AUX-YV' + g + '-N'); /* AUDIT-FIX(P1): 同域回线 */
       xnet(pin('YV' + g, 'FB1'), pin('A1', 'Y' + g + '.4'), 'CTL', 'CTL-YV' + g + '-FB');
-      xnet(pin('YV' + g, 'FB2'), pin('WB4', 'FB' + g + '.12V-'), 'AUX', 'AUX-YV' + g + '-FB-N');
+      xnet(pin('YV' + g, 'FB2'), pin('WB4', 'FB' + g + '.24V-'), 'AUX', 'AUX-YV' + g + '-FB-N'); /* AUDIT-FIX(P1): 同域回线 */
       if (sig === 'gb') {
         xnet(pin('XS' + g, 'S+'), pin('CG' + g, 'S+'), 'COMM', 'COMM-G' + g + '-S+');
         xnet(pin('XS' + g, 'S-'), pin('CG' + g, 'S-'), 'COMM', 'COMM-G' + g + '-S-');
@@ -1070,11 +1122,11 @@ window.EVSE_CORE = (function () {
         xnet(pin('WB4', 'BC' + i + '.24V-'), pin('GB' + i, '24V-'), 'AUX', 'AUX-B' + i + '-N');
         xnet(pin('WB4', 'HT' + i + '.24V+'), pin('GB' + i, 'HEAT'), 'AUX', 'AUX-B' + i + '-HEAT');
         xnet(pin('A5', 'Y1'), pin('KB' + i + 'P', 'A1'), 'CTL', 'CTL-KB' + i + 'P');
-        xnet(pin('WB4', 'CKB' + i + 'P.24V-'), pin('KB' + i + 'P', 'A2'), 'AUX', 'AUX-KB' + i + 'P-N');
+        xnet(pin('WB4', 'CKB' + i + 'P.24VSE-'), pin('KB' + i + 'P', 'A2'), 'AUX', 'AUX-KB' + i + 'P-N'); /* AUDIT-FIX(P1): 经 SR1 极2 */
         xnet(pin('A5', 'Y2'), pin('KB' + i + 'N', 'A1'), 'CTL', 'CTL-KB' + i + 'N');
-        xnet(pin('WB4', 'CKB' + i + 'N.24V-'), pin('KB' + i + 'N', 'A2'), 'AUX', 'AUX-KB' + i + 'N-N');
+        xnet(pin('WB4', 'CKB' + i + 'N.24VSE-'), pin('KB' + i + 'N', 'A2'), 'AUX', 'AUX-KB' + i + 'N-N'); /* AUDIT-FIX(P1): 经 SR1 极2 */
         xnet(pin('A5', 'Y3'), pin('KB' + i + 'R', 'A1'), 'CTL', 'CTL-KB' + i + 'R');
-        xnet(pin('WB4', 'CKB' + i + 'R.24V-'), pin('KB' + i + 'R', 'A2'), 'AUX', 'AUX-KB' + i + 'R-N');
+        xnet(pin('WB4', 'CKB' + i + 'R.24VSE-'), pin('KB' + i + 'R', 'A2'), 'AUX', 'AUX-KB' + i + 'R-N'); /* AUDIT-FIX(P1): 经 SR1 极2 */
       }
       xnet(pin('A1', 'X2.3'), pin('M9', 'CANH'), 'COMM', 'COMM-M9-H');
       xnet(pin('A1', 'X2.4'), pin('M9', 'CANL'), 'COMM', 'COMM-M9-L');
@@ -1166,8 +1218,8 @@ window.EVSE_CORE = (function () {
       const dirA = pinDirOf(first.srcDev, first.x.a.p), dirB = pinDirOf(tdev, target.p);
       const labA = '→' + tdev.sheet + '/' + target.d + ':' + target.p;
       const labB = '→' + sa + '/' + first.x.a.d + ':' + first.x.a.p + (arr.length > 1 ? ' 等' + arr.length + '路' : '');
-      D.push({ id: tagA, sheet: sa, zone: 'ZX', tag: '', name: '跨页连接符', spec: busName, xref: true, sym: S.xref(labA, dirA, xtag), xrefLabel: labA, xrefTag: xtag, attach: { d: first.x.a.d, p: first.x.a.p, dist: 46 } });
-      D.push({ id: tagB, sheet: tdev.sheet, zone: 'ZX', tag: '', name: '跨页连接符', spec: busName, xref: true, sym: S.xref(labB, dirB, xtag), xrefLabel: labB, xrefTag: xtag, attach: { d: target.d, p: target.p, dist: 46 } });
+      D.push({ id: tagA, sheet: sa, zone: 'ZX', tag: '', name: '跨页连接符', spec: busName, xref: true, sym: S.xref(labA, dirA, xtag, 'COMM'), xrefLabel: labA, xrefTag: xtag, attach: { d: first.x.a.d, p: first.x.a.p, dist: 46 } });
+      D.push({ id: tagB, sheet: tdev.sheet, zone: 'ZX', tag: '', name: '跨页连接符', spec: busName, xref: true, sym: S.xref(labB, dirB, xtag, 'COMM'), xrefLabel: labB, xrefTag: xtag, attach: { d: target.d, p: target.p, dist: 46 } });
       arr.forEach(function (item) {
         const x = item.x;
         net(x.a, pin(tagA, '1'), 'COMM', { name: busName + '/1', xpair: 'XPBUS' + xn });
@@ -1222,8 +1274,8 @@ window.EVSE_CORE = (function () {
       const labA = '→' + sb + '/' + x.b.d + ':' + x.b.p, labB = '→' + sa + '/' + x.a.d + ':' + x.a.p;
       const dirA = pinDirOf(byId[x.a.d], x.a.p), dirB = pinDirOf(byId[x.b.d], x.b.p);
       const xtag = 'XP' + String(xn).padStart(3, '0'); /* v2.12: 配对同名编号 */
-      D.push({ id: tagA, sheet: sa, zone: 'ZX', tag: '', name: '跨页连接符', spec: x.name, xref: true, sym: S.xref(labA, dirA, xtag), xrefLabel: labA, xrefTag: xtag, attach: { d: x.a.d, p: x.a.p, dist: 46 } });
-      D.push({ id: tagB, sheet: sb, zone: 'ZX', tag: '', name: '跨页连接符', spec: x.name, xref: true, sym: S.xref(labB, dirB, xtag), xrefLabel: labB, xrefTag: xtag, attach: { d: x.b.d, p: x.b.p, dist: 46 } });
+      D.push({ id: tagA, sheet: sa, zone: 'ZX', tag: '', name: '跨页连接符', spec: x.name, xref: true, sym: S.xref(labA, dirA, xtag, x.cls), xrefLabel: labA, xrefTag: xtag, attach: { d: x.a.d, p: x.a.p, dist: 46 } });
+      D.push({ id: tagB, sheet: sb, zone: 'ZX', tag: '', name: '跨页连接符', spec: x.name, xref: true, sym: S.xref(labB, dirB, xtag, x.cls), xrefLabel: labB, xrefTag: xtag, attach: { d: x.b.d, p: x.b.p, dist: 46 } });
       net(x.a, pin(tagA, '1'), x.cls, { name: x.name + '/1', xpair: x.name });
       net(pin(tagB, '1'), x.b, x.cls, { name: x.name + '/2', xpair: x.name });
     });

@@ -88,6 +88,17 @@ window.EVSE_SIM = (function () {
         union(a, b); addEdge(a, b);
       });
     });
+    /* 3b) 电源旗标：同名全局轨电气上是同一节点（AUDIT-FIX: 旧实现旗标不参与导通，
+     * AUX/安全回线轨永远不带电，辅源支路仿真失真）。同名轨全部并接。 */
+    const railPins = {};
+    (D.devices || []).forEach(function (dv) {
+      if (dv.x == null || !dv.pwr) return;
+      (railPins[dv.pwr] = railPins[dv.pwr] || []).push(key(dv.id, '1'));
+    });
+    Object.keys(railPins).forEach(function (r) {
+      const g = railPins[r];
+      for (let i = 1; i < g.length; i++) { union(g[0], g[i]); addEdge(g[0], g[i]); }
+    });
     /* 4) 源点：进线端子排 XT*（PE 除外）+ 电池 GB* */
     const srcs = [];
     (D.devices || []).forEach(function (dv) {

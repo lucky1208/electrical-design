@@ -144,6 +144,7 @@ window.EVSE_GEO = (function () {
     put('PJ1', acIn, 620);
     put('KM1', acIn, 760);
     put('QF2', tap('WB1', 'SPD.L1'), 1180);
+    put('QF3', acIn + 200, 430); /* AUDIT-FIX(P0): 辅源断路器，QF1 右侧空位 */
     put('FV1', tap('WB1', 'SPD.L1') + 200, 1320); /* V3-LAY: 右移避开直流母线引脚列 */
     for (let i = 1; i <= mod; i++) put('M' + i, tap('WB1', 'M' + i + '.L1') - px('M' + i, 'L1'), 1060);
     put('WBC', M['M1'].x + px('M1', 'DC+') - 26, 1300);
@@ -189,6 +190,7 @@ window.EVSE_GEO = (function () {
     put('T2', 520, 380);
     put('SB1', 240, 1000);
     put('SQ1', 240, 1180);
+    put('SR1', 420, 1330); /* AUDIT-FIX(P1): 安全继电器，SQ1 右下空位（避开 A1 西侧跨页符列与自身标注带） */
     put('HL1', 240, 1360);
     put('MF1', 240, 1540);
     put('PE2', 240, 1780);
@@ -874,6 +876,9 @@ window.EVSE_GEO = (function () {
     const span = Math.abs(a1[0] - b1[0]) + Math.abs(a1[1] - b1[1]);
     for (let i = 0; i < BOXES.length; i++) {
       let cap = strict && i >= 2 ? 80 : 52;
+      /* AUDIT-FIX(F13): 短跨度网加密格网防降采丢车道——仅限 strict（非严格 MAXPOP=26000
+       * 撑不住 80×80 格网，实测兜底使用上升反而制造更多违规） */
+      if (strict && span < 400) cap = Math.max(cap, 80);
       if (strict && i >= 3 && span > 1200) cap = Math.max(cap, Math.min(220, Math.round(span / 16)));
       const r = pathFind(A, B, hard, soft, used, ida, idb, a1, b1, A0, B0, noSoft, BOXES[i], cap, strict);
       if (r) return r;
@@ -1188,11 +1193,11 @@ window.EVSE_GEO = (function () {
    * ============================================================ */
   /* v2.25 audit-fix: detouch——异网角点/端点落在对方线内部=短路风险点，垂直挪开 */
   function detouch(design) {
-    for (let pass = 0; pass < 3; pass++) {
+    for (let pass = 0; pass < 6; pass++) {
       const segs = [];
       design.wires.forEach(function (w) { segsOf(w.pts).forEach(function (s, i) { segs.push({ w: w, i: i, s: s }); }); });
       let moved = 0;
-      for (let i = 0; i < segs.length && moved < 4; i++) {
+      for (let i = 0; i < segs.length && moved < 16; i++) {
         const A = segs[i]; if (!A.s.v) continue;
         for (let e = 0; e < 2; e++) {
           const p = e === 0 ? [A.s.x1, A.s.y1] : [A.s.x2, A.s.y2];
@@ -1200,6 +1205,7 @@ window.EVSE_GEO = (function () {
           for (let j = 0; j < segs.length; j++) {
             const B = segs[j];
             if (B.w.id === A.w.id || B.w.net === A.w.net || B.w.sheet !== A.w.sheet) continue;
+            if (sharesEndpointPin(design, A.w.net, B.w.net)) continue; /* AUDIT-FIX: 同节点（共享引脚）不算异网接触，对齐审计 sameNode */
             if (Math.abs(B.s.y1 - B.s.y2) > 0.5) continue; /* B 须水平 */
             if (Math.abs(p[1] - B.s.y1) > 0.5) continue;
             if (p[0] <= Math.min(B.s.x1, B.s.x2) + 0.5 || p[0] >= Math.max(B.s.x1, B.s.x2) - 0.5) continue;
@@ -1246,7 +1252,68 @@ window.EVSE_GEO = (function () {
               for (let q = 0; q < pts.length; q++) {
                 if (Math.abs(pts[q][0] - p[0]) < 0.5 && Math.abs(pts[q][1] - p[1]) < 0.5) pts[q][1] = ny;
               }
-              if (ptsIntrude(design, A.w, pts)) { for (let q5 = 0; q5 < pts.length; q5++) { pts[q5][0] = aSnap[q5][0]; pts[q5][1] = aSnap[q5][1]; } continue; }
+              if (ptsIntrude(design, A.w, pts) || !wireInterferenceClean(design, A.w, pts)) { for (let q5 = 0; q5 < pts.length; q5++) { pts[q5][0] = aSnap[q5][0]; pts[q5][1] = aSnap[q5][1]; } continue; }
+              moved++;
+              break;
+            }
+            if (moved) break;
+          }
+          if (moved) break;
+        }
+      }
+      /* AUDIT-FIX(F02): 镜像情形——水平段端点/角点落在异网竖直段内部 → 水平挪开。
+       * 旧实现只处理竖直段端点落横线，反向接触（realBend）漏修 → C03 残留。 */
+      for (let i = 0; i < segs.length && moved < 16; i++) {
+        const A = segs[i]; if (A.s.v) continue;
+        for (let e = 0; e < 2; e++) {
+          const p = e === 0 ? [A.s.x1, A.s.y1] : [A.s.x2, A.s.y2];
+          const isPin = wireTerminatesAtPin(design, A.w, p[0], p[1]);
+          for (let j = 0; j < segs.length; j++) {
+            const B = segs[j];
+            if (B.w.id === A.w.id || B.w.net === A.w.net || B.w.sheet !== A.w.sheet) continue;
+            if (sharesEndpointPin(design, A.w.net, B.w.net)) continue; /* AUDIT-FIX: 同节点不算异网接触 */
+            if (!B.s.v) continue; /* B 须竖直 */
+            if (Math.abs(p[0] - B.s.x1) > 0.5) continue;
+            if (p[1] <= Math.min(B.s.y1, B.s.y2) + 0.5 || p[1] >= Math.max(B.s.y1, B.s.y2) - 0.5) continue;
+            if (isPin) {
+              const bpts = B.w.pts;
+              const bEndsPin = bpts.some(function (q2) { return wireTerminatesAtPin(design, B.w, q2[0], q2[1]); });
+              if (bEndsPin) continue;
+              const dxs2 = [6, -6, 12, -12];
+              for (let k2 = 0; k2 < dxs2.length; k2++) {
+                const nx2 = B.s.x1 + dxs2[k2];
+                if (Math.abs(nx2 - p[0]) <= 1.5) continue;
+                const bSnap = bpts.map(function (zz) { return zz.slice(); });
+                for (let q3 = 0; q3 < bpts.length; q3++) {
+                  if (Math.abs(bpts[q3][0] - B.s.x1) < 0.5 && bpts[q3][1] >= Math.min(B.s.y1, B.s.y2) - 0.5 && bpts[q3][1] <= Math.max(B.s.y1, B.s.y2) + 0.5) bpts[q3][0] = nx2;
+                }
+                if (ptsIntrude(design, B.w, bpts) || !wireInterferenceClean(design, B.w, bpts)) {
+                  for (let q4 = 0; q4 < bpts.length; q4++) { bpts[q4][0] = bSnap[q4][0]; bpts[q4][1] = bSnap[q4][1]; }
+                  continue;
+                }
+                moved++;
+                break;
+              }
+              if (moved) break;
+              continue;
+            }
+            const dxs = [6, -6, 12, -12, 18, -18];
+            for (let k = 0; k < dxs.length; k++) {
+              const nx = p[0] + dxs[k];
+              let ok = Math.abs(nx - B.s.x1) > 1.5;
+              if (ok) for (let j2 = 0; j2 < segs.length && ok; j2++) {
+                const C2 = segs[j2];
+                if (C2.w.id === A.w.id || C2.w.net === A.w.net) continue;
+                if (!C2.s.v) continue;
+                if (Math.abs(nx - C2.s.x1) <= 1.5 && p[1] > Math.min(C2.s.y1, C2.s.y2) + 0.5 && p[1] < Math.max(C2.s.y1, C2.s.y2) - 0.5) ok = false;
+              }
+              if (!ok) continue;
+              const pts = A.w.pts;
+              const aSnap = pts.map(function (zz) { return zz.slice(); });
+              for (let q = 0; q < pts.length; q++) {
+                if (Math.abs(pts[q][0] - p[0]) < 0.5 && Math.abs(pts[q][1] - p[1]) < 0.5) pts[q][0] = nx;
+              }
+              if (ptsIntrude(design, A.w, pts) || !wireInterferenceClean(design, A.w, pts)) { for (let q5 = 0; q5 < pts.length; q5++) { pts[q5][0] = aSnap[q5][0]; pts[q5][1] = aSnap[q5][1]; } continue; }
               moved++;
               break;
             }
@@ -1357,10 +1424,18 @@ window.EVSE_GEO = (function () {
     return design;
   }
   function crossings(design) {
-    /* V9-MERGE: 原位去除共线竖断点，使 T-split 穿越改由规则1命中（半圆落竖线，渲染层可画） */
+    /* V9-MERGE: 原位去除共线断点（竖+横），使 T-split 穿越改由规则1命中（半圆落竖线，渲染层可画）。
+     * AUDIT-FIX: 水平共线断点同样会把一条横线拆成多段，恰好落在拆分点上的垂直交叉
+     * 会被规则1的 interior 判定漏掉（端点接触），而审计按整线测量 → C03 虚留。 */
     design.wires.forEach(function (w) {
       for (let i = 1; i < w.pts.length - 1; i++) {
-        if (Math.abs(w.pts[i - 1][0] - w.pts[i][0]) < 0.5 && Math.abs(w.pts[i][0] - w.pts[i + 1][0]) < 0.5) { w.pts.splice(i, 1); i--; }
+        const p = w.pts[i - 1], q = w.pts[i], r = w.pts[i + 1];
+        const collV = Math.abs(p[0] - q[0]) < 0.5 && Math.abs(q[0] - r[0]) < 0.5;
+        const collH = Math.abs(p[1] - q[1]) < 0.5 && Math.abs(q[1] - r[1]) < 0.5;
+        if (collV || collH) { w.pts.splice(i, 1); i--; }
+      }
+      for (let i = 0; i + 1 < w.pts.length; i++) {
+        if (Math.abs(w.pts[i][0] - w.pts[i + 1][0]) < 0.01 && Math.abs(w.pts[i][1] - w.pts[i + 1][1]) < 0.01) { w.pts.splice(i + 1, 1); i--; }
       }
     });
     const all = [];
@@ -1476,14 +1551,17 @@ window.EVSE_GEO = (function () {
         }
       }
     });
-    /* V12b: 穿他网 pin 电点处也渲染跳线弧——明确“跨越不连接”语义（走廊容量不足无法改道时的诚实画法） */
+    /* V12b: 穿他网 pin 电点处也渲染跳线弧——明确“跨越不连接”语义（走廊容量不足无法改道时的诚实画法）
+     * AUDIT-FIX: 豁免必须精确到引脚。旧实现按器件豁免（n.a.d===q.dev），导致终结于
+     * A1:X2.3 的线沿 A1 引脚列穿越 X2.4/X3.1/… 十几个他网引脚全部不画跨越，
+     * 审计按端点接触如实报 C03。只有本网络真正终结的那个引脚才豁免。 */
     (function () {
       const pinQ = [];
       design.devices.forEach(function (v) {
         if (v.x == null) return;
         (v.sym.pins || []).forEach(function (pp) {
           const a = pinAbs(design.map, { d: v.id, p: pp.n });
-          if (a) pinQ.push({ x: a.x, y: a.y, dev: v.id, sheet: v.sheet });
+          if (a) pinQ.push({ x: a.x, y: a.y, dev: v.id, pin: pp.n, sheet: v.sheet });
         });
       });
       design.wires.forEach(function (w) {
@@ -1491,7 +1569,7 @@ window.EVSE_GEO = (function () {
         segsOf(w.pts).forEach(function (s) {
           pinQ.forEach(function (q) {
             if (q.sheet !== w.sheet) return;
-            if (n && (n.a.d === q.dev || n.b.d === q.dev)) return;
+            if (n && ((n.a.d === q.dev && String(n.a.p) === String(q.pin)) || (n.b.d === q.dev && String(n.b.p) === String(q.pin)))) return;
             const lo = Math.min, hi = Math.max;
             const on = s.v ? (Math.abs(s.x1 - q.x) < 0.6 && q.y > lo(s.y1, s.y2) + 0.01 && q.y < hi(s.y1, s.y2) - 0.01)
               : (Math.abs(s.y1 - q.y) < 0.6 && q.x > lo(s.x1, s.x2) + 0.01 && q.x < hi(s.x1, s.x2) - 0.01);
@@ -1708,8 +1786,10 @@ window.EVSE_GEO = (function () {
     const mw = p.family === 'mwess';
 
     /* --- A 完整性 --- */
-    add('A', 'A01', '交流进线具备隔离 / 断路 / 浪涌 / 剩余电流四要素', hasDev('QS1') && hasDev('QF1') && hasDev('FV1') && hasDev('RCM1'), 'QS1/QF1/FV1/RCM1');
-    add('A', 'A02', '直流母线配置绝缘监测与电流采样', hasDev('RI1') && (mw ? hasDev('TA1') && hasDev('TA2') : hasDev('TA1')), mw ? 'RI1 + TA1/TA2 储能支路电流传感器' : 'RI1 + TA1');
+    /* AUDIT-FIX: 兆瓦双进线每路都须有剩余电流监测（旧判据只查 RCM1，进线2 缺口被掩盖） */
+    add('A', 'A01', '交流进线具备隔离 / 断路 / 浪涌 / 剩余电流四要素', hasDev('QS1') && hasDev('QF1') && hasDev('FV1') && hasDev('RCM1') && (!mw || hasDev('RCM2')), mw ? 'QS1/QF1/FV1/RCM1 + 进线2 RCM2' : 'QS1/QF1/FV1/RCM1');
+    /* AUDIT-FIX: 两条隔离直流母线各须绝缘监测（旧判据只查 RI1，母线2 缺口被掩盖） */
+    add('A', 'A02', '直流母线配置绝缘监测与电流采样', hasDev('RI1') && (mw ? hasDev('RI2') && hasDev('TA1') && hasDev('TA2') : hasDev('TA1')), mw ? 'RI1/RI2 双母线 + TA1/TA2 储能支路电流传感器' : 'RI1 + TA1');
     const meteringOK = mw ? hasDev('PJ1') && hasDev('PG1') && hasDev('PG2') : hasDev('PJ1') && hasDev('PJ2');
     add('A', 'A03', mw ? '交流计量 + 双枪直流电能计量' : '交流与直流双侧计量', meteringOK, mw ? 'PJ1 + PG1/PG2（逐枪串联电流计量）' : 'PJ1 + PJ2');
     add('A', 'A04', '母线泄放回路', hasDev('K0') && hasDev('RS0'), 'K0 + RS0');
@@ -1731,9 +1811,10 @@ window.EVSE_GEO = (function () {
       /* 兆瓦储能：每柜 = 2P 直流断路器 QFB + 主熔断 FU + 主正 KMP + 预充 KMR/RR（负极经 QFB 第 2 极分断） */
       let eOK = true, eMiss = [];
       for (let i = 1; i <= Math.max(1, p.essCab || 1); i++) {
-        ['QFB' + i, 'FU' + i, 'KMP' + i, 'KMR' + i, 'RR' + i].forEach(function (t) { if (!hasDev(t)) { eOK = false; eMiss.push(t); } });
+        /* AUDIT-FIX: 主负接触器 KMN 必查——旧判据把 QFB(2P) 计为双极分断，掩盖运行级单极缺口 */
+        ['QFB' + i, 'FU' + i, 'KMP' + i, 'KMN' + i, 'KMR' + i, 'RR' + i].forEach(function (t) { if (!hasDev(t)) { eOK = false; eMiss.push(t); } });
       }
-      add('A', 'A06', '每柜熔断 + 主正/主负分断 + 预充单元', eOK, eOK ? 'QFB(2P ±)+FU+KMP / KMR+RR 预充' : '缺 ' + eMiss.join(','));
+      add('A', 'A06', '每柜熔断 + 主正/主负分断 + 预充单元', eOK, eOK ? 'QFB(2P ±)+FU+KMP/KMN 双极 + KMR+RR 预充' : '缺 ' + eMiss.join(','));
       add('A', 'A07', '储能经开关/变换受控并入母线，不直接搭接', hasDev('QFB1') && hasDev('FU1') && hasDev('KMP1') && (hasDev('KB11') || hasDev('KB12')), '柜内 QFB/FU/KMP 受控并入；AC/DC 经 KB 投切供电');
       add('A', 'A08', '储能 BMS 主控在图', hasDev('BCU1'), 'BCU1/BCU2 + BMU + 电池插箱（1P100S×4 串联）');
     } else if (p.ess) {
@@ -1745,11 +1826,25 @@ window.EVSE_GEO = (function () {
     }
     const RAILS6 = (window.EVSE_CORE.rails ? window.EVSE_CORE.rails() : {});
     const auxWired = function (id, pn) { return design.nets.some(function (n) { return (n.a.d === id && n.a.p === pn) || (n.b.d === id && n.b.p === pn); }); };
+    /* AUDIT-FIX: 网表级两点直连判定（安全链/硬线跳闸拓扑校验用） */
+    const netBetween = function (da, pa, db, pb) {
+      return design.nets.some(function (n) {
+        return (n.a.d === da && String(n.a.p) === pa && n.b.d === db && String(n.b.p) === pb) ||
+               (n.b.d === da && String(n.b.p) === pa && n.a.d === db && String(n.a.p) === pb);
+      });
+    };
     const auxOK = mw
       ? hasDev('T1') && hasDev('T2') && ['V+', 'V-'].every(function (pn) { return auxWired('T1', pn) && auxWired('T2', pn); })
       : hasDev('T1') && hasDev('T2') && Object.keys(RAILS6).length >= 4;
     add('A', 'A09', mw ? '控制辅源与主回路辅源分列接线' : '辅助电源 24V / 12V 双档且全局轨分列', auxOK, mw ? 'T1 控制24V / T2 主回路24V，正负端均已接线' : 'T1/T2+全局轨 ' + Object.keys(RAILS6).join('/'));
-    add('A', 'A10', '急停硬线联锁 + 门禁 + 安全继电器', hasDev('SB1') && hasDev('SQ1') && (!mw || (hasDev('SR1') && hasDev('WBSAFE1') && hasDev('WBSAFE2'))), mw ? 'SB1/SQ1→SR1→充电与储能安全使能' : 'SB1/SQ1');
+    /* AUDIT-FIX: A10 从"符号存在"升级为网表级串联链校验——
+     * 24V+→SB1(NC)→SQ1(NC)→SR1线圈→24V-，且 SR1 触点确实接入线圈回线。 */
+    const chainOK = hasDev('SB1') && hasDev('SQ1') && hasDev('SR1') &&
+      netBetween('SB1', '12', 'SQ1', '11') && netBetween('SQ1', '12', 'SR1', 'A1') &&
+      auxWired('SB1', '11') && auxWired('SR1', 'A2') && auxWired('SR1', '2');
+    add('A', 'A10', '急停硬线联锁 + 门禁 + 安全继电器（网表级串联链）',
+      mw ? (chainOK && hasDev('WBSAFE1') && hasDev('WBSAFE2') && hasDev('WBSAFE0')) : chainOK,
+      chainOK ? '24V+→SB1→SQ1→SR1线圈→24V- 串联成立；SR1 触点硬切线圈回线' + (mw ? '；WBSAFE0/1/2 齐备' : '') : '串联安全链未成立（检查 SB1/SQ1/SR1 接线）');
     add('A', 'A11', '热管理单元在图', hasDev('MF1'), 'MF1 风机');
     add('A', 'A12', '保护接地排与等电位', hasDev('PE1'), 'PE1');
 
@@ -1776,7 +1871,9 @@ window.EVSE_GEO = (function () {
     const missingRoute = design.nets.filter(function (n) { return !routedByNet[n.id]; });
     const routeFailed = design.nets.filter(function (n) { return n.err === 'ROUTE_NO_CLEAR_PATH'; });
     const otherNetErrors = design.nets.filter(function (n) { return n.err && n.err !== 'ROUTE_NO_CLEAR_PATH'; });
-    const b02ok = badPin.length === 0 && missingRoute.length === 0 && otherNetErrors.length === 0;
+    /* AUDIT-FIX(F08): routeFailed 也须阻断——reroute/snapEnds 失败会留下 err+wire 并存，
+     * 旧判据只查"无走线"，err+wire 静默通过 B02。 */
+    const b02ok = badPin.length === 0 && missingRoute.length === 0 && otherNetErrors.length === 0 && routeFailed.length === 0;
     add('B', 'B02', '每条网络均绑定真实端子并完成走线', b02ok,
       b02ok ? design.nets.length + ' 条网络全部 pin→pin 且有唯一走线'
         : '端子无法解析 ' + badPin.length + ' 条；无合法路径 ' + routeFailed.length + ' 条；未生成走线 ' + missingRoute.length + ' 条；其他网络错误 ' + otherNetErrors.length + ' 条');
@@ -1880,10 +1977,12 @@ window.EVSE_GEO = (function () {
       .map(function (d) { return deviceKeepout(d); });
     design.wires.forEach(function (w) {
       const sg = segsOf(w.pts); segCount += sg.length; bends += Math.max(0, w.pts.length - 2);
-      sg.forEach(function (s) {
+      sg.forEach(function (s, si) {
         totalLen += Math.abs(s.x2 - s.x1) + Math.abs(s.y2 - s.y1);
         if (Math.abs(s.x1 - s.x2) > 0.01 && Math.abs(s.y1 - s.y2) > 0.01) nonOrtho++;
         if (Math.abs(s.x1 % 1) > 0.01 || Math.abs(s.y1 % 1) > 0.01) offGrid++;
+        /* AUDIT-FIX(F14): 末段终点也查栅格（旧实现只查段起点，漏查整线终点） */
+        if (si === sg.length - 1 && (Math.abs(s.x2 % 1) > 0.01 || Math.abs(s.y2 % 1) > 0.01)) offGrid++;
         obst.forEach(function (r) {
           if (r.sheet !== w.sheet) return;
           if (bodyHitRect(s, r.core)) thruDev++;
@@ -1893,6 +1992,7 @@ window.EVSE_GEO = (function () {
     add('C', 'C01', '全部走线正交（无斜线）', nonOrtho === 0, nonOrtho ? nonOrtho + ' 段非正交' : segCount + ' 段全部水平/垂直');
     add('C', 'C02', '走线不穿越器件本体（含自身端子）', thruDev === 0, thruDev ? thruDev + ' 段穿越器件（需人工挤线或改布局）' : '0 段穿越', thruDev ? 'error' : 'pass');
     const crossingAudit = auditCrossings(design);
+    design._c03missing = crossingAudit.missingHops.length; /* AUDIT-FIX: 供 repairVec 复用，避免重复全量交叉扫描 */
     const hopExamples = crossingAudit.missingHops.slice(0, 5).map(function (x) { return (x.interior ? '交叉' : '端点接触') + ' ' + x.a.w.id + '/' + x.b.w.id + '@' + Math.round(x.x) + ',' + Math.round(x.y); });
     add('C', 'C03', '异网交叉须有跨越；端点接触必须分离', crossingAudit.missingHops.length === 0,
       crossingAudit.missingHops.length ? crossingAudit.missingHops.length + ' 处交叉/端点接触需处理：' + hopExamples.join('、') : crossingAudit.distinctNetCrossings + ' 处异网交叉均有对应跨越标记', crossingAudit.missingHops.length ? 'error' : 'pass');
@@ -2019,6 +2119,9 @@ window.EVSE_GEO = (function () {
         const a = group[i], b = group[j];
         if (a.w === b.w || a.w.net === b.w.net || Math.abs(a.coord - b.coord) > 0.5) continue;
         const na = netById(design, a.w.net), nb = netById(design, b.w.net);
+        /* AUDIT-FIX(F09): 同名网络=同一逻辑网（总线合并多源），与 C05 的 E1 豁免同口径；
+         * 共线重叠不构成异网短路风险，按冗余走线处理而非阻断错误。 */
+        if (na && nb && na.name && nb.name && na.name === nb.name) continue;
         const ol = a.s.v
           ? Math.min(Math.max(a.s.y1, a.s.y2), Math.max(b.s.y1, b.s.y2)) - Math.max(Math.min(a.s.y1, a.s.y2), Math.min(b.s.y1, b.s.y2))
           : Math.min(Math.max(a.s.x1, a.s.x2), Math.max(b.s.x1, b.s.x2)) - Math.max(Math.min(a.s.x1, a.s.x2), Math.min(b.s.x1, b.s.x2));
@@ -2069,6 +2172,7 @@ window.EVSE_GEO = (function () {
         });
       });
     });
+    design._c08hits = txtHit; /* AUDIT-FIX: 供 repairVec 复用 */
     add('C', 'C08', '走线不压标注文字与跨页符', txtHit === 0, txtHit ? txtHit + ' 段压住文字（需挤线或移动文字）' : '0 段', txtHit ? 'warn' : 'pass');
 
     /* --- D 可读性 --- */
@@ -2095,6 +2199,18 @@ window.EVSE_GEO = (function () {
     const KB = window.EVSE_VENDOR_KB;
     if (KB) {
       KB.G_CHECKS.forEach(function (g) {
+        /* AUDIT-FIX: G08 从"RCM 符号存在"升级为切除路径拓扑校验。
+         * MWESS：RCM ALM 硬线分励脱扣 QF；EVSE：RCM→CCU→KM1 软件路径，如实降为 warn。 */
+        if (g.id === 'G08') {
+          if (mw) {
+            const tripOK = netBetween('RCM1', 'ALM', 'QF1', 'TRIP') && netBetween('RCM2', 'ALM', 'QF2', 'TRIP');
+            add('G', 'G08', g.title, tripOK, tripOK ? 'RCM1/RCM2 ALM 硬线分励脱扣 QF1/QF2（不依赖软件）' : 'RCM 报警未硬线接入 QF 脱扣线圈', tripOK ? 'pass' : 'error');
+          } else {
+            const swPath = hasDev('RCM1') && auxWired('RCM1', 'ALM') && hasDev('KM1');
+            add('G', 'G08', g.title, false, swPath ? 'RCM1 报警→CCU→KM1 软件切除路径在图；无硬线脱扣，动作依赖软件（方案级简化，需专业复核）' : '缺 RCM1 报警回路', 'warn');
+          }
+          return;
+        }
         if (g.id === 'G04') {
           const coils = design.devices.filter(function (x) { return x.sym.hasCoil; });
           const bad = coils.filter(function (x) { return !x.sym.coilDiode; });
@@ -3021,6 +3137,8 @@ window.EVSE_GEO = (function () {
             const ss = segsOf(clean);
             let bad = bodyBad(ss, w.sheet);
             for (let k = 0; k < ss.length && !bad; k++) if (boxHit(ss[k], w.sheet, net).length) bad = true;
+            /* F07 备注：曾尝试对 EVSE 也启用线间检查，实测贪心管线局部极小迁移反而使 C03 2→15
+             * （共线引脚列走线增多）。保留 mwess-only；EVSE 残留由 Pareto nudge+detouch 治理。 */
             if (!bad && design.params && design.params.family === 'mwess' && !wireInterferenceClean(design, w, clean)) bad = true;
             if (bad) continue;
             w.pts = clean; w.manual = true; w.via = 'REPAIR-LABEL';
@@ -3094,6 +3212,7 @@ window.EVSE_GEO = (function () {
             let bad = false;
             const wn = netById(design, w.net);
             for (let k = 0; k < ss.length && !bad; k++) if (hits(ss[k], w.sheet, { n: wn, k: k, total: ss.length }).length) bad = true;
+            /* F07 备注：同 repairLabelCross——EVSE 启用后局部极小迁移使 C03 反弹，保留 mwess-only */
             if (!bad && design.params && design.params.family === 'mwess' && !wireInterferenceClean(design, w, clean)) bad = true;
             if (bad) continue;
             w.pts = clean;
@@ -3138,7 +3257,7 @@ window.EVSE_GEO = (function () {
   /* Strict post-route repairs must preserve the same conductor-clearance
    * rules as the router. Perpendicular interior crossings remain legal and
    * are rendered with a hop; endpoint contacts and parallel overlaps are not. */
-  function wireInterferenceClean(design, w, pts) {
+  function wireInterferenceClean(design, w, pts, parallelOnly) {
     const n = netById(design, w.net), ss = segsOf(pts || w.pts);
     if (!n) return false;
     const atEnd = function (s, x, y) {
@@ -3155,11 +3274,14 @@ window.EVSE_GEO = (function () {
           const overlapLen = a.v
             ? Math.min(Math.max(a.y1, a.y2), Math.max(b.y1, b.y2)) - Math.max(Math.min(a.y1, a.y2), Math.min(b.y1, b.y2))
             : Math.min(Math.max(a.x1, a.x2), Math.max(b.x1, b.x2)) - Math.max(Math.min(a.x1, a.x2), Math.min(b.x1, b.x2));
-          if (overlapLen <= 3 || coordGap >= MIN_CLEAR - 0.5) continue;
+          if (overlapLen <= 0.01 || coordGap >= MIN_CLEAR - 0.5) continue; /* AUDIT-FIX(F07): 与 C14 的 >0.01 口径对齐 */
           const oa = usedOwner(n, i, ss.length), ob = usedOwner(on, j, os.length);
           if (commonPinEscapeOnly(a, b, oa, ob)) continue;
           return false;
         }
+        /* AUDIT-FIX: parallelOnly 模式只查平行重叠（C05/C14 类）；端点接触交给
+         * crossings 的引脚跨越标记与管线末尾 detouch 处理，避免应急布线误拒（B02 回归）。 */
+        if (parallelOnly) continue;
         const v = a.v ? a : b, h = a.v ? b : a;
         const x = v.x1, y = h.y1;
         if (x < Math.min(h.x1, h.x2) - 0.01 || x > Math.max(h.x1, h.x2) + 0.01 ||
@@ -3242,10 +3364,11 @@ window.EVSE_GEO = (function () {
   function c14Conflicts(design) {
     const ctrack = {}, out = [], seen = {};
     design.wires.forEach(function (w) {
-      segsOf(w.pts).forEach(function (s) {
+      const sg = segsOf(w.pts);
+      sg.forEach(function (s, i) {
         const axis = s.v ? 'V' : 'H', coord = s.v ? s.x1 : s.y1;
         const key = w.sheet + '|' + axis + '|' + Math.round(coord * 2);
-        (ctrack[key] = ctrack[key] || []).push({ w: w, s: s, axis: axis, coord: coord });
+        (ctrack[key] = ctrack[key] || []).push({ w: w, s: s, axis: axis, coord: coord, i: i, count: sg.length });
       });
     });
     Object.keys(ctrack).forEach(function (key) {
@@ -3254,8 +3377,12 @@ window.EVSE_GEO = (function () {
         const a = group[i], b = group[j];
         if (a.w === b.w || a.w.net === b.w.net || Math.abs(a.coord - b.coord) > 0.5) continue;
         const na = netById(design, a.w.net), nb = netById(design, b.w.net);
-        const pk = function (r) { return r ? r.d + ':' + r.p : ''; };
-        if (na && nb && (pk(na.a) === pk(nb.a) || pk(na.a) === pk(nb.b) || pk(na.b) === pk(nb.a) || pk(na.b) === pk(nb.b))) continue;
+        /* AUDIT-FIX(F09): 同名网络豁免，与 audit() C14 / C05 E1 同口径 */
+        if (na && nb && na.name && nb.name && na.name === nb.name) continue;
+        /* AUDIT-FIX: 与 audit() 的 C14 同口径——共享引脚只豁免短引出段（commonPinEscapeOnly），
+         * 旧实现对共享引脚一律豁免，长共线重叠对 nudgeC14 不可见，永远修不掉。 */
+        if (na && nb && sharesEndpointPin(design, a.w.net, b.w.net) &&
+            commonPinEscapeOnly(a.s, b.s, usedOwner(na, a.i, a.count), usedOwner(nb, b.i, b.count))) continue;
         const ol = a.s.v
           ? Math.min(Math.max(a.s.y1, a.s.y2), Math.max(b.s.y1, b.s.y2)) - Math.max(Math.min(a.s.y1, a.s.y2), Math.min(b.s.y1, b.s.y2))
           : Math.min(Math.max(a.s.x1, a.s.x2), Math.max(b.s.x1, b.s.x2)) - Math.max(Math.min(a.s.x1, a.s.x2), Math.min(b.s.x1, b.s.x2));
@@ -3273,30 +3400,30 @@ window.EVSE_GEO = (function () {
     if (design.params && design.params.family === 'mwess') return 0;
     let fixed = 0;
     for (let pass = 0; pass < 8; pass++) {
-      const before = c14Conflicts(design).length;
-      if (!before) break;
+      const base = repairVec(design);
+      if (!base.c14) break;
       let changed = false;
       const conflicts = c14Conflicts(design);
       for (let ci = 0; ci < conflicts.length && !changed; ci++) {
         const pair = conflicts[ci];
         const candidates = [pair.a, pair.b];
         for (let wi = 0; wi < 2 && !changed; wi++) {
-const item = candidates[wi];
+          const item = candidates[wi];
           const w = item.w;
           const oldRoutePts = w.pts.map(function (p) { return p.slice(); });
           const oldA = w.a, oldB = w.b, oldManual = w.manual, oldVia = w.via;
-          if (rerouteWireHard(design, w)) {
-            const afterRoute = c14Conflicts(design).length;
-            audit(design);
-            const r02 = design.audit.items.filter(function (i) { return i.id === 'C02'; })[0];
-            const r11 = design.audit.items.filter(function (i) { return i.id === 'C11'; })[0];
-            if (!c13Hits(design).length && !c12Hits(design).length && r02.ok && r11.ok && afterRoute < before) {
-              fixed++; changed = true; w.manual = true; w.via = 'C14-REROUTE';
-              continue;
+          /* AUDIT-FIX: 先严格重布（不忽略已占通道），再放宽；验收用统一 Pareto 向量 */
+          for (let sm = 0; sm < 2 && !changed; sm++) {
+            if (!rerouteWireHard(design, w, sm === 0)) continue;
+            const v = repairVec(design);
+            if (v.c14 < base.c14 && vecLe(v, base)) {
+              fixed++; changed = true; w.manual = true; w.via = sm === 0 ? 'C14-REROUTE-S' : 'C14-REROUTE';
+              break;
             }
             w.pts = oldRoutePts; w.a = oldA; w.b = oldB; w.manual = oldManual; w.via = oldVia;
             crossings(design);
           }
+          if (changed) break;
           const sg = segsOf(w.pts);
           let idx = -1;
           for (let k = 0; k < sg.length; k++) {
@@ -3304,7 +3431,7 @@ const item = candidates[wi];
           }
           if (idx <= 0 || idx >= sg.length - 1) continue;
           const prev = sg[idx - 1], next = sg[idx + 1];
-          const base = item.axis === 'V' ? item.coord : item.coord;
+          const baseCoord = item.coord;
           if (item.axis === 'V' && (prev.v || next.v)) continue;
           if (item.axis === 'H' && (!prev.v || !next.v)) continue;
           const oldPts = w.pts;
@@ -3312,7 +3439,7 @@ const item = candidates[wi];
           for (let d = 0; d < 4 && !accepted; d++) {
             const off = (d + 1) * MIN_CLEAR;
             for (let si = 0; si < 2 && !accepted; si++) {
-              const nc = base + (si ? off : -off);
+              const nc = baseCoord + (si ? off : -off);
               const np = oldPts.map(function (p) { return p.slice(); });
               if (item.axis === 'V') { np[idx][0] = nc; np[idx + 1][0] = nc; }
               else { np[idx][1] = nc; np[idx + 1][1] = nc; }
@@ -3321,12 +3448,8 @@ const item = candidates[wi];
               for (let k = 0; k < ns.length; k++) if (ns[k].x1 !== ns[k].x2 && ns[k].y1 !== ns[k].y2) { bad = true; break; }
               if (bad) continue;
               w.pts = np;
-              const c13 = c13Hits(design).length, c12 = c12Hits(design).length;
-              const after = c14Conflicts(design).length;
-              audit(design);
-              const a02 = design.audit.items.filter(function (i) { return i.id === 'C02'; })[0];
-              const a11 = design.audit.items.filter(function (i) { return i.id === 'C11'; })[0];
-              if (!c13 && !c12 && a02.ok && a11.ok && after < before) { accepted = true; changed = true; fixed++; w.manual = true; w.via = 'C14-NUDGE'; }
+              const v = repairVec(design);
+              if (v.c14 < base.c14 && vecLe(v, base)) { accepted = true; changed = true; fixed++; w.manual = true; w.via = 'C14-NUDGE'; }
               else w.pts = oldPts;
             }
           }
@@ -3339,11 +3462,10 @@ const item = candidates[wi];
 
   function nudgeC05(design) {
     if (design.params && design.params.family === 'mwess') return 0;
-    audit(design);
     let fixed = 0;
-    let before = (design._c05pairs || []).length;
     for (let pass = 0; pass < 10; pass++) {
-      if (!before) break;
+      const base = repairVec(design);
+      if (!base.c05) break;
       let changed = false;
       const pairs = (design._c05pairs || []).slice();
       for (let pi = 0; pi < pairs.length && !changed; pi++) {
@@ -3353,19 +3475,19 @@ const item = candidates[wi];
           const item = items[wi], w = item.w;
           const routeOld = w.pts.map(function (p) { return p.slice(); });
           const routeA = w.a, routeB = w.b, routeManual = w.manual, routeVia = w.via;
-          if (rerouteWireHard(design, w)) {
-            crossings(design);
-            audit(design);
-            const rr02 = design.audit.items.filter(function (i) { return i.id === 'C02'; })[0];
-            const rr11 = design.audit.items.filter(function (i) { return i.id === 'C11'; })[0];
-            const rrCount = (design._c05pairs || []).length;
-            if (!c13Hits(design).length && !c12Hits(design).length && !c14Conflicts(design).length && rr02.ok && rr11.ok && rrCount < before) {
-              before = rrCount; fixed++; changed = true; w.via = 'C05-REROUTE'; w.manual = true;
-              continue;
+          /* AUDIT-FIX: 旧验收要求全局 C14=0，与 nudgeC14 互相死锁；改为 Pareto：
+           * C05 严格下降且其余维度不上升。先严格重布，再放宽。 */
+          for (let sm = 0; sm < 2 && !changed; sm++) {
+            if (!rerouteWireHard(design, w, sm === 0)) continue;
+            const v = repairVec(design);
+            if (v.c05 < base.c05 && vecLe(v, base)) {
+              fixed++; changed = true; w.via = sm === 0 ? 'C05-REROUTE-S' : 'C05-REROUTE'; w.manual = true;
+              break;
             }
             w.pts = routeOld; w.a = routeA; w.b = routeB; w.manual = routeManual; w.via = routeVia;
-            crossings(design); audit(design);
+            crossings(design);
           }
+          if (changed) break;
           const sg = segsOf(w.pts);
           let idx = -1;
           for (let k = 0; k < sg.length; k++) if (sg[k].x1 === item.s.x1 && sg[k].y1 === item.s.y1 && sg[k].x2 === item.s.x2 && sg[k].y2 === item.s.y2) { idx = k; break; }
@@ -3373,12 +3495,12 @@ const item = candidates[wi];
           const prev = sg[idx - 1], next = sg[idx + 1];
           if (sg[idx].v && (prev.v || next.v)) continue;
           if (!sg[idx].v && (!prev.v || !next.v)) continue;
-          const base = sg[idx].v ? sg[idx].x1 : sg[idx].y1;
+          const baseCoord = sg[idx].v ? sg[idx].x1 : sg[idx].y1;
           const old = w.pts.map(function (p) { return p.slice(); });
           for (let d = 0; d < 3 && !changed; d++) {
             const off = (d + 1) * MIN_CLEAR;
             for (let si = 0; si < 2 && !changed; si++) {
-              const nc = base + (si ? off : -off);
+              const nc = baseCoord + (si ? off : -off);
               const np = old.map(function (p) { return p.slice(); });
               if (sg[idx].v) { np[idx][0] = nc; np[idx + 1][0] = nc; }
               else { np[idx][1] = nc; np[idx + 1][1] = nc; }
@@ -3387,16 +3509,11 @@ const item = candidates[wi];
               for (let k = 0; k < ns.length; k++) if (ns[k].x1 !== ns[k].x2 && ns[k].y1 !== ns[k].y2) { bad = true; break; }
               if (bad) continue;
               w.pts = np; w.manual = true;
-              crossings(design);
-              const c13 = c13Hits(design).length, c12 = c12Hits(design).length, c14 = c14Conflicts(design).length;
-              audit(design);
-              const a02 = design.audit.items.filter(function (i) { return i.id === 'C02'; })[0];
-              const a11 = design.audit.items.filter(function (i) { return i.id === 'C11'; })[0];
-              const after = (design._c05pairs || []).length;
-              if (!c13 && !c12 && !c14 && a02.ok && a11.ok && after < before) {
-                before = after; fixed++; changed = true; w.via = 'C05-NUDGE';
+              const v = repairVec(design);
+              if (v.c05 < base.c05 && vecLe(v, base)) {
+                fixed++; changed = true; w.via = 'C05-NUDGE';
               } else {
-                w.pts = old; crossings(design); audit(design);
+                w.pts = old;
               }
             }
           }
@@ -3406,7 +3523,47 @@ const item = candidates[wi];
     }
     return fixed;
   }
-  function rerouteWireHard(design, w) {
+  /* AUDIT-FIX: 修复器统一 Pareto 验收——任何局部修复不得使任一违规维度上升。
+   * 旧实现 nudgeC05 要求“全局 C14=0”才接受 C05 修复，而 C14 修复器又看不见
+   * 共享引脚长重叠（oracle 不一致），两者互相死锁，残留违规永远修不掉。 */
+  function boxOverlapCount(design) {
+    const bx = (design.boxes || []).filter(function (b) { return b.kind !== 'corridor'; });
+    let n = 0;
+    for (let i = 0; i < bx.length; i++) for (let j = i + 1; j < bx.length; j++) {
+      if (bx[i].sheet !== bx[j].sheet) continue;
+      if (bx[i].kind === bx[j].kind && bx[i].id === bx[j].id) continue;
+      if (overlap(bx[i], bx[j])) n++;
+    }
+    return n;
+  }
+  function repairVec(design) {
+    crossings(design); /* AUDIT-FIX: 先刷新 hops/junctions，c03 才用当前几何测量（旧实现用陈旧 hops） */
+    audit(design);
+    let c10 = 0;
+    design.wires.forEach(function (w) {
+      const n = netById(design, w.net); if (!n || !w.pts || w.pts.length < 2) return;
+      const A = pinAbs(design.map, n.a), B = pinAbs(design.map, n.b), L = w.pts.length;
+      if (A && (Math.abs(w.pts[0][0] - A.x) > 1.2 || Math.abs(w.pts[0][1] - A.y) > 1.2)) c10++;
+      if (B && (Math.abs(w.pts[L - 1][0] - B.x) > 1.2 || Math.abs(w.pts[L - 1][1] - B.y) > 1.2)) c10++;
+    });
+    return {
+      c02: c02Hits(design).length,
+      c03: design._c03missing || 0, /* AUDIT-FIX: 复用 audit 测量，省一遍全量交叉扫描 */
+      c05: (design._c05pairs || []).length,
+      c07: boxOverlapCount(design),
+      c08: design._c08hits || 0, /* 跟踪但不入 vecLe 硬门：C08 为 warn，由终局 LABELFIX 清理 */
+      c10: c10,
+      c11: c11Hits(design).length,
+      c12: c12Hits(design).length,
+      c13: c13Hits(design).length,
+      c14: c14Conflicts(design).length
+    };
+  }
+  function vecLe(a, b) {
+    return a.c02 <= b.c02 && a.c03 <= b.c03 && a.c05 <= b.c05 && a.c07 <= b.c07 && a.c10 <= b.c10 &&
+      a.c11 <= b.c11 && a.c12 <= b.c12 && a.c13 <= b.c13 && a.c14 <= b.c14;
+  }
+  function rerouteWireHard(design, w, strictMode) {
     const n = netById(design, w.net); if (!n) return false;
     const M = design.map;
     const A = pinAbs(M, n.a), B = pinAbs(M, n.b);
@@ -3427,10 +3584,11 @@ const item = candidates[wi];
     A.esc = M[n.a.d] && M[n.a.d].sym.isXref ? 0 : ESC;
     B.esc = M[n.b.d] && M[n.b.d].sym.isXref ? 0 : ESC;
     const old = w.pts;
+    /* strictMode: 走 FANOUT+A* 且绝不忽略已占通道（无草图兜底），失败返回 null */
     const pts = solve(A, B, obst, used, n.a.d, n.b.d, soft, w.cls,
-      !!(M[n.a.d].sym.noCross || M[n.b.d].sym.noCross), false);
+      !!(M[n.a.d].sym.noCross || M[n.b.d].sym.noCross), !!strictMode);
     if (!pts || pts.length < 2) return false;
-    w.pts = pts; w.a = A; w.b = B; w.manual = true; w.via = 'C13-REROUTE';
+    w.pts = pts; w.a = A; w.b = B; w.manual = true; w.via = strictMode ? 'STRICT-REROUTE' : 'C13-REROUTE';
     crossings(design);
     const bad = c13Hits(design).some(function (h) { return h.wire === w; }) || c12Hits(design).some(function (h) { return h.wire === w; });
     if (bad) { w.pts = old; w.via = 'C13-REROUTE-FAIL'; crossings(design); return false; }
@@ -3480,28 +3638,36 @@ const item = candidates[wi];
       let accepted = false;
       const routeUsed = usedBySheet[sheet] || (usedBySheet[sheet] = newUsed());
       const modes = strict ? [1] : [0, 1];
-      for (let ei = 0; ei < 3 && !accepted; ei++) {
+      /* AUDIT-FIX: 引出档位 3→6（esc+0..80），并增加反向求解尝试——A* 的形状模板
+       * 与端点逃逸方向不对称，B→A 常能找到 A→B 找不到的通道。成功路径额外做
+       * 线间干扰检查（平行重叠/端点接触），避免应急布线引入新的 C05/C14/C03。 */
+      for (let ei = 0; ei < 6 && !accepted; ei++) {
         for (let mi = 0; mi < modes.length && !accepted; mi++) {
-          const A2 = pinAbs(M, n.a), B2 = pinAbs(M, n.b);
-          if (!A2 || !B2) continue;
-          A2.esc = (M[n.a.d].sym.isXref ? 0 : ESC) + ei * 16;
-          B2.esc = (M[n.b.d].sym.isXref ? 0 : ESC) + ei * 16;
-          const pts = solve(A2, B2, obst, routeUsed, n.a.d, n.b.d, soft, n.cls,
-            !!(M[n.a.d].sym.noCross || M[n.b.d].sym.noCross), strict || !!modes[mi]);
-          if (!pts || pts.length < 2) continue;
-          const key = JSON.stringify(pts);
-          if (tried[key]) continue;
-          tried[key] = 1;
-          const w = { id: 'W-' + n.id, net: n.id, cls: n.cls, name: n.name, sheet: sheet, pts: pts, a: A2, b: B2, manual: true, via: 'EMERGENCY-ROUTE' };
-          design.wires.push(w);
-          const bad = c13Hits(design).some(function (h) { return h.wire === w; }) ||
-            c12Hits(design).some(function (h) { return h.wire === w; }) ||
-            c02Hits(design).some(function (h) { return h.wire === w; }) ||
-            c11Hits(design).some(function (h) { return h.wire === w; });
-          if (bad) { design.wires.pop(); continue; }
-          n.err = null; n.wire_id = w.id;
-          addWireUsed(routeUsed, w, n);
-          fixed++; accepted = true;
+          for (let rev = 0; rev < 2 && !accepted; rev++) {
+            const A2 = pinAbs(M, n.a), B2 = pinAbs(M, n.b);
+            if (!A2 || !B2) continue;
+            A2.esc = (M[n.a.d].sym.isXref ? 0 : ESC) + ei * 16;
+            B2.esc = (M[n.b.d].sym.isXref ? 0 : ESC) + ei * 16;
+            const fd = rev ? n.b.d : n.a.d, td = rev ? n.a.d : n.b.d;
+            let pts = solve(rev ? B2 : A2, rev ? A2 : B2, obst, routeUsed, fd, td, soft, n.cls,
+              !!(M[fd].sym.noCross || M[td].sym.noCross), strict || !!modes[mi]);
+            if (pts && rev) pts = pts.slice().reverse();
+            if (!pts || pts.length < 2) continue;
+            const key = JSON.stringify(pts);
+            if (tried[key]) continue;
+            tried[key] = 1;
+            const w = { id: 'W-' + n.id, net: n.id, cls: n.cls, name: n.name, sheet: sheet, pts: pts, a: A2, b: B2, manual: true, via: 'EMERGENCY-ROUTE' };
+            design.wires.push(w);
+            const bad = c13Hits(design).some(function (h) { return h.wire === w; }) ||
+              c12Hits(design).some(function (h) { return h.wire === w; }) ||
+              c02Hits(design).some(function (h) { return h.wire === w; }) ||
+              c11Hits(design).some(function (h) { return h.wire === w; }) ||
+              !wireInterferenceClean(design, w, null, true);
+            if (bad) { design.wires.pop(); continue; }
+            n.err = null; n.wire_id = w.id;
+            addWireUsed(routeUsed, w, n);
+            fixed++; accepted = true;
+          }
         }
       }
       /* The legacy emergency channel only checked component clearance; it
@@ -3526,8 +3692,9 @@ const item = candidates[wi];
               const pts = [];
               raw.forEach(function (p) { if (!pts.length || pts[pts.length - 1][0] !== p[0] || pts[pts.length - 1][1] !== p[1]) pts.push(p); });
               const w2 = { id: 'W-' + n.id, net: n.id, cls: n.cls, name: n.name, sheet: sheet, pts: pts, a: A, b: B, manual: true, via: 'EMERGENCY-CHANNEL' };
-              if (!wireHardClean(design, w2)) continue;
-              design.wires.push(w2); n.err = null; n.wire_id = w2.id; fixed++; accepted = true;
+              /* AUDIT-FIX(F12): legacy 通道也查平行重叠并登记已占通道（旧实现接受后不登记，后续线可再叠上） */
+              if (!wireHardClean(design, w2) || !wireInterferenceClean(design, w2, null, true)) continue;
+              design.wires.push(w2); n.err = null; n.wire_id = w2.id; addWireUsed(routeUsed, w2, n); fixed++; accepted = true;
             }
           }
         }
@@ -3538,17 +3705,84 @@ const item = candidates[wi];
     return fixed;
   }
 
+  /* AUDIT-FIX(B02): 有界拆线重布——贪心先到先占把通道占满后，失败网无路可走。
+   * 对每条失败网，尝试临时拆掉其包围盒内的一条阻挡线，先布通失败网，再重布被拆线；
+   * 两者都成功且无线间干扰才接受，否则完整回滚。把"谁占通道"从固定顺序变为可协商。 */
+  function ripupRoute(design) {
+    if (!(design.params && design.params.family === 'mwess')) return 0;
+    const M = design.map;
+    let fixed = 0;
+    const failed = design.nets.filter(function (n) { return n.err === 'ROUTE_NO_CLEAR_PATH'; });
+    for (let fi = 0; fi < failed.length; fi++) {
+      const n = failed[fi];
+      if (n.err !== 'ROUTE_NO_CLEAR_PATH') continue;
+      const A = pinAbs(M, n.a), B = pinAbs(M, n.b);
+      if (!A || !B || !M[n.a.d] || !M[n.b.d]) continue;
+      const sheet = M[n.a.d].sheet;
+      const bx0 = Math.min(A.x, B.x) - 60, bx1 = Math.max(A.x, B.x) + 60;
+      const by0 = Math.min(A.y, B.y) - 60, by1 = Math.max(A.y, B.y) + 60;
+      const blockers = design.wires.filter(function (w) {
+        if (w.net === n.id || w.sheet !== sheet) return false;
+        return segsOf(w.pts).some(function (s) {
+          return Math.max(s.x1, s.x2) >= bx0 && Math.min(s.x1, s.x2) <= bx1 && Math.max(s.y1, s.y2) >= by0 && Math.min(s.y1, s.y2) <= by1;
+        });
+      }).slice(0, 10);
+      let done = false;
+      for (let bi = 0; bi < blockers.length && !done; bi++) {
+        const blk = blockers[bi];
+        const blkIdx = design.wires.indexOf(blk);
+        if (blkIdx < 0) continue;
+        const savedPts = blk.pts.map(function (p) { return p.slice(); }), savedA = blk.a, savedB = blk.b, savedVia = blk.via, savedManual = blk.manual;
+        design.wires.splice(blkIdx, 1);
+        const used = newUsed();
+        design.wires.forEach(function (q) { if (q.sheet === sheet) addWireUsed(used, q, netById(design, q.net)); });
+        const obst = [];
+        design.devices.forEach(function (dv) { if (dv.sheet !== sheet || dv.sym.isBus || dv.sym.isXref || dv.x == null || dv.pwr) return; obst.push(deviceKeepout(dv)); obst.push(dashedBand(dv)); });
+        const soft = (design.soft || {})[sheet] || [];
+        A.esc = M[n.a.d].sym.isXref ? 0 : ESC; B.esc = M[n.b.d].sym.isXref ? 0 : ESC;
+        const pts = solve(A, B, obst, used, n.a.d, n.b.d, soft, n.cls, !!(M[n.a.d].sym.noCross || M[n.b.d].sym.noCross), true);
+        if (!pts || pts.length < 2) { design.wires.splice(blkIdx, 0, blk); continue; }
+        const fw = { id: 'W-' + n.id, net: n.id, cls: n.cls, name: n.name, sheet: sheet, pts: pts, a: A, b: B, manual: true, via: 'RIPUP-ROUTE' };
+        design.wires.push(fw);
+        design.wires.push(blk);
+        const okBlk = rerouteWireHard(design, blk, true);
+        const restore = function () {
+          const i1 = design.wires.indexOf(fw); if (i1 >= 0) design.wires.splice(i1, 1);
+          const i2 = design.wires.indexOf(blk); if (i2 >= 0) design.wires.splice(i2, 1);
+          blk.pts = savedPts; blk.a = savedA; blk.b = savedB; blk.via = savedVia; blk.manual = savedManual;
+          design.wires.splice(Math.min(blkIdx, design.wires.length), 0, blk);
+        };
+        if (!okBlk) { restore(); continue; }
+        crossings(design);
+        const bad = [fw, blk].some(function (w) {
+          return c13Hits(design).some(function (h) { return h.wire === w; }) ||
+            c12Hits(design).some(function (h) { return h.wire === w; }) ||
+            c02Hits(design).some(function (h) { return h.wire === w; }) ||
+            c11Hits(design).some(function (h) { return h.wire === w; }) ||
+            !wireInterferenceClean(design, w, null, true);
+        });
+        if (bad) { restore(); continue; }
+        n.err = null; n.wire_id = fw.id;
+        fixed++; done = true;
+      }
+    }
+    if (fixed) crossings(design);
+    design.ripupRouted = fixed;
+    return fixed;
+  }
+
   function fixXrefOverlap(design) {
     if (design.params && design.params.family === 'mwess') return 0;
     const xrefs = design.devices.filter(function (d) { return d.xref && d.x != null; });
-    const bodies = design.devices.filter(function (d) { return d.x != null && !d.sym.isXref && !d.sym.isBus && !d.pwr; });
+    /* AUDIT-FIX: 障碍集含其它跨页符——旧实现只查 xref×body，xref×xref 重叠（C07）无人修 */
+    const bodies = design.devices.filter(function (d) { return d.x != null && !d.sym.isBus && !d.pwr; });
     let fixed = 0;
     xrefs.forEach(function (xr) {
       const dm = devDims(xr);
       const box = (design.boxes || []).filter(function (b) { return b.id === xr.id && b.kind === 'xref'; })[0];
       if (!box) return;
       const r = { x: box.x, y: box.y, w: box.w, h: box.h };
-      const hit = bodies.some(function (d) { return d.sheet === xr.sheet && overlap(r, { x: d.x - 2, y: d.y - 2, w: devDims(d).w + 4, h: devDims(d).h + 4 }); });
+      const hit = bodies.some(function (d) { return d.id !== xr.id && d.sheet === xr.sheet && overlap(r, { x: d.x - 2, y: d.y - 2, w: devDims(d).w + 4, h: devDims(d).h + 4 }); });
       if (!hit) return;
       const parent = xr.attach && design.map[xr.attach.d];
       if (!parent || parent.x == null) return;
@@ -3562,6 +3796,9 @@ const item = candidates[wi];
       });
       const oldWires = JSON.parse(JSON.stringify(design.wires));
       const oldX = xr.x, oldY = xr.y, oldBX = box.x, oldBY = box.y;
+      /* AUDIT-FIX: 旧验收要求 blocking.length===0——只要存在任何其它阻断违规，
+       * 跨页符让位永远不被接受（C07 残留）。改为 Pareto：C07 严格下降且其余维度不升。 */
+      const baseVec = repairVec(design);
       for (let ci = 0; ci < cands.length; ci++) {
         const x = Math.round(cands[ci][0]), y = Math.round(cands[ci][1]);
         if (x < 20 || y < 20) continue;
@@ -3572,8 +3809,8 @@ const item = candidates[wi];
         });
         reroute(design, [xr.id]);
         crossings(design);
-        audit(design);
-        if (!design.audit.blocking.length) { fixed++; return; }
+        const v = repairVec(design);
+        if (v.c07 < baseVec.c07 && vecLe(v, baseVec)) { fixed++; return; }
         design.wires = JSON.parse(JSON.stringify(oldWires));
         xr.x = oldX; xr.y = oldY; box.x = oldBX; box.y = oldBY;
         crossings(design);
@@ -3601,6 +3838,7 @@ const item = candidates[wi];
       separate(d, 4);
       /* 储能页含成对母线引线与高扇出控制节点，多轮分轨可继续推开短段拥挤。 */
       snapEnds(d); forceOrtho(d); separate(d, 8);
+      deSpike(d); /* AUDIT-FIX: MWESS 管线此前无尖刺/共线冗余清理，折返毛刺与拆段漏跨越 */
       if (window.EVSE_LABELFIX) window.EVSE_LABELFIX.run(d);
       /* MWESS 也走同一套净空与跨页符避让 oracle：只做通道分离不足以
        * 保证引线离开器件边框或标签框；每次局部推线须经过 DRC Pareto 检查。 */
@@ -3608,7 +3846,7 @@ const item = candidates[wi];
       fixC08(d);
       fixClear8(d);
       if (window.EVSE_LABELFIX) window.EVSE_LABELFIX.run(d);
-      snapEnds(d); forceOrtho(d); fitRoutedFrames(d); crossings(d); fixCrossXrefs(d); fixC08(d); repairLabelCross(d); repairBodyCross(d); enforceC13(d); nudgeC14(d); crossings(d); nudgeC14(d); emergencyRoute(d); enforceC13(d); detouch(d); snapEnds(d); forceOrtho(d); crossings(d); audit(d);
+      snapEnds(d); forceOrtho(d); fitRoutedFrames(d); crossings(d); fixCrossXrefs(d); fixC08(d); repairLabelCross(d); repairBodyCross(d); enforceC13(d); nudgeC14(d); crossings(d); nudgeC14(d); emergencyRoute(d); ripupRoute(d); ripupRoute(d); enforceC13(d); detouch(d); snapEnds(d); forceOrtho(d); if (window.EVSE_LABELFIX) window.EVSE_LABELFIX.run(d); deSpike(d); crossings(d); audit(d);
       report('正在完成禁布区、重叠与 ERC/DRC 审计');
       if (window.EVSE_GEO) window.EVSE_GEO.lastDesign = d;
       return d;
@@ -3654,6 +3892,9 @@ const item = candidates[wi];
     crossings(d);
     d.xrefFixed = fixXrefOverlap(d);
     d.emergencyRouted = emergencyRoute(d);
+    /* AUDIT-FIX: 应急布线后补双向 detouch 清角点接触；终局 LABELFIX 清 C08（动文字不动线，零布线风险） */
+    detouch(d); snapEnds(d); forceOrtho(d);
+    if (window.EVSE_LABELFIX) window.EVSE_LABELFIX.run(d);
     report('正在完成禁布区、重叠与 ERC/DRC 审计');
     crossings(d); audit(d);
     if (window.EVSE_GEO) window.EVSE_GEO.lastDesign = d; /* V5-EX1: 导出模块取当前方案 */

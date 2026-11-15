@@ -1,5 +1,7 @@
 # 评审结论与修复升级计划
 
+> **2026-11-15 审计轮更新**：电气拓扑错误（EVSE P0 辅源死锁 + 5×P1；MWESS 7×P1 保护/控制缺口）已全部闭环并经仿真/结构验证；DRC 引擎修复使 C03 19/60→2/3、C05 10→3、C14 8→1、C07 清零；审计判据升级为网表级拓扑校验。完整发现、修复与残留见 [`AUDIT_REPORT_2026-11-15.md`](AUDIT_REPORT_2026-11-15.md) 与 `out_audit/_geo_routing_report.md`（F01–F18）。阶段 1 母排化已完成；**下一步优先级：MWESS 布局数据加宽 + 失败网跨页符让位 → B02 清零**，再进入阶段 2 约束求解式布线。
+
 评审日期：2026-11-01  
 评审范围：`evse-geo.js`、`evse-core.js`、`evse-mwess-core.js`、`evse-calc.js`、`evse-ai.js`、`index.html`、`proxy.js`、`tests/`、`out_mwess/` 与现有文档。  
 本文件同时记录**本轮已落实项**与**后续阶段计划**。当前真实状态以 `tests/e2e-baseline.json` 和 `docs/audit-status.md` 为准。

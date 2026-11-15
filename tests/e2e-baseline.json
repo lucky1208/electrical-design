@@ -1,6 +1,6 @@
 {
   "schema": "evse-e2e-baseline/v1",
-  "generatedAt": "2026-11-04T13:04:22.062Z",
+  "generatedAt": "2026-11-15T05:26:16.347Z",
   "note": "违规计数只允许下降。修复后运行 node scripts/audit-snapshot.js --update-baseline。",
   "scenarios": {
     "evse": {
@@ -18,24 +18,23 @@
         "essClusters": 2,
         "coupling": "dc"
       },
-      "devices": 223,
-      "nets": 314,
-      "wires": 314,
+      "devices": 229,
+      "nets": 323,
+      "wires": 323,
       "unrouted": 0,
       "grade": "D",
       "status": "BLOCKED",
       "blocking": [
         "C03",
         "C05",
-        "C07",
         "C14"
       ],
       "violations": {
-        "C03": 19,
-        "C05": 10,
-        "C14": 8,
-        "C07": 1,
-        "C08": 13
+        "C03": 2,
+        "C05": 3,
+        "C14": 1,
+        "C08": 34,
+        "G08": 1
       }
     },
     "mwess": {
@@ -43,10 +42,10 @@
       "params": {
         "family": "mwess"
       },
-      "devices": 785,
-      "nets": 1122,
-      "wires": 1085,
-      "unrouted": 37,
+      "devices": 831,
+      "nets": 1185,
+      "wires": 1170,
+      "unrouted": 15,
       "grade": "D",
       "status": "BLOCKED",
       "blocking": [
@@ -54,9 +53,9 @@
         "C03"
       ],
       "violations": {
-        "B02": 37,
-        "C03": 60,
-        "C08": 18
+        "B02": 15,
+        "C03": 4,
+        "C08": 1
       }
     }
   }

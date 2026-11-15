@@ -102,7 +102,10 @@ window.EVSE_RENDER = (function () {
     return s;
   }
 
-  /* 走线：把 hop 烘进 path（半圆跨越），另出透明命中线段 */
+  /* 走线：把 hop 烘进 path（半圆跨越），另出透明命中线段。
+   * AUDIT-FIX: 水平段上的跨越（horiz:true，T-split 让位与穿引脚电点）此前被
+   * `if (!vert) return false` 整体丢弃——审计 C03 通过但 SVG 仍是裸交叉。
+   * 现在横竖段都按几何匹配绘制半圆。 */
   function wirePath(w, hops) {
     const pts = w.pts;
     let d = '';
@@ -111,15 +114,28 @@ window.EVSE_RENDER = (function () {
       if (i === 0) d += 'M ' + n2(a[0]) + ' ' + n2(a[1]) + ' ';
       const vert = Math.abs(a[0] - b[0]) < 0.01;
       const hs = (hops || []).filter(function (h) {
-        if (!vert) return false;
-        if (Math.abs(h.x - a[0]) > 0.6) return false;
-        return h.y > Math.min(a[1], b[1]) + 1 && h.y < Math.max(a[1], b[1]) - 1;
-      }).sort(function (m, n) { return (b[1] > a[1] ? 1 : -1) * (m.y - n.y); });
-      const down = b[1] > a[1];
-      hs.forEach(function (h) {
-        const y0 = down ? h.y - HOP_R : h.y + HOP_R, y1 = down ? h.y + HOP_R : h.y - HOP_R;
-        d += 'L ' + n2(a[0]) + ' ' + n2(y0) + ' A ' + HOP_R + ' ' + HOP_R + ' 0 0 ' + (down ? 1 : 0) + ' ' + n2(a[0]) + ' ' + n2(y1) + ' ';
+        if (vert) {
+          if (Math.abs(h.x - a[0]) > 0.6) return false;
+          return h.y > Math.min(a[1], b[1]) + 1 && h.y < Math.max(a[1], b[1]) - 1;
+        }
+        if (Math.abs(h.y - a[1]) > 0.6) return false;
+        return h.x > Math.min(a[0], b[0]) + 1 && h.x < Math.max(a[0], b[0]) - 1;
+      }).sort(function (m, n) {
+        return vert ? (b[1] > a[1] ? 1 : -1) * (m.y - n.y) : (b[0] > a[0] ? 1 : -1) * (m.x - n.x);
       });
+      if (vert) {
+        const down = b[1] > a[1];
+        hs.forEach(function (h) {
+          const y0 = down ? h.y - HOP_R : h.y + HOP_R, y1 = down ? h.y + HOP_R : h.y - HOP_R;
+          d += 'L ' + n2(a[0]) + ' ' + n2(y0) + ' A ' + HOP_R + ' ' + HOP_R + ' 0 0 ' + (down ? 1 : 0) + ' ' + n2(a[0]) + ' ' + n2(y1) + ' ';
+        });
+      } else {
+        const right = b[0] > a[0];
+        hs.forEach(function (h) {
+          const x0 = right ? h.x - HOP_R : h.x + HOP_R, x1 = right ? h.x + HOP_R : h.x - HOP_R;
+          d += 'L ' + n2(x0) + ' ' + n2(a[1]) + ' A ' + HOP_R + ' ' + HOP_R + ' 0 0 ' + (right ? 0 : 1) + ' ' + n2(x1) + ' ' + n2(a[1]) + ' ';
+        });
+      }
       d += 'L ' + n2(b[0]) + ' ' + n2(b[1]) + ' ';
     }
     return d;

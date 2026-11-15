@@ -1,6 +1,6 @@
 # 自动原理图平台：审计结论与分阶段修复方案
 
-> 2026-11-01 更新：本文保留 10-31 的历史修复记录。当前真实审计基线、已落实项与后续路线以 [`UPGRADE_PLAN.md`](UPGRADE_PLAN.md)、[`docs/audit-status.md`](docs/audit-status.md) 为准。当前 strict 路由下 MWESS 为 D / BLOCKED（B02=37、C03=60；C05/C07/C09/C14 已清零），EVSE 默认场景为 D / BLOCKED（C03=19、C05=10、C14=8、C07=1）。`out_mwess/` 是旧快照，不代表当前代码。
+> **2026-11-15 更新**：新一轮全链路审计（拓扑/布线DRC/仿真渲染）与修复已完成，见 [`AUDIT_REPORT_2026-11-15.md`](AUDIT_REPORT_2026-11-15.md)。本文保留 10-31 的历史修复记录。当前真实审计基线、已落实项与后续路线以 [`UPGRADE_PLAN.md`](UPGRADE_PLAN.md)、[`docs/audit-status.md`](docs/audit-status.md) 为准。当前 strict 路由下 MWESS 为 D / BLOCKED（B02=37、C03=60；C05/C07/C09/C14 已清零），EVSE 默认场景为 D / BLOCKED（C03=19、C05=10、C14=8、C07=1）。`out_mwess/` 是旧快照，不代表当前代码。
 
 审计日期：2026-10-31（本轮修复状态更新）
 范围：evse-geo.js、evse-core.js、evse-mwess-core.js、evse-calc.js、evse-export.js、index.html 与现有 MWESS 审计快照。
