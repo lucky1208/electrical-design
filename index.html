@@ -535,8 +535,14 @@
             <option value="circle">圆形</option>
             <option value="diamond">菱形</option>
             <option value="hex">六边形</option>
-            <option value="switch_no">开关·常开</option>
-            <option value="switch_nc">开关·常闭</option>
+            <option value="switch_no">开关·常开（斜刀）</option>
+            <option value="switch_nc">开关·常闭（搭接）</option>
+            <option value="contact_no">触点·常开</option>
+            <option value="contact_nc">触点·常闭</option>
+            <option value="contactor">接触器（主触头多极）</option>
+            <option value="contactor3">接触器（3 极）</option>
+            <option value="relay">继电器（线圈+触点）</option>
+            <option value="breaker">断路器/隔离开关</option>
             <option value="diode">二极管</option>
             <option value="fuse">熔断器</option>
             <option value="coil">线圈/接触器</option>
@@ -545,7 +551,11 @@
             <option value="lamp">指示灯</option>
             <option value="ground">接地</option>
           </select></label>
-          <label class="f" style="width:88px"><span>宽度</span><input id="cdW" type="number" value="120" min="8" max="600" step="2"></label>
+          <label class="f" style="width:104px"><span>开合状态</span><select id="cdClosed" style="padding:5px 6px">
+            <option value="open">断开（斜刀）</option>
+            <option value="closed">闭合（直通）</option>
+          </select></label>
+          <label class="f" style="width:84px"><span>宽度</span><input id="cdW" type="number" value="120" min="8" max="600" step="2"></label>
           <label class="f" style="width:92px"><span>最小高度</span><input id="cdMinH" type="number" value="56" min="16" max="600" step="2"></label>
         </div>
         <div style="margin:2px 0 6px">
@@ -2273,9 +2283,39 @@
   function rebuildCustomLib() {
     for (var i = LIBCAT.length - 1; i >= 0; i--) if (LIBCAT[i].custom != null) LIBCAT.splice(i, 1);
     customStore().forEach(function (spec, ci) {
-      LIBCAT.push({ g: '自定义', tag: spec.tag || 'U', name: spec.name || '自定义器件', custom: ci, spec: spec, make: function (sp) { return function () { return window.EVSE_CORE.makeBox(sp); }; }(spec) });
+      LIBCAT.push({ g: '自定义', tag: spec.tag || 'U', name: spec.name || '自定义器件', custom: ci, spec: spec, make: function (sp) { return function () { return window.EVSE_CORE.makeBox(cdNormalizeSpec(sp)); }; }(spec) });
     });
     renderLib();
+  }
+  /* V16b: 旧的自定义件（AI 生成的接触器/开关多为方框）在放置/编辑时自动纠正为触头刀片画法。
+   * 仅在未自绘图元且名称明确是触头类器件时生效，避免破坏用户手工设计。 */
+  function cdNormalizeSpec(spec) {
+    var sp = Object.assign({}, spec || {});
+    var body = sp.body;
+    var hasShapes = Array.isArray(sp.shapes) && sp.shapes.length;
+    if ((!body || body === 'rect' || body === 'none') && !hasShapes) {
+      var nm = String(sp.name || '') + ' ' + String(sp.title || '');
+      var strong = /接触器|继电器|开关|断路器|隔离开关|contactor|relay|breaker|switch/i.test(nm);
+      if (strong) {
+        var g = cdGuessBody(sp.name, sp.title) || 'switch_no';
+        sp.body = g;
+        var coil = [], main = [];
+        ['left', 'right', 'top', 'bottom'].forEach(function (sd) {
+          (sp[sd] || []).forEach(function (p) {
+            var pn = String(p.name || '') + ' ' + String(p.n || '');
+            if (/^a1$|^a2$|线圈|coil/i.test(pn)) coil.push(p); else main.push(p);
+          });
+        });
+        sp.left = coil; sp.right = []; sp.top = []; sp.bottom = [];
+        main.forEach(function (p, i) { (i % 2 === 0 ? sp.top : sp.bottom).push(p); });
+        /* 宽度按极数重算，避免旧件 120 宽只画一根刀片 */
+        var poles = Math.max(1, Math.min(3, Math.ceil(main.length / 2)));
+        sp.w = (g === 'contactor' || g === 'contactor3' || g === 'relay') ? Math.max(70, (poles - 1) * 22 + 56) : 40;
+        if (!sp.minH || sp.minH < 60) sp.minH = 70;
+        if (typeof sp.closed !== 'boolean') sp.closed = false;
+      }
+    }
+    return sp;
   }
   /* V16: 自定义图形基元解析——支持「每行一条」简写或直接粘贴 JSON 数组。
    * 允许 W/H 变量（按当前符号宽度/高度求值），使图形随尺寸伸缩。 */
@@ -2356,6 +2396,7 @@
       /* V16: 非方框外形默认不写框内标题（开关/接地等不放文字），需要时手动填 */
       title: ($('cdTitle').value || '').trim() || (bodyKind === 'rect' ? nm : ''),
       body: bodyKind,
+      closed: ($('cdClosed') && $('cdClosed').value === 'closed'),
       shapes: shapes,
       w: Math.max(8, +$('cdW').value || 120), minH: Math.max(16, +$('cdMinH').value || 56),
       left: by.left, right: by.right, top: by.top, bottom: by.bottom,
@@ -2433,6 +2474,7 @@
     $('cdW').value = spec.w || 120; $('cdMinH').value = spec.minH || 56;
     /* V16: 外形与自绘图元往返无损 */
     if ($('cdBody')) $('cdBody').value = (window.EVSE_CORE.BOX_BODIES.indexOf(spec.body) >= 0) ? spec.body : 'rect';
+    if ($('cdClosed')) $('cdClosed').value = spec.closed ? 'closed' : 'open';
     if ($('cdShapes')) $('cdShapes').value = cdPrimsToText(spec.shapes);
     var el = spec.electrical || {};
     $('cdMfr').value = el.manufacturer || ''; $('cdModel').value = el.model || ''; $('cdSourceId').value = el.sourceId || ''; $('cdSourceRev').value = el.sourceRevision || '';
@@ -2449,14 +2491,83 @@
   window.__CUSTOM_EDIT = function (idx) {
     var e = LIBCAT[idx]; if (!e || e.custom == null) return;
     CD_EDIT = e.custom; $('cdHead').textContent = '编辑自定义元器件：' + e.name; $('cdAiMsg').textContent = '';
-    cdLoadSpec(e.spec || customStore()[e.custom] || {}); $('compDlg').style.display = 'block';
+    cdLoadSpec(cdNormalizeSpec(e.spec || customStore()[e.custom] || {})); $('compDlg').style.display = 'block';
   };
   window.__CUSTOM_DEL = function (idx) {
     var e = LIBCAT[idx]; if (!e || e.custom == null) return;
     if (!confirm('删除自定义元器件「' + e.name + '」？（已放置到图纸上的实例不受影响）')) return;
     var arr = customStore(); arr.splice(e.custom, 1); customSave(arr); rebuildCustomLib(); msg('已删除自定义元器件 ' + e.name);
   };
-  var CD_PROMPT = function (what) { return '你是电气原理图符号助手。请从' + what + '中提取元器件符号定义，只输出一个 JSON 对象（禁止 markdown 代码块和其它文字）：{"name":"元器件名称","tag":"位号前缀大写字母","title":"框内标题","body":"rect或none或circle或diamond或hex或switch_no或switch_nc或diode或fuse或coil或resistor或cap或lamp或ground","w":宽度整数8到600,"minH":最小高度整数16到600,"pins":[{"n":"引脚号","name":"引脚名","side":"left或right或top或bottom","k":"AC或DC或ESS或AUX或CTL或COMM或SIG或PE","t":"in或out或bi","ercType":"unclassified或passive或input或output或bidirectional或power_input或power_output或power_bidirectional或no_connect"}]}。规则：开关/触点/熔断器/二极管等分立件 body 用 none（不要套方框）或直接用对应电气画法；集成电路/模块用 rect。两端竖向器件（开关、二极管、熔断器）引脚放 top 与 bottom，电源输入放 left，功率/通信输出放 right，接地 PE 放 bottom；引脚数量与名称严格按资料，不得臆造。只有资料明确给出电气驱动类型时才填写 ercType，否则必须为 unclassified；AI 给出的类型一律是待人工复核假设，不得标为已核验。'; };
+  var CD_PROMPT = function (what) { return '你是电气原理图符号助手。请从' + what + '中提取元器件符号定义，只输出一个 JSON 对象（禁止 markdown 代码块和其它文字）：{"name":"元器件名称","tag":"位号前缀大写字母","title":"框内标题","body":"rect或none或circle或diamond或hex或switch_no或switch_nc或contact_no或contact_nc或contactor或contactor3或relay或breaker或diode或fuse或coil或resistor或cap或lamp或ground","closed":true或false,"w":宽度整数8到600,"minH":最小高度整数16到600,"pins":[{"n":"引脚号","name":"引脚名","side":"left或right或top或bottom","k":"AC或DC或ESS或AUX或CTL或COMM或SIG或PE","t":"in或out或bi","ercType":"unclassified或passive或input或output或bidirectional或power_input或power_output或power_bidirectional或no_connect"}]}。规则：' +
+    '（1）接触器/继电器/开关/断路器/触点禁止用 rect 方框，必须用触头刀片画法：接触器 body="contactor"（多极）或 "contactor3"（3 极），继电器 body="relay"，断路器/隔离开关 body="breaker"，开关 body="switch_no" 或 "switch_nc"，单副触点 body="contact_no" 或 "contact_nc"；' +
+    '（2）触头类器件的主触头引脚按 1/3/5 在 top、2/4/6 在 bottom 排列（上奇数下偶数），线圈 A1/A2 放 left；' +
+    '（3）分合状态：「常开/NO/断开」closed=false（斜刀），「常闭/NC/闭合」closed=true（直通）；' +
+    '（4）熔断器 fuse、二极管 diode、线圈 coil、电阻 resistor、电容 cap、指示灯 lamp、接地 ground 直接选对应 body，不要套方框；集成电路/功能模块才用 rect；' +
+    '（5）引脚数量与名称严格按资料，不得臆造。只有资料明确给出电气驱动类型时才填写 ercType，否则必须为 unclassified；AI 给出的类型一律是待人工复核假设，不得标为已核验。'; };
+  /* V16b: 按名称/用途猜外形——AI 常把接触器当方框返回，这里纠正为触头刀片画法 */
+  var CD_BLADE = /^(switch_no|switch_nc|contact_no|contact_nc|contactor|contactor3|relay|breaker)$/;
+  function cdGuessBody(name, title) {
+    var s = String(name || '') + ' ' + String(title || '');
+    if (/接触器|contactor/i.test(s)) return 'contactor';
+    if (/继电器|relay/i.test(s)) return 'relay';
+    if (/断路器|隔离开关|负荷开关|刀开关|breaker|disconnect|isolat/i.test(s)) return 'breaker';
+    if (/发光|led|lamp|指示灯/i.test(s)) return 'lamp';
+    if (/二极管|diode/i.test(s)) return 'diode';
+    if (/熔断|保险丝|fuse/i.test(s)) return 'fuse';
+    if (/线圈|绕组|coil/i.test(s)) return 'coil';
+    if (/电阻|resistor/i.test(s)) return 'resistor';
+    if (/电容|capacitor/i.test(s)) return 'cap';
+    if (/接地|ground|earth/i.test(s)) return 'ground';
+    if (/开关|按钮|switch|button/i.test(s)) return /常闭|nc|闭合/i.test(s) ? 'switch_nc' : 'switch_no';
+    return null;
+  }
+  /* 触头类：主触头按上奇下偶分布，线圈脚留左侧，保证刀片正对引脚 */
+  function cdApplyBladePins(kind) {
+    var coil = [], main = [];
+    cdPins.forEach(function (p) {
+      var nm = String(p.name || '') + ' ' + String(p.n || '');
+      if (/^a1$|^a2$|线圈|coil/i.test(nm) || /^(a1|a2)$/i.test(String(p.n))) coil.push(p); else main.push(p);
+    });
+    if (kind === 'relay' || kind === 'contactor' || kind === 'contactor3') coil.forEach(function (p) { p.side = 'left'; });
+    main.forEach(function (p, i) { p.side = (i % 2 === 0) ? 'top' : 'bottom'; });
+    cdRenderPins();
+  }
+  function cdApplyGuessedBody(kind, keepW) {
+    if (!$('cdBody')) return;
+    $('cdBody').value = kind;
+    var perPole = 22, poles = kind === 'contactor3' ? 3 : kind === 'contactor' ? Math.max(1, Math.ceil(((cdPins.length - (kind === 'contactor' ? 2 : 0)) || 6) / 2)) : 1;
+    var wantW = (kind === 'contactor' || kind === 'contactor3' || kind === 'relay')
+      ? Math.max(70, Math.min(140, (poles - 1) * perPole + 56))
+      : (kind === 'ground' ? 44 : 40);
+    if (!keepW) $('cdW').value = wantW;
+    if (+$('cdMinH').value < 60) $('cdMinH').value = 70;
+    cdApplyBladePins(kind);
+    if ($('cdClosed')) { $('cdClosed').disabled = !CD_BLADE.test(kind); $('cdClosed').style.opacity = CD_BLADE.test(kind) ? '1' : '.45'; }
+  }
+  /* V16b: 把 AI 返回的 JSON 落到编辑器（含外形纠正）。抽成独立函数便于测试与复用。 */
+  function cdApplyAiSpec(j) {
+    if (j.tag) $('cdTag').value = String(j.tag).replace(/[^A-Za-z]/g, '').slice(0, 6) || 'U';
+    if (j.name) $('cdName').value = String(j.name).slice(0, 30);
+    if (j.title) $('cdTitle').value = String(j.title).slice(0, 30);
+    if (j.w) $('cdW').value = Math.min(600, Math.max(8, +j.w || 120));
+    if (j.minH) $('cdMinH').value = Math.min(600, Math.max(16, +j.minH || 56));
+    var sides = { left: 1, right: 1, top: 1, bottom: 1 };
+    cdPins = (j.pins || []).map(function (p, i2) {
+      return { n: String(p.n || p.num || (i2 + 1)), name: String(p.name || p.n || ''), side: sides[p.side] ? p.side : 'right', k: KDOMS.indexOf(p.k) >= 0 ? p.k : 'CTL', t: ['in', 'out', 'bi'].indexOf(p.t) >= 0 ? p.t : 'bi', ercType: ERC_PIN_TYPES.indexOf(p.ercType) > 0 ? p.ercType : 'unclassified' };
+    });
+    /* 外形纠正——AI 常把接触器/开关画成方框，按名称改回触头刀片画法并重排引脚 */
+    var aiBody = (j.body && window.EVSE_CORE.BOX_BODIES.indexOf(j.body) >= 0) ? j.body : null;
+    var guess = cdGuessBody(j.name || $('cdName').value, j.title || $('cdTitle').value);
+    var finalBody = aiBody;
+    if (guess && (!aiBody || aiBody === 'rect' || aiBody === 'none')) finalBody = guess;
+    if (finalBody === 'rect') { if ($('cdBody')) $('cdBody').value = 'rect'; }
+    else if (finalBody) cdApplyGuessedBody(finalBody, !!j.w);
+    if (typeof j.closed === 'boolean' && CD_BLADE.test(finalBody || '')) $('cdClosed').value = j.closed ? 'closed' : 'open';
+    cdRenderPins(); cdPreview();
+    return { body: finalBody, pins: cdPins.length };
+  }
+  window.__CUSTOM_APPLY_AI = cdApplyAiSpec; /* V16b: 供自动化测试/脚本调用 */
+  window.__CUSTOM_NORM = cdNormalizeSpec;
   async function cdAiCall(content) {
     if (!window.EVSE_AI || !EVSE_AI.ready()) { $('cdAiMsg').textContent = '⚠ 请先在「AI 工具 → 大模型设置」配置接口地址 / Key / 模型（识图需模型支持视觉）'; return; }
     $('cdAiMsg').textContent = '🤖 AI 识别中，请稍候…';
@@ -2466,18 +2577,8 @@
       var i0 = t.indexOf('{'), i1 = t.lastIndexOf('}');
       if (i0 < 0 || i1 <= i0) throw new Error('AI 未返回 JSON：' + t.slice(0, 80));
       var j = JSON.parse(t.slice(i0, i1 + 1));
-      if (j.tag) $('cdTag').value = String(j.tag).replace(/[^A-Za-z]/g, '').slice(0, 6) || 'U';
-      if (j.name) $('cdName').value = String(j.name).slice(0, 30);
-      if (j.title) $('cdTitle').value = String(j.title).slice(0, 30);
-      if (j.body && $('cdBody') && window.EVSE_CORE.BOX_BODIES.indexOf(j.body) >= 0) $('cdBody').value = j.body;
-      if (j.w) $('cdW').value = Math.min(600, Math.max(8, +j.w || 120));
-      if (j.minH) $('cdMinH').value = Math.min(600, Math.max(16, +j.minH || 56));
-      var sides = { left: 1, right: 1, top: 1, bottom: 1 };
-      cdPins = (j.pins || []).map(function (p, i2) {
-        return { n: String(p.n || p.num || (i2 + 1)), name: String(p.name || p.n || ''), side: sides[p.side] ? p.side : 'right', k: KDOMS.indexOf(p.k) >= 0 ? p.k : 'CTL', t: ['in', 'out', 'bi'].indexOf(p.t) >= 0 ? p.t : 'bi', ercType: ERC_PIN_TYPES.indexOf(p.ercType) > 0 ? p.ercType : 'unclassified' };
-      });
-      cdRenderPins(); cdPreview();
-      $('cdAiMsg').textContent = '✔ 已识别 ' + cdPins.length + ' 个引脚，请逐个核对修正后保存';
+      var applied = cdApplyAiSpec(j);
+      $('cdAiMsg').textContent = '✔ 已识别 ' + cdPins.length + ' 个引脚' + (applied && applied.body && applied.body !== 'rect' ? '，外形按「' + applied.body + '」生成（可在「外形/开合状态」调整）' : '') + '，请逐个核对修正后保存';
     } catch (e) {
       $('cdAiMsg').textContent = '识别失败：' + e.message + (/HTTP 4\d\d/.test(String(e.message)) ? '（当前模型可能不支持图片，可改用文字粘贴解析）' : '');
     }
@@ -2514,16 +2615,22 @@
   /* V16: 外形/自绘图元交互 */
   if ($('cdBody')) $('cdBody').onchange = function () {
     var k = this.value;
-    var TEMPL = /^(switch_no|switch_nc|diode|fuse|coil|resistor|cap|lamp)$/;
+    var BLADE = /^(switch_no|switch_nc|contact_no|contact_nc|contactor|contactor3|relay|breaker)$/;
+    var VERT2 = /^(switch_no|switch_nc|contact_no|contact_nc|diode|fuse|coil|resistor|cap|lamp|breaker)$/;
     var boxish = /^(rect|round|circle|diamond|hex)$/;
-    /* 竖向两端分立件：默认建议窄而高（贴合电气画法），用户仍可改 */
-    if (TEMPL.test(k) && (+$('cdW').value === 120 || +$('cdW').value < 30)) { $('cdW').value = 40; if (+$('cdMinH').value < 60) $('cdMinH').value = 70; }
+    /* 触头类外形：默认建议窄而高（贴合电气画法），用户仍可改 */
+    if (VERT2.test(k) && (+$('cdW').value === 120 || +$('cdW').value < 30)) { $('cdW').value = 40; if (+$('cdMinH').value < 60) $('cdMinH').value = 70; }
+    if ((k === 'contactor' || k === 'contactor3' || k === 'relay') && (+$('cdW').value === 120 || +$('cdW').value < 30)) { $('cdW').value = 96; if (+$('cdMinH').value < 60) $('cdMinH').value = 70; }
     if (k === 'ground') { $('cdW').value = 44; $('cdMinH').value = 44; }
     if (boxish.test(k) && +$('cdW').value < 30) $('cdW').value = 120;
-    /* 开关类外形给出两端引脚顺序提示 */
-    msg(TEMPL.test(k) ? '外形「' + $('cdBody').options[this.selectedIndex].text + '」：建议引脚放 上/下 边（上=1、下=2），画布上可旋转 90°' : '外形已切换为「' + $('cdBody').options[this.selectedIndex].text + '」');
+    /* 开合状态只对触头类外形有意义 */
+    if ($('cdClosed')) { $('cdClosed').disabled = !BLADE.test(k); $('cdClosed').style.opacity = BLADE.test(k) ? '1' : '.45'; }
+    msg(BLADE.test(k)
+      ? '外形「' + $('cdBody').options[this.selectedIndex].text + '」：触头引脚放 上/下 边（1/3/5 在上、2/4/6 在下），线圈 A1/A2 放左侧；开合状态决定刀片画法'
+      : '外形已切换为「' + $('cdBody').options[this.selectedIndex].text + '」');
     cdPreview();
   };
+  if ($('cdClosed')) $('cdClosed').onchange = function () { cdPreview(); };
   if ($('cdShapes')) $('cdShapes').oninput = function () { cdPreview(); };
   if ($('cdShapesDemo')) $('cdShapesDemo').onclick = function () {
     var k = ($('cdBody') && $('cdBody').value) || 'none';

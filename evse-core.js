@@ -177,10 +177,28 @@ window.EVSE_CORE = (function () {
    * 全部按当前 w/h 比例生成 → 改尺寸时符号自动伸缩，不是固定死图。
    * ------------------------------------------------------------ */
   const BOX_BODIES = ['rect', 'none', 'round', 'circle', 'diamond', 'hex',
-    'switch_no', 'switch_nc', 'diode', 'fuse', 'coil', 'resistor', 'cap', 'lamp', 'ground'];
-  function bodyPrims(kind, w, h) {
+    'switch_no', 'switch_nc', 'contact_no', 'contact_nc', 'contactor', 'contactor3', 'relay', 'breaker',
+    'diode', 'fuse', 'coil', 'resistor', 'cap', 'lamp', 'ground'];
+  /* 触头刀片（单极）：上固定触头 → 刀片（断开=斜出 / 闭合=直通）→ 下固定触头。
+   * IEC 60617 画法：断开时刀片与下触头留出明显夹角，闭合时刀片搭在两个触头上。 */
+  function bladePrims(x, y0, y1, closed, dx, h) {
+    const out = [['L', x, 0, x, y0], ['CF', x, y0, 1.7]];
+    if (closed) out.push(['L', x, y0, x, y1]);
+    else out.push(['L', x, y0, x + Math.max(6, dx), y1 - 4]);
+    out.push(['CF', x, y1, 1.7], ['L', x, y1, x, h]);
+    return out;
+  }
+  function bodyPrims(kind, w, h, ctx) {
     const cx = w / 2, cy = h / 2;
     const t = (n) => Math.round(n * 100) / 100;
+    const C = ctx || {};
+    const closed = !!C.closed;
+    const tp = C.tpitch || 22, bp = C.bpitch || 22;
+    /* 极数与极 x 坐标：与 makeBox 的顶/底引脚布局同一公式，保证刀片正对引脚 */
+    const poles = Math.max(1, Math.min(4, C.poles || Math.max(C.nTop || 0, C.nBot || 0) || 1));
+    const pitch = Math.max(tp, bp);
+    /* 与 makeBox 顶/底引脚同一取整公式，刀片必须正对引脚 */
+    const poleX = function (i, n) { return Math.round((w - (n - 1) * pitch) / 2) + i * pitch; };
     switch (kind) {
       case 'none': return [];
       case 'round': return [['R', 0, 0, w, h, Math.min(w, h) / 2]];
@@ -190,19 +208,61 @@ window.EVSE_CORE = (function () {
         const x0 = Math.min(w * 0.25, 18);
         return [['P', 'M ' + t(x0) + ' 0 L ' + t(w - x0) + ' 0 L ' + t(w) + ' ' + t(cy) + ' L ' + t(w - x0) + ' ' + t(h) + ' L ' + t(x0) + ' ' + t(h) + ' L 0 ' + t(cy) + ' Z']];
       }
-      /* 开关（常开）：上端子—刀触头斜出—下端子，IEC 60617 画法 */
-      case 'switch_no': {
-        const bx = Math.max(6, Math.min(w * 0.3, 14)), y0 = h * 0.28, y1 = h * 0.72;
-        return [['L', bx, 0, bx, y0], ['CF', bx, y0, 1.7],
-          ['L', bx, y0, Math.min(w - 2, bx + Math.max(10, w * 0.4)), y1 - 5],
-          ['CF', bx, y1, 1.7], ['L', bx, y1, bx, h]];
+      /* 开关：单极刀片，断开=斜刀（open）/闭合=直通（closed） */
+      case 'switch_no':
+      case 'contact_no': {
+        const bx = poleX(0, 1), y0 = h * 0.28, y1 = h * 0.72;
+        return bladePrims(bx, y0, y1, closed, Math.max(10, w * 0.4), h);
       }
-      /* 开关（常闭）：刀触头贴合下端子 + 操作杆 */
-      case 'switch_nc': {
-        const bx = Math.max(6, Math.min(w * 0.3, 14)), y0 = h * 0.28, y1 = h * 0.72;
-        return [['L', bx, 0, bx, y0], ['CF', bx, y0, 1.7],
-          ['L', bx, y0, bx, y1], ['CF', bx, y1, 1.7], ['L', bx, y1, bx, h],
-          ['L', bx - 7, y1 + 8, bx + 7, y1 + 2]];
+      /* 常闭触点：默认闭合刀片 + 操作杆（断开时刀片抬起） */
+      case 'switch_nc':
+      case 'contact_nc': {
+        const bx = poleX(0, 1), y0 = h * 0.28, y1 = h * 0.72;
+        /* 常闭：未显式指定开合状态时按闭合画（断开时可显式选「断开」） */
+        const ncClosed = C.closed == null ? true : closed;
+        return bladePrims(bx, y0, y1, ncClosed, Math.max(10, w * 0.4), h)
+          .concat([['L', bx - 7, y1 + 8, bx + 7, y1 + 2]]);
+      }
+      /* 接触器主触头：多极刀片 + 机械联动虚线（+ 有线圈引脚时画线圈与联动虚线） */
+      case 'contactor':
+      case 'contactor3': {
+        const n = Math.max(1, Math.min(4, kind === 'contactor3' ? 3 : poles));
+        const y0 = h * 0.30, y1 = h * 0.70, dx = Math.max(8, Math.min(12, pitch * 0.45));
+        let out = [];
+        for (let i = 0; i < n; i++) out = out.concat(bladePrims(poleX(i, n), y0, y1, closed, dx, h));
+        /* 机械联动：穿越各极刀片的水平虚线（IEC：虚线表示同一驱动） */
+        if (n > 1) out.push(['D', poleX(0, n) - 6, (y0 + y1) / 2, poleX(n - 1, n) + 6, (y0 + y1) / 2]);
+        /* 线圈：仅当存在 A1/A2 之类侧边引脚时补画（左/右取有引脚的一侧） */
+        const nSide = Math.max(C.nLeft || 0, C.nRight || 0);
+        if (nSide >= 2) {
+          const right = (C.nRight || 0) >= (C.nLeft || 0);
+          const cw = Math.min(18, w * 0.22), chh = Math.min(h * 0.34, 26);
+          const bx2 = right ? w - cw - 2 : 2;
+          const by2 = cy - chh / 2;
+          out.push(['R', bx2, by2, cw, chh]);
+          out.push(['T', bx2 + cw / 2, by2 + chh / 2 + 3, 'KM', 7.5, 'm', 'dim']);
+          out.push(['D', right ? bx2 : bx2 + cw, cy, right ? poleX(n - 1, n) : poleX(0, n), (y0 + y1) / 2]);
+        }
+        return out;
+      }
+      /* 继电器：线圈 + 一副触点 + 机械联动虚线 */
+      case 'relay': {
+        const y0 = h * 0.28, y1 = h * 0.68;
+        const cw = Math.min(20, w * 0.24), chh = Math.min(h * 0.36, 28);
+        const bx2 = 2, by2 = cy - chh / 2;
+        const px = Math.max(w * 0.68, bx2 + cw + 14);
+        return [['R', bx2, by2, cw, chh],
+          ['L', bx2 + cw / 2, by2 + chh / 2 - 5, bx2 + cw / 2, by2 + chh / 2 + 5, 1],
+          ['T', bx2 + cw / 2, by2 + chh / 2 + 12, 'K', 7, 'm', 'dim']]
+          .concat(bladePrims(px, y0, y1, closed, Math.max(8, Math.min(12, w * 0.16)), h))
+          .concat([['D', bx2 + cw, cy, px, (y0 + y1) / 2]]);
+      }
+      /* 断路器/隔离开关：刀片 + 脱扣叉（×）标记 */
+      case 'breaker': {
+        const bx = poleX(0, 1), y0 = h * 0.30, y1 = h * 0.70;
+        const p = bladePrims(bx, y0, y1, closed, Math.max(9, w * 0.35), h);
+        const mx = bx + 6, my = (y0 + y1) / 2;
+        return p.concat([['L', mx - 5, my - 5, mx + 5, my + 5, 1.2], ['L', mx - 5, my + 5, mx + 5, my - 5, 1.2]]);
       }
       /* 二极管：三角 + 阴极横线 */
       case 'diode': {
@@ -259,9 +319,17 @@ window.EVSE_CORE = (function () {
     const w = Math.max(opt.w || 0, wMin);
     /* V16: 外形可选；border:false 等价于 body:'none'（开关/触点/分立件不画方框） */
     const bodyKind = opt.body || (opt.border === false ? 'none' : 'rect');
+    /* V16b: 触头类外形需要知道极数与开合状态；极数按上下引脚数推断（contactor3 固定 3 极） */
+    const bladeCtx = {
+      nTop: T.length, nBot: B.length, nLeft: L.length, nRight: R.length,
+      tpitch: opt.tpitch || 22, bpitch: opt.bpitch || 22,
+      poles: opt.poles || null,
+      /* null = 未指定（常闭触点默认闭合）；true/false = 显式分合状态 */
+      closed: opt.closed == null ? null : (opt.closed === true || opt.closed === 'closed' || opt.closed === '闭合')
+    };
     const d = [];
     if (bodyKind === 'rect' || BOX_BODIES.indexOf(bodyKind) < 0) d.push(['R', 0, 0, w, h, opt.r || 0]);
-    else bodyPrims(bodyKind, w, h).forEach(function (pr) { d.push(pr); });
+    else bodyPrims(bodyKind, w, h, bladeCtx).forEach(function (pr) { d.push(pr); });
     /* V16: 额外自绘基元（任何形状都能画出来）；坐标以符号局部原点为基准 */
     (opt.shapes || []).forEach(function (pr) { if (Array.isArray(pr) && pr.length) d.push(pr.slice()); });
     const pins = [];
@@ -278,7 +346,8 @@ window.EVSE_CORE = (function () {
     if (opt.glyph === 'dcdc') { d.push(['L', 0, h, w, 0]); dcGlyph(w * 0.26, h * 0.28, 8).forEach(function (g) { d.push(g); }); dcGlyph(w * 0.74, h * 0.74, 8).forEach(function (g) { d.push(g); }); }
     if (opt.glyph === 'dcac') { d.push(['L', 0, h, w, 0]); dcGlyph(w * 0.26, h * 0.28, 8).forEach(function (g) { d.push(g); }); d.push(acGlyph(w * 0.74, h * 0.74, 7)); }
     if (opt.extra) opt.extra.forEach(function (g) { d.push(g); });
-    return { w: w, h: h, draw: d, pins: pins, nameIn: true, gutter: 52, noCross: true, body: bodyKind, tagAt: opt.tagAt || { x: 0, y: T.length ? -56 : -34, a: 's' } };
+    const effClosed = bladeCtx.closed == null ? (bodyKind === 'switch_nc' || bodyKind === 'contact_nc') : bladeCtx.closed;
+    return { w: w, h: h, draw: d, pins: pins, nameIn: true, gutter: 52, noCross: true, body: bodyKind, closed: effClosed, tagAt: opt.tagAt || { x: 0, y: T.length ? -56 : -34, a: 's' } };
   }
 
   /* ============================================================
