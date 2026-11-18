@@ -282,8 +282,12 @@
       <button class="btn" id="bUndo">撤销</button>
       <button class="btn" id="bRedo">重做</button>
       <div class="rsep"></div>
+      <button class="btn" id="bCopy" title="复制选中元器件（Ctrl+C），组内连线一并复制">复制</button>
+      <button class="btn" id="bPaste" title="粘贴到鼠标位置（Ctrl+V）">粘贴</button>
+      <button class="btn" id="bDup" title="原地再制一份（Ctrl+D）">再制</button>
+      <div class="rsep"></div>
       <div class="grp" id="tools"></div>
-      <span class="rlbl" style="margin-left:8px">Delete 删除选中 · Ctrl+Z/Y 撤销重做</span>
+      <span class="rlbl" style="margin-left:8px">Ctrl+C/X/V/D 复制·剪切·粘贴·再制 · Delete 删除 · Ctrl+Z/Y 撤销重做 · Ctrl+A 全选</span>
     </div>
     <div class="rpane" data-rp="view">
       <button class="btn" id="bFit">适应窗口</button>
@@ -515,7 +519,7 @@
 <div id="compDlg" style="display:none;position:fixed;inset:0;background:rgba(8,11,16,.6);z-index:60">
   <div style="margin:4vh auto;width:880px;max-height:92vh;overflow:auto;background:#151b26;border:1px solid #2b3648;border-radius:12px;padding:18px 20px;color:#dbe4f0;box-shadow:0 18px 60px rgba(0,0,0,.5)">
     <div style="font-weight:700;font-size:14px;margin-bottom:4px" id="cdHead">新建自定义元器件</div>
-    <div style="font-size:11px;color:#8c96a3;margin-bottom:12px">定义位号前缀、名称、框体尺寸与各边引脚；ERC 类型和额定值必须来自人工确认的资料。AI 识别内容按假设处理，未确认的引脚保持 unclassified。</div>
+    <div style="font-size:11px;color:#8c96a3;margin-bottom:12px">定义位号前缀、名称、<b style="color:#c8d1dc">外形</b>与各边引脚。外形支持无边框（开关/触点/分立件不再套方框）、圆形/菱形/六边形，以及开关·二极管·熔断器·线圈·电阻·电容·指示灯·接地等电气画法；还可手绘任意图形基元。ERC 类型和额定值必须来自人工确认的资料。</div>
     <div style="display:flex;gap:16px">
       <div style="flex:1;min-width:0">
         <div style="display:flex;gap:8px">
@@ -523,9 +527,35 @@
           <label class="f" style="flex:1"><span>元器件名称</span><input id="cdName" type="text" placeholder="如：充电控制板 / 网关芯片"></label>
         </div>
         <div style="display:flex;gap:8px">
-          <label class="f" style="flex:1"><span>框内标题（留空同名）</span><input id="cdTitle" type="text" placeholder="符号方框内显示的文字"></label>
-          <label class="f" style="width:96px"><span>框宽</span><input id="cdW" type="number" value="120" min="60" max="400" step="10"></label>
-          <label class="f" style="width:96px"><span>最小高度</span><input id="cdMinH" type="number" value="56" min="36" max="400" step="4"></label>
+          <label class="f" style="flex:1"><span>框内标题（留空同名）</span><input id="cdTitle" type="text" placeholder="符号内显示的文字；无边框外形可留空"></label>
+          <label class="f" style="width:132px"><span>外形</span><select id="cdBody" style="padding:5px 6px">
+            <option value="rect">方框（默认）</option>
+            <option value="none">无边框（开关/触点）</option>
+            <option value="round">圆角框</option>
+            <option value="circle">圆形</option>
+            <option value="diamond">菱形</option>
+            <option value="hex">六边形</option>
+            <option value="switch_no">开关·常开</option>
+            <option value="switch_nc">开关·常闭</option>
+            <option value="diode">二极管</option>
+            <option value="fuse">熔断器</option>
+            <option value="coil">线圈/接触器</option>
+            <option value="resistor">电阻</option>
+            <option value="cap">电容</option>
+            <option value="lamp">指示灯</option>
+            <option value="ground">接地</option>
+          </select></label>
+          <label class="f" style="width:88px"><span>宽度</span><input id="cdW" type="number" value="120" min="8" max="600" step="2"></label>
+          <label class="f" style="width:92px"><span>最小高度</span><input id="cdMinH" type="number" value="56" min="16" max="600" step="2"></label>
+        </div>
+        <div style="margin:2px 0 6px">
+          <div style="display:flex;gap:6px;align-items:center;margin-bottom:3px">
+            <span style="font-size:11px;color:#8c96a3">附加图形基元（可选，任何形状都能画；坐标以符号左上角为原点，可引用 W/H 表示宽度/高度）</span>
+            <button class="btn" id="cdShapesDemo" style="margin-left:auto;padding:2px 8px;font-size:10.5px" title="插入可直接修改的示例">示例</button>
+            <button class="btn" id="cdShapesClear" style="padding:2px 8px;font-size:10.5px">清空</button>
+          </div>
+          <textarea id="cdShapes" rows="3" spellcheck="false" style="width:100%;background:#0f1318;border:1px solid #2b333d;color:#e6eaf0;border-radius:5px;padding:6px;font-size:11px;font-family:Consolas,monospace" placeholder="L x1 y1 x2 y2 [线宽]  直线&#10;P M x y L x y         路径（可含 A/C/Q/Z）&#10;C cx cy r / CF cx cy r  空心/实心圆&#10;A cx cy r a0 a1       圆弧（度）&#10;R x y w h [圆角]       矩形&#10;D x1 y1 x2 y2         虚线&#10;T x y 文字 [字号] [m|s|e]  文字&#10;也可直接粘贴基元 JSON 数组，如 [[&quot;L&quot;,0,0,0,40]]"></textarea>
+          <div id="cdShapesMsg" style="font-size:10px;color:#f87171;min-height:12px;margin-top:2px"></div>
         </div>
         <div style="display:flex;gap:8px;align-items:end;margin:4px 0">
           <label class="f" style="flex:1"><span>制造商</span><input id="cdMfr" type="text" placeholder="未知时留空"></label>
@@ -940,16 +970,32 @@
   }
 
   /* ---------- 历史 ---------- */
-  function snap() {
+  function snap(struct) {
     if (!D) return JSON.stringify({});
-    return JSON.stringify({
+    var o = {
       p: D.devices.map(function (x) { return [x.x, x.y, x.tagOff ? [x.tagOff.dx, x.tagOff.dy] : 0]; }),
       w: D.wires.map(function (x) { return [x.pts, !!x.manual]; })
-    });
+    };
+    /* V16: 结构性操作（增删器件）需要整份快照，否则撤销无法还原器件/网表 */
+    if (struct) o.full = { devices: D.devices, nets: D.nets, wires: D.wires, boxes: D.boxes || [] };
+    return JSON.stringify(o);
   }
-  function pushHist() { hist.push(snap()); if (hist.length > 40) hist.shift(); fut = []; }
+  function pushHist(struct) { hist.push(snap(struct)); if (hist.length > 40) hist.shift(); fut = []; }
   function restore(js) {
     var o = JSON.parse(js);
+    if (o.full) {
+      D.devices = o.full.devices || D.devices;
+      D.nets = o.full.nets || D.nets;
+      D.wires = o.full.wires || D.wires;
+      D.boxes = o.full.boxes || D.boxes || [];
+      D.map = {};
+      D.devices.forEach(function (x) { D.map[x.id] = x; });
+      D._ni = null;
+      ST.sel = null; ST.msel = [];
+      window.EVSE_GEO.crossings(D); window.EVSE_GEO.audit(D);
+      paint(false); renderAll();
+      return;
+    }
     D.devices.forEach(function (x, i) { var q = o.p[i]; if (q) { x.x = q[0]; x.y = q[1]; x.tagOff = q[2] ? { dx: q[2][0], dy: q[2][1] } : null; } });
     D.wires.forEach(function (x, i) { var q = o.w[i]; if (q) { x.pts = q[0]; x.manual = q[1]; } });
     window.EVSE_GEO.crossings(D); window.EVSE_GEO.audit(D);
@@ -1074,6 +1120,8 @@
     }
   }
   function onMove(e) {
+    /* V16: 记录画布世界坐标，供 Ctrl+V 粘贴到鼠标位置 */
+    if (D) { try { lastWorld = toWorld(e); } catch (err) {} }
     if (ST.tool === 'wire' && pending && !drag) { drawPending(toWorld(e)); return; }
     if (!drag) return;
     if (drag.m === 'pan') { view.x = drag.vx + (e.clientX - drag.sx); view.y = drag.vy + (e.clientY - drag.sy); applyView(); return; }
@@ -1503,9 +1551,25 @@
     if (mod && e.key.toLowerCase() === 'z') { e.preventDefault(); doUndo(); return; }
     if (mod && e.key.toLowerCase() === 'y') { e.preventDefault(); doRedo(); return; }
     if (mod && e.key.toLowerCase() === 's') { e.preventDefault(); savePrj(); return; } /* V13: Ctrl+S 保存工程 */
+    /* V16: 复制/剪切/粘贴/再制——输入框内保留浏览器默认行为 */
+    if (mod && !(e.target && /input|select|textarea/i.test(e.target.tagName))) {
+      var kc = e.key.toLowerCase();
+      if (kc === 'c') { if (selDevIds().length) { e.preventDefault(); copySelection(false); } return; }
+      if (kc === 'x') { if (selDevIds().length) { e.preventDefault(); copySelection(true); } return; }
+      if (kc === 'v') { e.preventDefault(); pasteClip(lastWorld); return; }
+      if (kc === 'd') { if (selDevIds().length) { e.preventDefault(); duplicateSelection(); } return; }
+      if (kc === 'a') { /* 全选（同页可复制器件） */
+        e.preventDefault();
+        ST.msel = D.devices.filter(function (x) { return x.sheet === ST.sheet && x.x != null && !x.sym.isBus && !x.pwr && !x.xref; }).map(function (x) { return x.id; });
+        ST.sel = ST.msel.length === 1 ? { k: 'dev', id: ST.msel[0] } : null;
+        drawSel(); repaintWires(); renderInspector();
+        msg('已全选本页 ' + ST.msel.length + ' 个元器件（Ctrl+C 复制 / Ctrl+D 再制）');
+        return;
+      }
+    }
     if ((e.key === 'Delete' || e.key === 'Backspace') && ST.msel && ST.msel.length > 1) { /* v2.35 组删除 */
       if (e.target && /input|select|textarea/i.test(e.target.tagName)) return;
-      e.preventDefault(); pushHist();
+      e.preventDefault(); pushHist(true); /* V16: 结构性删除，撤销需完整快照 */
       var kill = {}; ST.msel.forEach(function (x) { kill[x] = 1; });
       var kn = Object.keys(kill).length;
       D.nets = D.nets.filter(function (nn) { return !kill[nn.a.d] && !kill[nn.b.d]; });
@@ -1522,7 +1586,7 @@
     var sel = ST.sel; if (!sel) return;
     if (e.key === 'Delete' || e.key === 'Backspace') {
       if (e.target && /input|select|textarea/i.test(e.target.tagName)) return;
-      e.preventDefault(); pushHist();
+      e.preventDefault(); pushHist(sel.k === 'dev'); /* V16: 删器件为结构性变更，删线段保持轻量快照 */
       if (sel.k === 'wire') {
         D.wires = D.wires.filter(function (w) { return w.id !== sel.id; });
         D.nets = D.nets.filter(function (n) { return n.id !== sel.net; });
@@ -1538,8 +1602,10 @@
       ST.sel = null; msg('已删除；网表与图纸同步更新'); paint(false); renderAll();
     }
   }
-  function doUndo() { if (!hist.length) return; fut.push(snap()); restore(hist.pop()); msg('已撤销'); }
-  function doRedo() { if (!fut.length) return; hist.push(snap()); restore(fut.pop()); msg('已重做'); }
+  function hasFullSnap(js) { try { return !!(JSON.parse(js) || {}).full; } catch (e) { return false; } }
+  /* V16: 撤销/重做栈保持结构一致性——结构性快照对侧也必须结构性，重做才能还原增删的器件 */
+  function doUndo() { if (!hist.length) return; var js = hist.pop(); fut.push(snap(hasFullSnap(js))); restore(js); msg('已撤销'); }
+  function doRedo() { if (!fut.length) return; var js = fut.pop(); hist.push(snap(hasFullSnap(js))); restore(js); msg('已重做'); }
 
   /* ---------- 导出 ---------- */
   function dl(name, text, mime) {
@@ -1687,6 +1753,9 @@
     });
     return dd;
   }
+  window.__EVSE_LOAD = function (str) { return loadPrjStr(str); }; /* V16: 自动化测试/脚本化载入工程 */
+  window.__EVSE_UNDO = function () { return doUndo(); };
+  window.__EVSE_REDO = function () { return doRedo(); };
   function loadPrjStr(str) {
     var o = JSON.parse(str), dd = o && o.D ? o.D : o;
     if (!dd || !dd.sheets || !dd.devices) throw new Error('不是有效的工程文件');
@@ -2065,8 +2134,7 @@
     });
     msg('已放置 ' + tag + '（' + pre.name + '）于页 ' + ST.sheet + '——用连线工具从引脚拉线，右键可旋转/删除' + (ovl.length ? ('　⚠ 与 ' + ovl.map(function (o) { return o.tag || o.id; }).join('/') + ' 重叠，请拖开') : ''));
   }
-  function deleteDevice(id) {
-    pushHist();
+  function removeDeviceCore(id) {
     var killNets = {};
     D.nets.forEach(function (nn) { if (nn.a.d === id || nn.b.d === id) killNets[nn.id] = 1; });
     D.nets = D.nets.filter(function (nn) { return !killNets[nn.id]; });
@@ -2074,11 +2142,120 @@
     D.devices = D.devices.filter(function (x) { return x.id !== id; });
     delete D.map[id];
     if (D.boxes) D.boxes = D.boxes.filter(function (b) { return b.id !== id; });
-    window.EVSE_GEO.crossings(D);
-    ST.sel = null;
-    paint(false); renderAll();
-    msg('已删除器件 ' + id + ' 及其连线');
   }
+  function deleteDevice(id) {
+    pushHist(true); /* V16: 结构性变更——撤销可完整还原 */
+    removeDeviceCore(id);
+    window.EVSE_GEO.crossings(D);
+    ST.sel = null; ST.msel = [];
+    paint(false); renderAll();
+    msg('已删除器件 ' + id + ' 及其连线（Ctrl+Z 可撤销）');
+  }
+
+  /* ---------- V16: 元器件复制 / 粘贴 / 再制 ---------- */
+  var CLIP = null, PASTE_N = 0, lastWorld = null;
+  function tagPrefix(tag) { var m = /^[A-Za-z_]+/.exec(String(tag || '')); return m ? m[0] : 'U'; }
+  function selDevIds() {
+    if (!D) return [];
+    if (ST.msel && ST.msel.length) return ST.msel.filter(function (id) { return !!D.map[id]; });
+    if (ST.sel && ST.sel.k === 'dev' && D.map[ST.sel.id]) return [ST.sel.id];
+    return [];
+  }
+  function copySelection(cut) {
+    if (!D) { msg('请先生成或打开图纸'); return false; }
+    var ids = selDevIds().filter(function (id) {
+      var d = D.map[id];
+      return d && !d.sym.isBus && !d.pwr && !d.xref; /* 母排/电源旗标/跨页符不参与复制 */
+    });
+    if (!ids.length) { msg('请先点选或框选要复制的元器件（母排、电源旗标、跨页连接符不可复制）'); return false; }
+    var devs = ids.map(function (id) { return D.map[id]; });
+    var minx = Math.min.apply(null, devs.map(function (d) { return d.x; }));
+    var miny = Math.min.apply(null, devs.map(function (d) { return d.y; }));
+    CLIP = {
+      devices: devs.map(function (d) {
+        var c = JSON.parse(JSON.stringify(d));
+        c._ox = Math.round(d.x - minx); c._oy = Math.round(d.y - miny);
+        return c;
+      }),
+      /* 组内连接一并复制，保持选中件之间的拓扑 */
+      nets: D.nets.filter(function (n) { return ids.indexOf(n.a.d) >= 0 && ids.indexOf(n.b.d) >= 0; })
+        .map(function (n) { var c = JSON.parse(JSON.stringify(n)); c._a = n.a.d; c._b = n.b.d; return c; })
+    };
+    PASTE_N = 0;
+    if (cut) {
+      pushHist(true);
+      ids.forEach(removeDeviceCore);
+      ST.msel = []; ST.sel = null; D._ni = null;
+      window.EVSE_GEO.crossings(D); window.EVSE_GEO.audit(D);
+      paint(false); renderAll();
+    }
+    msg('已' + (cut ? '剪切' : '复制') + ' ' + ids.length + ' 个元器件' + (CLIP.nets.length ? '（含组内 ' + CLIP.nets.length + ' 条连接）' : '') + '：Ctrl+V 粘贴到画布' + (cut ? '　Ctrl+Z 撤销' : ''));
+    return true;
+  }
+  function pasteClip(worldPt) {
+    if (!D) { msg('请先生成或打开图纸'); return false; }
+    if (!CLIP || !CLIP.devices.length) { msg('剪贴板为空：先选中元器件按 Ctrl+C 复制'); return false; }
+    pushHist(true);
+    PASTE_N++;
+    var baseX, baseY;
+    if (worldPt && isFinite(worldPt.x) && isFinite(worldPt.y)) { baseX = Math.round(worldPt.x); baseY = Math.round(worldPt.y); }
+    else { baseX = Math.round(CLIP.devices[0].x + 28 * PASTE_N); baseY = Math.round(CLIP.devices[0].y + 28 * PASTE_N); }
+    var stamp = Date.now().toString(36), idMap = {}, newIds = [];
+    CLIP.devices.forEach(function (src, i) {
+      var c = JSON.parse(JSON.stringify(src)), old = c.id;
+      delete c._ox; delete c._oy;
+      var id = 'CP' + stamp + '_' + i;
+      while (D.map[id]) id += 'x';
+      idMap[old] = id;
+      c.id = id;
+      c.tag = nextTag(tagPrefix(c.tag));
+      c.sheet = ST.sheet;
+      c.x = baseX + (src._ox || 0);
+      c.y = baseY + (src._oy || 0);
+      c.lib = true; c.copiedFrom = old;
+      D.devices.push(c); D.map[id] = c; newIds.push(id);
+      if (D.boxes) D.boxes.push({ sheet: c.sheet, x: c.x - 2, y: c.y - 2, w: (c.sym.w || 20) + 4, h: (c.sym.h || 20) + 4, kind: 'body', id: id });
+    });
+    var newNetIds = [];
+    CLIP.nets.forEach(function (src, i) {
+      var a = idMap[src._a], b = idMap[src._b];
+      if (!a || !b) return;
+      var n = JSON.parse(JSON.stringify(src));
+      delete n._a; delete n._b;
+      n.id = 'NP' + stamp + '_' + i;
+      while (D.nets.some(function (q) { return q.id === n.id; })) n.id += 'x';
+      n.a = { d: a, p: src.a.p };
+      n.b = { d: b, p: src.b.p };
+      n.name = String(src.name || n.id) + '·副本'; /* 避免同名网被 C05/C14 当成同一逻辑网豁免 */
+      n.err = null; delete n.wire_id;
+      D.nets.push(n); newNetIds.push(n.id);
+    });
+    D._ni = null;
+    if (newNetIds.length && window.EVSE_GEO.routeNets) window.EVSE_GEO.routeNets(D, newNetIds);
+    window.EVSE_GEO.crossings(D); window.EVSE_GEO.audit(D);
+    ST.msel = newIds.slice(); ST.sel = { k: 'dev', id: newIds[0] };
+    paint(false); renderAll();
+    var unr = newNetIds.filter(function (id) { return (D.nets.filter(function (q) { return q.id === id; })[0] || {}).err; }).length;
+    msg('已粘贴 ' + newIds.length + ' 个元器件' + (newNetIds.length ? '（含 ' + newNetIds.length + ' 条组内连接' + (unr ? '，' + unr + ' 条需手工布线' : '') + '）' : '') + '：拖动移动 · Delete 删除 · Ctrl+Z 撤销');
+    return true;
+  }
+  function duplicateSelection() { if (copySelection(false)) pasteClip(null); }
+  window.__EVSE_COPY = function () { return copySelection(false); };
+  window.__EVSE_CUT = function () { return copySelection(true); };
+  window.__EVSE_PASTE = function (x, y) { return pasteClip((x != null && y != null) ? { x: x, y: y } : lastWorld); };
+  window.__EVSE_DUP = duplicateSelection;
+  window.__EVSE_SELECT = function (id) {
+    if (!D || !D.map[id]) return;
+    ST.msel = [id]; ST.sel = { k: 'dev', id: id };
+    drawSel(); repaintWires(); renderInspector();
+  };
+  window.__EVSE_SELECT_ALL = function () {
+    if (!D) return;
+    ST.msel = D.devices.filter(function (x) { return x.sheet === ST.sheet && x.x != null && !x.sym.isBus && !x.pwr && !x.xref; }).map(function (x) { return x.id; });
+    ST.sel = ST.msel.length === 1 ? { k: 'dev', id: ST.msel[0] } : null;
+    drawSel(); repaintWires(); renderInspector();
+    msg('已全选本页 ' + ST.msel.length + ' 个元器件');
+  };
   window.pendingLibEsc = function () { if (pendingLib >= 0) { pendingLib = -1; renderLib(); msg('已取消放置'); } };
   window.__LIB_PICK = function (idx) {
     pendingLib = (pendingLib === idx) ? -1 : idx;
@@ -2100,6 +2277,70 @@
     });
     renderLib();
   }
+  /* V16: 自定义图形基元解析——支持「每行一条」简写或直接粘贴 JSON 数组。
+   * 允许 W/H 变量（按当前符号宽度/高度求值），使图形随尺寸伸缩。 */
+  var CD_SHAPE_DEMO = 'L 0 0 0 12\nCF 0 12 1.7\nL 0 12 14 30\nCF 0 40 1.7\nL 0 40 0 52\nT 4 46 触点';
+  function cdShapeContext() {
+    return { W: Math.max(8, +$('cdW').value || 120), H: Math.max(0, +$('cdMinH').value || 56) };
+  }
+  function cdNum(tok, ctx) {
+    var s = String(tok == null ? '' : tok).trim();
+    if (!s) return NaN;
+    var m = /^([WH])\s*([*x])\s*(-?[\d.]+)$/.exec(s);
+    if (m) return ctx[m[1]] * parseFloat(m[3]);
+    if (s === 'W') return ctx.W;
+    if (s === 'H') return ctx.H;
+    return Number(s);
+  }
+  function cdParseShapes(text) {
+    var raw = String(text || '').trim(), out = [], errs = [];
+    if (!raw) return { prims: out, errs: errs };
+    var ctx = cdShapeContext();
+    if (raw[0] === '[') {
+      try {
+        var arr = JSON.parse(raw);
+        if (!Array.isArray(arr)) return { prims: [], errs: ['JSON 必须是基元数组'] };
+        arr.forEach(function (pr, i) {
+          if (!Array.isArray(pr) || !/^(L|D|R|C|CF|A|P|M|T)$/.test(String(pr[0]))) { errs.push('第 ' + (i + 1) + ' 项基元类型不支持'); return; }
+          out.push(pr);
+        });
+        return { prims: out, errs: errs };
+      } catch (e) { return { prims: [], errs: ['JSON 解析失败：' + e.message] }; }
+    }
+    raw.split(/\r?\n/).forEach(function (ln, li) {
+      var s = ln.trim();
+      if (!s || s.charAt(0) === '#') return;
+      var m = /^([A-Za-z]+)\s+([\s\S]*)$/.exec(s);
+      if (!m) { errs.push('第 ' + (li + 1) + ' 行：需要「类型 参数…」格式'); return; }
+      var k = m[1].toUpperCase(), rest = m[2].trim(), bad = function (why) { errs.push('第 ' + (li + 1) + ' 行（' + k + '）：' + why); };
+      if (k === 'P') { if (!rest) { bad('缺少路径 d'); return; } out.push(['P', rest]); return; }
+      if (k === 'T') {
+        var tp = rest.split(/\s+/);
+        if (tp.length < 3) { bad('需要 x y 文字'); return; }
+        out.push(['T', cdNum(tp[0], ctx), cdNum(tp[1], ctx), tp.slice(2).filter(function (x) { return !/^(m|s|e|[\d.]+)$/.test(x); }).join(' ') || tp[2], isFinite(+tp[tp.length - 1]) ? +tp[tp.length - 1] : 8, /^(m|s|e)$/.test(tp[tp.length - 1]) ? tp[tp.length - 1] : 's']);
+        return;
+      }
+      var a = rest.split(/[\s,]+/).filter(function (x) { return x !== ''; }).map(function (x) { return cdNum(x, ctx); });
+      if (a.some(function (v) { return !isFinite(v); })) { bad('参数必须是数字（可用 W/H）'); return; }
+      if (k === 'L' || k === 'D') { if (a.length < 4) { bad('需要 x1 y1 x2 y2'); return; } out.push(k === 'D' ? ['D', a[0], a[1], a[2], a[3]] : ['L', a[0], a[1], a[2], a[3], isFinite(a[4]) ? a[4] : 1.4]); return; }
+      if (k === 'C' || k === 'CF') { if (a.length < 3) { bad('需要 cx cy r'); return; } out.push([k, a[0], a[1], a[2]]); return; }
+      if (k === 'A') { if (a.length < 5) { bad('需要 cx cy r a0 a1'); return; } out.push(['A', a[0], a[1], a[2], a[3], a[4]]); return; }
+      if (k === 'R') { if (a.length < 4) { bad('需要 x y w h'); return; } out.push(['R', a[0], a[1], a[2], a[3], isFinite(a[4]) ? a[4] : 0]); return; }
+      if (k === 'M') { if (a.length < 4) { bad('需要 x y w h'); return; } out.push(['M', a[0], a[1], a[2], a[3]]); return; }
+      bad('不支持的类型（可用 L/D/R/C/CF/A/P/M/T）');
+    });
+    return { prims: out, errs: errs };
+  }
+  /* 基元 → 可读简写（编辑/回填用，避免整块 JSON 难维护） */
+  function cdPrimsToText(prims) {
+    return (Array.isArray(prims) ? prims : []).map(function (pr) {
+      if (!Array.isArray(pr) || !pr.length) return '';
+      var t = String(pr[0]);
+      if (t === 'P') return 'P ' + pr[1];
+      if (t === 'T') return 'T ' + pr[1] + ' ' + pr[2] + ' ' + pr[3] + (pr[4] != null ? ' ' + pr[4] : '') + (pr[5] ? ' ' + pr[5] : '');
+      return t + ' ' + pr.slice(1).filter(function (v) { return v != null && v !== ''; }).join(' ');
+    }).filter(Boolean).join('\n');
+  }
   function cdSpec() {
     var by = { left: [], right: [], top: [], bottom: [] };
     var sourceId = $('cdSourceId').value.trim() || null;
@@ -2107,10 +2348,16 @@
     var ratings = {};
     try { ratings = JSON.parse(($('cdRatings').value || '{}').trim() || '{}'); } catch (e) {}
     if (!ratings || typeof ratings !== 'object' || Array.isArray(ratings)) ratings = {};
+    var shapes = cdParseShapes($('cdShapes') ? $('cdShapes').value : '').prims;
+    var bodyKind = ($('cdBody') && $('cdBody').value) || 'rect';
+    var nm = ($('cdName').value || '').trim() || '自定义器件';
     return {
-      tag: ($('cdTag').value || '').trim() || 'U', name: ($('cdName').value || '').trim() || '自定义器件',
-      title: ($('cdTitle').value || '').trim() || (($('cdName').value || '').trim() || '自定义'),
-      w: Math.max(60, +$('cdW').value || 120), minH: Math.max(36, +$('cdMinH').value || 56),
+      tag: ($('cdTag').value || '').trim() || 'U', name: nm,
+      /* V16: 非方框外形默认不写框内标题（开关/接地等不放文字），需要时手动填 */
+      title: ($('cdTitle').value || '').trim() || (bodyKind === 'rect' ? nm : ''),
+      body: bodyKind,
+      shapes: shapes,
+      w: Math.max(8, +$('cdW').value || 120), minH: Math.max(16, +$('cdMinH').value || 56),
       left: by.left, right: by.right, top: by.top, bottom: by.bottom,
       electrical: window.EVSE_CORE.normalizeElectrical({
         status: $('cdElecStatus').value, manufacturer: $('cdMfr').value.trim(), model: $('cdModel').value.trim(),
@@ -2121,15 +2368,29 @@
   function cdPreview() {
     var box = $('cdPreview'); if (!box) return;
     var spec = cdSpec(), sym;
+    /* V16: 先回显自绘图元的解析错误，再画预览 */
+    var parsed = cdParseShapes($('cdShapes') ? $('cdShapes').value : '');
+    if ($('cdShapesMsg')) $('cdShapesMsg').textContent = parsed.errs.length ? ('⚠ ' + parsed.errs.slice(0, 3).join('；') + (parsed.errs.length > 3 ? ' …' : '')) : (parsed.prims.length ? ('✔ 已解析 ' + parsed.prims.length + ' 条图形基元') : '');
+    if ($('cdShapesMsg')) $('cdShapesMsg').style.color = parsed.errs.length ? '#f87171' : '#4ade80';
     try { sym = window.EVSE_CORE.makeBox(spec); } catch (e) { box.innerHTML = '<span style="color:#f87171;font-size:11px">符号构造失败：' + esc(e.message) + '</span>'; return; }
     var W = sym.w + 140, H = sym.h + 90;
     var s = '<svg width="' + W + '" height="' + H + '" viewBox="' + (-50) + ' ' + (-38) + ' ' + W + ' ' + H + '" xmlns="http://www.w3.org/2000/svg">';
+    var NUM = function (v) { var n = Number(v); return isFinite(n) ? Math.round(n * 100) / 100 : 0; };
+    var PATHOK = function (d) { return /^[A-Za-z0-9 ,.\-+eE]*$/.test(String(d == null ? '' : d)) ? String(d) : ''; };
     (sym.draw || []).forEach(function (g) {
-      if (g[0] === 'R') s += '<rect x="' + g[1] + '" y="' + g[2] + '" width="' + g[3] + '" height="' + g[4] + '" rx="' + (g[5] || 0) + '" fill="none" stroke="#c8d1dc" stroke-width="1.6"/>';
-      else if (g[0] === 'L') s += '<line x1="' + g[1] + '" y1="' + g[2] + '" x2="' + g[3] + '" y2="' + g[4] + '" stroke="#c8d1dc" stroke-width="' + (g[5] || 1.4) + '"/>';
-      else if (g[0] === 'T') s += '<text x="' + g[1] + '" y="' + g[2] + '" font-size="' + g[4] + '" fill="#dbe4f0" text-anchor="' + (g[5] === 'm' ? 'middle' : (g[5] === 'e' ? 'end' : 'start')) + '" font-family="inherit">' + esc(g[3]) + '</text>';
-      else if (g[0] === 'C') s += '<circle cx="' + g[1] + '" cy="' + g[2] + '" r="' + g[3] + '" fill="#0b0e12" stroke="#c8d1dc" stroke-width="1.2"/>';
-      else if (g[0] === 'P') s += '<path d="' + g[1] + '" fill="none" stroke="#c8d1dc" stroke-width="1.4"/>';
+      var t = g[0];
+      if (t === 'R') s += '<rect x="' + NUM(g[1]) + '" y="' + NUM(g[2]) + '" width="' + NUM(g[3]) + '" height="' + NUM(g[4]) + '" rx="' + NUM(g[5] || 0) + '" fill="none" stroke="#c8d1dc" stroke-width="1.6"/>';
+      else if (t === 'L') s += '<line x1="' + NUM(g[1]) + '" y1="' + NUM(g[2]) + '" x2="' + NUM(g[3]) + '" y2="' + NUM(g[4]) + '" stroke="#c8d1dc" stroke-width="' + NUM(g[5] || 1.4) + '" stroke-linecap="round"/>';
+      else if (t === 'D') s += '<line x1="' + NUM(g[1]) + '" y1="' + NUM(g[2]) + '" x2="' + NUM(g[3]) + '" y2="' + NUM(g[4]) + '" stroke="#c8d1dc" stroke-width="1" stroke-dasharray="4 3"/>';
+      else if (t === 'T') s += '<text x="' + NUM(g[1]) + '" y="' + NUM(g[2]) + '" font-size="' + NUM(g[4] || 8) + '" fill="#dbe4f0" text-anchor="' + (g[5] === 'm' ? 'middle' : (g[5] === 'e' ? 'end' : 'start')) + '" font-family="inherit">' + esc(g[3]) + '</text>';
+      else if (t === 'C') s += '<circle cx="' + NUM(g[1]) + '" cy="' + NUM(g[2]) + '" r="' + NUM(g[3]) + '" fill="none" stroke="#c8d1dc" stroke-width="1.2"/>';
+      else if (t === 'CF') s += '<circle cx="' + NUM(g[1]) + '" cy="' + NUM(g[2]) + '" r="' + NUM(g[3]) + '" fill="#c8d1dc"/>';
+      else if (t === 'A') {
+        var a0 = NUM(g[4]) * Math.PI / 180, a1 = NUM(g[5]) * Math.PI / 180, r = NUM(g[3]);
+        s += '<path d="M ' + NUM(NUM(g[1]) + r * Math.cos(a0)) + ' ' + NUM(NUM(g[2]) + r * Math.sin(a0)) + ' A ' + r + ' ' + r + ' 0 0 1 ' + NUM(NUM(g[1]) + r * Math.cos(a1)) + ' ' + NUM(NUM(g[2]) + r * Math.sin(a1)) + '" fill="none" stroke="#c8d1dc" stroke-width="1.2"/>';
+      }
+      else if (t === 'P') s += '<path d="' + esc(PATHOK(g[1])) + '" fill="none" stroke="#c8d1dc" stroke-width="1.4"/>';
+      else if (t === 'M') s += '<rect x="' + NUM(g[1]) + '" y="' + NUM(g[2]) + '" width="' + NUM(g[3]) + '" height="' + NUM(g[4]) + '" fill="#0b0e12" stroke="none"/>';
     });
     (sym.pins || []).forEach(function (p) {
       s += '<circle cx="' + p.x + '" cy="' + p.y + '" r="2.4" fill="#8fdcff"/>';
@@ -2170,6 +2431,9 @@
   function cdLoadSpec(spec) {
     $('cdTag').value = spec.tag || 'U'; $('cdName').value = spec.name || ''; $('cdTitle').value = spec.title || '';
     $('cdW').value = spec.w || 120; $('cdMinH').value = spec.minH || 56;
+    /* V16: 外形与自绘图元往返无损 */
+    if ($('cdBody')) $('cdBody').value = (window.EVSE_CORE.BOX_BODIES.indexOf(spec.body) >= 0) ? spec.body : 'rect';
+    if ($('cdShapes')) $('cdShapes').value = cdPrimsToText(spec.shapes);
     var el = spec.electrical || {};
     $('cdMfr').value = el.manufacturer || ''; $('cdModel').value = el.model || ''; $('cdSourceId').value = el.sourceId || ''; $('cdSourceRev').value = el.sourceRevision || '';
     $('cdElecStatus').value = ['unknown', 'assumption', 'verified'].indexOf(el.status) >= 0 ? el.status : 'unknown';
@@ -2192,7 +2456,7 @@
     if (!confirm('删除自定义元器件「' + e.name + '」？（已放置到图纸上的实例不受影响）')) return;
     var arr = customStore(); arr.splice(e.custom, 1); customSave(arr); rebuildCustomLib(); msg('已删除自定义元器件 ' + e.name);
   };
-  var CD_PROMPT = function (what) { return '你是电气原理图符号助手。请从' + what + '中提取元器件符号定义，只输出一个 JSON 对象（禁止 markdown 代码块和其它文字）：{"name":"元器件名称","tag":"位号前缀大写字母","title":"框内标题","w":框宽整数60到400,"pins":[{"n":"引脚号","name":"引脚名","side":"left或right或top或bottom","k":"AC或DC或ESS或AUX或CTL或COMM或SIG或PE","t":"in或out或bi","ercType":"unclassified或passive或input或output或bidirectional或power_input或power_output或power_bidirectional或no_connect"}]}。规则：电源输入放 left，功率/通信输出放 right，接地 PE 放 bottom；引脚数量与名称严格按资料，不得臆造。只有资料明确给出电气驱动类型时才填写 ercType，否则必须为 unclassified；AI 给出的类型一律是待人工复核假设，不得标为已核验。'; };
+  var CD_PROMPT = function (what) { return '你是电气原理图符号助手。请从' + what + '中提取元器件符号定义，只输出一个 JSON 对象（禁止 markdown 代码块和其它文字）：{"name":"元器件名称","tag":"位号前缀大写字母","title":"框内标题","body":"rect或none或circle或diamond或hex或switch_no或switch_nc或diode或fuse或coil或resistor或cap或lamp或ground","w":宽度整数8到600,"minH":最小高度整数16到600,"pins":[{"n":"引脚号","name":"引脚名","side":"left或right或top或bottom","k":"AC或DC或ESS或AUX或CTL或COMM或SIG或PE","t":"in或out或bi","ercType":"unclassified或passive或input或output或bidirectional或power_input或power_output或power_bidirectional或no_connect"}]}。规则：开关/触点/熔断器/二极管等分立件 body 用 none（不要套方框）或直接用对应电气画法；集成电路/模块用 rect。两端竖向器件（开关、二极管、熔断器）引脚放 top 与 bottom，电源输入放 left，功率/通信输出放 right，接地 PE 放 bottom；引脚数量与名称严格按资料，不得臆造。只有资料明确给出电气驱动类型时才填写 ercType，否则必须为 unclassified；AI 给出的类型一律是待人工复核假设，不得标为已核验。'; };
   async function cdAiCall(content) {
     if (!window.EVSE_AI || !EVSE_AI.ready()) { $('cdAiMsg').textContent = '⚠ 请先在「AI 工具 → 大模型设置」配置接口地址 / Key / 模型（识图需模型支持视觉）'; return; }
     $('cdAiMsg').textContent = '🤖 AI 识别中，请稍候…';
@@ -2205,7 +2469,9 @@
       if (j.tag) $('cdTag').value = String(j.tag).replace(/[^A-Za-z]/g, '').slice(0, 6) || 'U';
       if (j.name) $('cdName').value = String(j.name).slice(0, 30);
       if (j.title) $('cdTitle').value = String(j.title).slice(0, 30);
-      if (j.w) $('cdW').value = Math.min(400, Math.max(60, +j.w || 120));
+      if (j.body && $('cdBody') && window.EVSE_CORE.BOX_BODIES.indexOf(j.body) >= 0) $('cdBody').value = j.body;
+      if (j.w) $('cdW').value = Math.min(600, Math.max(8, +j.w || 120));
+      if (j.minH) $('cdMinH').value = Math.min(600, Math.max(16, +j.minH || 56));
       var sides = { left: 1, right: 1, top: 1, bottom: 1 };
       cdPins = (j.pins || []).map(function (p, i2) {
         return { n: String(p.n || p.num || (i2 + 1)), name: String(p.name || p.n || ''), side: sides[p.side] ? p.side : 'right', k: KDOMS.indexOf(p.k) >= 0 ? p.k : 'CTL', t: ['in', 'out', 'bi'].indexOf(p.t) >= 0 ? p.t : 'bi', ercType: ERC_PIN_TYPES.indexOf(p.ercType) > 0 ? p.ercType : 'unclassified' };
@@ -2245,6 +2511,27 @@
     CD_EDIT = -1;
   };
   ['cdTag', 'cdName', 'cdTitle', 'cdW', 'cdMinH'].forEach(function (id) { $(id).oninput = function () { cdPreview(); }; });
+  /* V16: 外形/自绘图元交互 */
+  if ($('cdBody')) $('cdBody').onchange = function () {
+    var k = this.value;
+    var TEMPL = /^(switch_no|switch_nc|diode|fuse|coil|resistor|cap|lamp)$/;
+    var boxish = /^(rect|round|circle|diamond|hex)$/;
+    /* 竖向两端分立件：默认建议窄而高（贴合电气画法），用户仍可改 */
+    if (TEMPL.test(k) && (+$('cdW').value === 120 || +$('cdW').value < 30)) { $('cdW').value = 40; if (+$('cdMinH').value < 60) $('cdMinH').value = 70; }
+    if (k === 'ground') { $('cdW').value = 44; $('cdMinH').value = 44; }
+    if (boxish.test(k) && +$('cdW').value < 30) $('cdW').value = 120;
+    /* 开关类外形给出两端引脚顺序提示 */
+    msg(TEMPL.test(k) ? '外形「' + $('cdBody').options[this.selectedIndex].text + '」：建议引脚放 上/下 边（上=1、下=2），画布上可旋转 90°' : '外形已切换为「' + $('cdBody').options[this.selectedIndex].text + '」');
+    cdPreview();
+  };
+  if ($('cdShapes')) $('cdShapes').oninput = function () { cdPreview(); };
+  if ($('cdShapesDemo')) $('cdShapesDemo').onclick = function () {
+    var k = ($('cdBody') && $('cdBody').value) || 'none';
+    var d = k === 'none' || k === 'switch_no' ? CD_SHAPE_DEMO : cdPrimsToText(window.EVSE_CORE.bodyPrims(k, Math.max(8, +$('cdW').value || 40), Math.max(16, +$('cdMinH').value || 70)));
+    if ($('cdShapes').value.trim() && !confirm('覆盖当前已填写的图形基元？')) return;
+    $('cdShapes').value = d; cdPreview();
+  };
+  if ($('cdShapesClear')) $('cdShapesClear').onclick = function () { $('cdShapes').value = ''; cdPreview(); };
   rebuildCustomLib();
 
   /* ---------- V14/V15: Word 式 ribbon 标签栏 + 抽屉面板 ---------- */
@@ -2365,7 +2652,7 @@
       if (ST.msel && ST.msel.length > 1) {
         h = '<div style="font-size:13px;font-weight:700;color:#fff;margin-bottom:2px">已选 ' + ST.msel.length + ' 个器件</div>'
           + '<div style="color:#8fdcff;font-size:11px;line-height:1.9">' + ST.msel.map(function (x) { var dd = D.map[x]; return dd ? dd.tag : x; }).join('、') + '</div>'
-          + '<div style="color:#7c8794;font-size:11px;margin-top:6px">拖任一选中件=组移动 · Delete=组删除 · Esc/点空白=清除</div>';
+          + '<div style="color:#7c8794;font-size:11px;margin-top:6px">拖任一选中件=组移动 · Ctrl+C 复制 · Ctrl+D 再制 · Delete=组删除 · Esc/点空白=清除</div>';
         $('insp').innerHTML = h; return;
       }
       h = '<div style="font-size:13px;font-weight:700;color:#fff;margin-bottom:2px">未选中</div>'
@@ -2377,7 +2664,7 @@
       var dv = D.map[sel.id];
       title = dv.tag + ' · ' + dv.name; sub = 'ID ' + dv.id + ' · 页 ' + dv.sheet + ' · 分区 ' + dv.zone;
       rows = [['规格/档位', (dv.spec || '—') + '（RFQ_REQUIRED）'], ['坐标', Math.round(dv.x) + ', ' + Math.round(dv.y)],
-        ['外形', dv.sym.w + ' × ' + dv.sym.h], ['端子数', dv.sym.pins.length]];
+        ['外形', dv.sym.w + ' × ' + dv.sym.h + (dv.sym.body ? ' · ' + dv.sym.body : '')], ['端子数', dv.sym.pins.length]];
       if (dv.xref) {
         rows.push(['跨页指向', dv.xrefLabel ? dv.xrefLabel.replace('→', '第').replace('/', '页 /') : '—']);
         rows.push(['跨页编号', dv.xrefTag || '—']);
@@ -2778,6 +3065,9 @@ if (docHref) {
     $('bFit').onclick = doFit;
     $('bUndo').onclick = doUndo;
     $('bRedo').onclick = doRedo;
+    $('bCopy').onclick = function () { copySelection(false); };
+    $('bPaste').onclick = function () { pasteClip(lastWorld); };
+    $('bDup').onclick = duplicateSelection;
     $('bSvg').onclick = exportSvg;
     $('bJson').onclick = exportJson;
     $('bDxf').onclick = function () { var ex = window.EVSE_EXPORT; if (ex) ex.exportDXFNow(); };
@@ -2829,6 +3119,9 @@ if (docHref) {
     window.addEventListener('pointermove', onMove);
     window.addEventListener('pointerup', onUp);
     window.__EVSE_D = function () { return D; }; /* v2.11: 右键菜单用 */
+    window.__EVSE_WORLD = function (e) { try { return toWorld(e); } catch (err) { return null; } }; /* V16: 右键粘贴定位 */
+    window.__EVSE_CLIPINFO = function () { return CLIP ? (CLIP.devices.length + ' 个器件' + (CLIP.nets.length ? ' / ' + CLIP.nets.length + ' 条连接' : '')) : '空'; };
+    window.__EVSE_SELCOUNT = function () { return selDevIds().length; };
         window.__EVSE_AIENRICH = function () { /* v2.23: BOM AI 手册链接回填 */
       (async function () {
       var out = {}; /* 闭包捕获 */
@@ -3050,8 +3343,19 @@ if (docHref) {
   }
   document.addEventListener('contextmenu', function (e) {
     var D = window.__EVSE_D && window.__EVSE_D();
+    if (!D) { close(); return; }
     var t = e.target && e.target.closest ? e.target.closest('[data-k]') : null;
-    if (!D || !t) { close(); return; }
+    if (!t) {
+      /* V16: 空白处右键——粘贴到此处 / 全选本页 */
+      e.preventDefault();
+      var n = window.__EVSE_SELCOUNT ? window.__EVSE_SELCOUNT() : 0;
+      show(e, '<h4>画布</h4>' + row('选中器件', n ? n + ' 个' : '无') + row('剪贴板', window.__EVSE_CLIPINFO ? window.__EVSE_CLIPINFO() : '空'), [
+        { t: '粘贴到此处', f: function () { var w = window.__EVSE_WORLD ? window.__EVSE_WORLD(e) : null; close(); if (window.__EVSE_PASTE) window.__EVSE_PASTE(w ? w.x : null, w ? w.y : null); } },
+        { t: '全选本页器件', f: function () { close(); if (window.__EVSE_SELECT_ALL) window.__EVSE_SELECT_ALL(); } },
+        { t: '关闭', f: close }
+      ]);
+      return;
+    }
     e.preventDefault();
     var k = t.getAttribute('data-k'), id = t.getAttribute('data-id') || '';
     if (k === 'dev') {
@@ -3062,6 +3366,8 @@ if (docHref) {
         acts.push({ t: '跳转到连接', f: function () { close(); window.__EVSE_JUMP_XREF(id); } });
       }
       acts.push(
+        { t: '复制', f: function () { close(); if (window.__EVSE_SELECT) window.__EVSE_SELECT(id); if (window.__EVSE_COPY) window.__EVSE_COPY(); } },
+        { t: '再制', f: function () { close(); if (window.__EVSE_SELECT) window.__EVSE_SELECT(id); if (window.__EVSE_DUP) window.__EVSE_DUP(); } },
         { t: '重走此器件连线', f: function () {
             window.EVSE_GEO.rerouteDevice(D, id);
             window.EVSE_GEO.audit(D);

@@ -169,13 +169,101 @@ window.EVSE_CORE = (function () {
    * ============================================================ */
   /* 标题带预留高度：引脚行不得侵入标题/副标题区（LIB-R21） */
   function HDR(opt) { return opt.title ? ((opt.titleY || 15) + (opt.sub ? 23 : 9)) : 0; }
+  /* ------------------------------------------------------------
+   * 外形模板（V16）：自定义元器件不再强制画方框。
+   *   kind ∈ rect | none | round | circle | diamond | hex
+   *        | switch_no | switch_nc | diode | fuse | coil | resistor
+   *        | cap | lamp | ground
+   * 全部按当前 w/h 比例生成 → 改尺寸时符号自动伸缩，不是固定死图。
+   * ------------------------------------------------------------ */
+  const BOX_BODIES = ['rect', 'none', 'round', 'circle', 'diamond', 'hex',
+    'switch_no', 'switch_nc', 'diode', 'fuse', 'coil', 'resistor', 'cap', 'lamp', 'ground'];
+  function bodyPrims(kind, w, h) {
+    const cx = w / 2, cy = h / 2;
+    const t = (n) => Math.round(n * 100) / 100;
+    switch (kind) {
+      case 'none': return [];
+      case 'round': return [['R', 0, 0, w, h, Math.min(w, h) / 2]];
+      case 'circle': return [['P', 'M ' + t(cx) + ' 0 A ' + t(cx) + ' ' + t(cy) + ' 0 1 1 ' + t(cx) + ' ' + t(h) + ' A ' + t(cx) + ' ' + t(cy) + ' 0 1 1 ' + t(cx) + ' 0 Z']];
+      case 'diamond': return [['P', 'M ' + t(cx) + ' 0 L ' + t(w) + ' ' + t(cy) + ' L ' + t(cx) + ' ' + t(h) + ' L 0 ' + t(cy) + ' Z']];
+      case 'hex': {
+        const x0 = Math.min(w * 0.25, 18);
+        return [['P', 'M ' + t(x0) + ' 0 L ' + t(w - x0) + ' 0 L ' + t(w) + ' ' + t(cy) + ' L ' + t(w - x0) + ' ' + t(h) + ' L ' + t(x0) + ' ' + t(h) + ' L 0 ' + t(cy) + ' Z']];
+      }
+      /* 开关（常开）：上端子—刀触头斜出—下端子，IEC 60617 画法 */
+      case 'switch_no': {
+        const bx = Math.max(6, Math.min(w * 0.3, 14)), y0 = h * 0.28, y1 = h * 0.72;
+        return [['L', bx, 0, bx, y0], ['CF', bx, y0, 1.7],
+          ['L', bx, y0, Math.min(w - 2, bx + Math.max(10, w * 0.4)), y1 - 5],
+          ['CF', bx, y1, 1.7], ['L', bx, y1, bx, h]];
+      }
+      /* 开关（常闭）：刀触头贴合下端子 + 操作杆 */
+      case 'switch_nc': {
+        const bx = Math.max(6, Math.min(w * 0.3, 14)), y0 = h * 0.28, y1 = h * 0.72;
+        return [['L', bx, 0, bx, y0], ['CF', bx, y0, 1.7],
+          ['L', bx, y0, bx, y1], ['CF', bx, y1, 1.7], ['L', bx, y1, bx, h],
+          ['L', bx - 7, y1 + 8, bx + 7, y1 + 2]];
+      }
+      /* 二极管：三角 + 阴极横线 */
+      case 'diode': {
+        const y0 = h * 0.3, y1 = h * 0.68;
+        return [['L', cx, 0, cx, y0],
+          ['P', 'M ' + t(cx - 8) + ' ' + t(y0) + ' L ' + t(cx + 8) + ' ' + t(y0) + ' L ' + t(cx) + ' ' + t(y1) + ' Z'],
+          ['L', cx - 8, y1, cx + 8, y1, 2], ['L', cx, y1, cx, h]];
+      }
+      /* 熔断器：矩形 + 直通线 */
+      case 'fuse': {
+        const y0 = h * 0.3, hh = h * 0.4;
+        return [['L', cx, 0, cx, y0], ['R', cx - 9, y0, 18, hh], ['L', cx, y0 + hh, cx, h]];
+      }
+      /* 继电器/接触器线圈 */
+      case 'coil': {
+        const y0 = h * 0.26, hh = h * 0.48;
+        return [['L', cx, 0, cx, y0], ['R', cx - 14, y0, 28, hh],
+          ['L', cx, y0 + hh, cx, h], ['T', cx, y0 + hh / 2 + 4, 'KM', 8, 'm', 'dim']];
+      }
+      /* 电阻（IEC 矩形画法） */
+      case 'resistor': {
+        const y0 = h * 0.3, hh = h * 0.4;
+        return [['L', cx, 0, cx, y0], ['R', cx - 8, y0, 16, hh], ['L', cx, y0 + hh, cx, h]];
+      }
+      /* 电容 */
+      case 'cap': {
+        const y0 = h * 0.4;
+        return [['L', cx, 0, cx, y0], ['L', cx - 11, y0, cx + 11, y0, 2],
+          ['L', cx - 11, y0 + 7, cx + 11, y0 + 7, 2], ['L', cx, y0 + 7, cx, h]];
+      }
+      /* 指示灯 */
+      case 'lamp': {
+        const r = Math.min(w, h) * 0.3;
+        return [['L', cx, 0, cx, cy - r], ['C', cx, cy, r],
+          ['L', cx - r * 0.7, cy - r * 0.7, cx + r * 0.7, cy + r * 0.7],
+          ['L', cx + r * 0.7, cy - r * 0.7, cx - r * 0.7, cy + r * 0.7], ['L', cx, cy + r, cx, h]];
+      }
+      /* 接地 */
+      case 'ground': {
+        const y0 = h * 0.42;
+        return [['L', cx, 0, cx, y0],
+          ['L', cx - Math.min(16, w * 0.4), y0, cx + Math.min(16, w * 0.4), y0, 2],
+          ['L', cx - Math.min(10, w * 0.25), y0 + 7, cx + Math.min(10, w * 0.25), y0 + 7, 2],
+          ['L', cx - Math.min(5, w * 0.12), y0 + 14, cx + Math.min(5, w * 0.12), y0 + 14, 2]];
+      }
+      default: return [['R', 0, 0, w, h, 0]];
+    }
+  }
   function makeBox(opt) {
     const L = opt.left || [], R = opt.right || [], B = opt.bottom || [], T = opt.top || [];
     const pitch = opt.pitch || 18, padY = opt.padY == null ? 20 : opt.padY;
-    const h = Math.max(opt.minH || 0, HDR(opt) + padY * 2 + (Math.max(L.length, R.length) - 1) * pitch);
+    const h = Math.max(opt.minH || 0, opt.h || 0, HDR(opt) + padY * 2 + (Math.max(L.length, R.length) - 1) * pitch);
     const wMin = Math.max((T.length - 1) * (opt.tpitch || 22) + 30, (B.length - 1) * (opt.bpitch || 22) + 30);
     const w = Math.max(opt.w || 0, wMin);
-    const d = [['R', 0, 0, w, h, opt.r || 0]];
+    /* V16: 外形可选；border:false 等价于 body:'none'（开关/触点/分立件不画方框） */
+    const bodyKind = opt.body || (opt.border === false ? 'none' : 'rect');
+    const d = [];
+    if (bodyKind === 'rect' || BOX_BODIES.indexOf(bodyKind) < 0) d.push(['R', 0, 0, w, h, opt.r || 0]);
+    else bodyPrims(bodyKind, w, h).forEach(function (pr) { d.push(pr); });
+    /* V16: 额外自绘基元（任何形状都能画出来）；坐标以符号局部原点为基准 */
+    (opt.shapes || []).forEach(function (pr) { if (Array.isArray(pr) && pr.length) d.push(pr.slice()); });
     const pins = [];
     const y0 = (n) => Math.round(HDR(opt) + (h - HDR(opt) - (n - 1) * pitch) / 2);
     const addBoxPin = function (p, x, y, side) { pins.push(P(p.n || p.name, p.name, x, y, side, p.k, p.t, 10, p.ercType, p.ercStatus, p.ercSourceId)); };
@@ -190,7 +278,7 @@ window.EVSE_CORE = (function () {
     if (opt.glyph === 'dcdc') { d.push(['L', 0, h, w, 0]); dcGlyph(w * 0.26, h * 0.28, 8).forEach(function (g) { d.push(g); }); dcGlyph(w * 0.74, h * 0.74, 8).forEach(function (g) { d.push(g); }); }
     if (opt.glyph === 'dcac') { d.push(['L', 0, h, w, 0]); dcGlyph(w * 0.26, h * 0.28, 8).forEach(function (g) { d.push(g); }); d.push(acGlyph(w * 0.74, h * 0.74, 7)); }
     if (opt.extra) opt.extra.forEach(function (g) { d.push(g); });
-    return { w: w, h: h, draw: d, pins: pins, nameIn: true, gutter: 52, noCross: true, tagAt: opt.tagAt || { x: 0, y: T.length ? -56 : -34, a: 's' } };
+    return { w: w, h: h, draw: d, pins: pins, nameIn: true, gutter: 52, noCross: true, body: bodyKind, tagAt: opt.tagAt || { x: 0, y: T.length ? -56 : -34, a: 's' } };
   }
 
   /* ============================================================
@@ -1390,5 +1478,5 @@ window.EVSE_CORE = (function () {
     });
     return sym;
   };
-  return { VERSION, GRID, NETC, ERC_PIN_TYPES, normalizeElectrical, S, makeSwitch, makeFuse, makeRes, makeBus, makeBox, build, PHASE4, normSym: normSym, rails: function () { return RAILS; } };
+  return { VERSION, GRID, NETC, ERC_PIN_TYPES, normalizeElectrical, S, makeSwitch, makeFuse, makeRes, makeBus, makeBox, BOX_BODIES, bodyPrims, build, PHASE4, normSym: normSym, rails: function () { return RAILS; } };
 })();

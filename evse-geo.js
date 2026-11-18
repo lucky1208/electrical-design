@@ -1644,6 +1644,47 @@ window.EVSE_GEO = (function () {
     snapEnds(design); forceOrtho(design); crossings(design);
     return moved;
   }
+  /* V16: 只对指定网络布线——复制/粘贴、交互新增连接用。
+   * 与 route() 的区别：不重排既有走线，仅把目标网从引脚解出来并登记已占通道。 */
+  function routeNets(design, netIds) {
+    const want = {};
+    (netIds || []).forEach(function (id) { want[id] = 1; });
+    const M = design.map || {};
+    const obstBy = {}, usedBy = {};
+    (design.sheets || [{ no: 1 }]).forEach(function (s) { obstBy[s.no] = []; usedBy[s.no] = newUsed(); });
+    design.devices.forEach(function (d) {
+      if (d.sym.isBus || d.sym.isXref || d.x == null || d.pwr) return;
+      (obstBy[d.sheet] || (obstBy[d.sheet] = [])).push(deviceKeepout(d));
+      (obstBy[d.sheet] || (obstBy[d.sheet] = [])).push(dashedBand(d));
+    });
+    const routed = {};
+    design.wires.forEach(function (w) {
+      routed[w.net] = 1;
+      const u = usedBy[w.sheet] || (usedBy[w.sheet] = newUsed());
+      addWireUsed(u, w, netById(design, w.net));
+    });
+    let made = 0;
+    design.nets.filter(function (n) { return want[n.id] && !routed[n.id]; }).forEach(function (n) {
+      const A = pinAbs(M, n.a), B = pinAbs(M, n.b);
+      if (!A || !B || !M[n.a.d] || !M[n.b.d]) { n.err = 'PIN_NOT_FOUND'; return; }
+      const sh = M[n.a.d].sheet;
+      A.esc = M[n.a.d].sym.isXref ? 0 : ESC;
+      B.esc = M[n.b.d].sym.isXref ? 0 : ESC;
+      const pts = solve(A, B, obstBy[sh] || [], usedBy[sh] || newUsed(), n.a.d, n.b.d,
+        (design.soft || {})[sh] || [], n.cls,
+        !!(M[n.a.d].sym.noCross || M[n.b.d].sym.noCross),
+        !!(design.params && design.params.family === 'mwess'));
+      if (!pts || pts.length < 2) { n.err = 'ROUTE_NO_CLEAR_PATH'; return; }
+      const sg = segsOf(pts);
+      sg.forEach(function (s, i) { addUsed(usedBy[sh], s, usedOwner(n, i, sg.length)); });
+      const w = { id: 'W-' + n.id, net: n.id, cls: n.cls, name: n.name, sheet: sh, pts: pts, a: A, b: B, via: 'CUSTOM-ROUTE' };
+      design.wires.push(w);
+      n.err = null; n.wire_id = w.id;
+      made++;
+    });
+    crossings(design);
+    return made;
+  }
   function reroute(design, devIds) {
     const set = {}; (devIds || []).forEach(function (d) { set[d] = 1; });
     const M = design.map;
@@ -3901,5 +3942,5 @@ window.EVSE_GEO = (function () {
     return d;
   }
 
-  return { MIN_CLEAR, ESC, SNAP, place, route, separate, snapEnds, forceOrtho, crossings, detouch, reroute, rerouteDevice, hubAlign, dragSegment, dragJunction, audit, generate, repairBodyCross, segsOf, pinAbs, pinOf, rotateDev: function (design, id) { const d = design.map[id]; if (!d) return false; d.rot = ((d.rot || 0) + 90) % 360; return true; }, devDims: devDims, RUBRIC, textBands, overlap, labelBandOf: labelBand, hitRectOf: function (s, b) { return hitRect(s, { x: b.x, y: b.y, w: b.w, h: b.h }); } };
+  return { MIN_CLEAR, ESC, SNAP, place, route, routeNets, separate, snapEnds, forceOrtho, crossings, detouch, reroute, rerouteDevice, hubAlign, dragSegment, dragJunction, audit, generate, repairBodyCross, segsOf, pinAbs, pinOf, rotateDev: function (design, id) { const d = design.map[id]; if (!d) return false; d.rot = ((d.rot || 0) + 90) % 360; return true; }, devDims: devDims, RUBRIC, textBands, overlap, labelBandOf: labelBand, hitRectOf: function (s, b) { return hitRect(s, { x: b.x, y: b.y, w: b.w, h: b.h }); } };
 })();
