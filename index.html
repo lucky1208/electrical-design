@@ -992,7 +992,7 @@
   function snap(struct) {
     if (!D) return JSON.stringify({});
     var o = {
-      p: D.devices.map(function (x) { return [x.x, x.y, x.tagOff ? [x.tagOff.dx, x.tagOff.dy] : 0, x.lbl || 0]; }),
+      p: D.devices.map(function (x) { return [x.x, x.y, x.tagOff ? [x.tagOff.dx, x.tagOff.dy] : 0, x.lbl || 0, x.pinLbl || 0]; }),
       w: D.wires.map(function (x) { return [x.pts, !!x.manual]; })
     };
     /* V16: 结构性操作（增删器件）需要整份快照，否则撤销无法还原器件/网表 */
@@ -1021,6 +1021,7 @@
       x.x = q[0]; x.y = q[1];
       x.tagOff = q[2] ? { dx: q[2][0], dy: q[2][1] } : null;
       x.lbl = q[3] || null; /* V16c: 文字件独立偏移/旋转随撤销恢复 */
+      x.pinLbl = q[4] || null; /* V16d: 引脚名/号文字独立偏移与旋转 */
     });
     D.wires.forEach(function (x, i) { var q = o.w[i]; if (q) { x.pts = q[0]; x.manual = q[1]; } });
     window.EVSE_GEO.crossings(D); window.EVSE_GEO.audit(D);
@@ -1137,16 +1138,15 @@
       msg('拖动电气连接点 —— 汇聚于此的所有电气线一起移动，保持连接关系'); return;
     }
     if (k === 'label') {
-      /* V16c: 文字按字段独立——data-id 形如 DEV.tag / DEV.name / DEV.spec */
-      var lid = t.getAttribute('data-id'), lp = lid.split('.'), dev = lp[0], field = lp[1] || 'tag', d4 = D.map[dev];
+      /* V16c/d: 文字对象独立——DEV.tag / DEV.name / DEV.spec / DEV.pin.<脚号>.name|no */
+      var lid = t.getAttribute('data-id'), info4 = lblParse(lid), d4 = D.map[info4.dev];
       if (!d4) return;
       pushHist();
-      d4.lbl = d4.lbl || {};
-      var cur = d4.lbl[field] || (d4.lbl[field] = { dx: 0, dy: 0, rot: 0 });
-      drag = { m: 'label', dev: dev, field: field, ox: (cur.dx || 0) - w0.x, oy: (cur.dy || 0) - w0.y };
-      ST.sel = { k: 'label', dev: dev, id: lid, field: field };
+      var cur = lblNode(d4, info4, true);
+      drag = { m: 'label', dev: info4.dev, key: info4.key, ox: (cur.dx || 0) - w0.x, oy: (cur.dy || 0) - w0.y };
+      ST.sel = { k: 'label', dev: info4.dev, id: lid, field: info4.key, pin: info4.pin };
       drawSel(); repaintWires(); renderInspector();
-      msg('文字「' + (field === 'tag' ? '位号' : field === 'name' ? '名称' : '规格') + '」已选中：可单独拖动，右键可旋转 / 复位');
+      msg('文字「' + lblTitle(info4, d4) + '」已选中：可单独拖动，右键可旋转 / 复位');
     }
   }
   function onMove(e) {
@@ -1174,8 +1174,8 @@
     }
     if (drag.m === 'label') {
       var d2 = D.map[drag.dev];
-      d2.lbl = d2.lbl || {};
-      var L2 = d2.lbl[drag.field] || (d2.lbl[drag.field] = { dx: 0, dy: 0, rot: 0 });
+      var L2 = lblNode(d2, lblParse(drag.dev + '.' + drag.key), true);
+      if (!L2) return;
       L2.dx = Math.round(w0.x + drag.ox); L2.dy = Math.round(w0.y + drag.oy);
       repaintDevs(); drawSel(); drag.moved = 1; return;
     }
@@ -2281,19 +2281,59 @@
     ST.msel = [id]; ST.sel = { k: 'dev', id: id };
     drawSel(); repaintWires(); renderInspector();
   };
-  /* V16c: 文字件属性修改（右键菜单 / 属性面板共用） */
-  window.__EVSE_LABEL_SET = function (devId, field, patch) {
-    var dv = D && D.map ? D.map[devId] : null;
-    if (!dv || !field) return;
-    pushHist();
+  /* V16c/d: 文字件路径解析与存取
+   * 路径：tag / name / spec / pin.<脚号>.name / pin.<脚号>.no */
+  function lblParse(id) {
+    var p = String(id || '').split('.');
+    if (p[1] === 'pin') {
+      var f = (p[3] === 'no') ? 'no' : 'name';
+      return { dev: p[0], kind: 'pin', pin: p[2], field: f, key: 'pin.' + p[2] + '.' + f };
+    }
+    return { dev: p[0], kind: 'dev', field: p[1] || 'tag', key: p[1] || 'tag' };
+  }
+  function lblNode(dv, info, create) {
+    if (!dv) return null;
+    if (info.kind === 'pin') {
+      if (!create) return (dv.pinLbl && dv.pinLbl[info.pin] && dv.pinLbl[info.pin][info.field]) || null;
+      dv.pinLbl = dv.pinLbl || {};
+      dv.pinLbl[info.pin] = dv.pinLbl[info.pin] || {};
+      dv.pinLbl[info.pin][info.field] = dv.pinLbl[info.pin][info.field] || { dx: 0, dy: 0, rot: 0 };
+      return dv.pinLbl[info.pin][info.field];
+    }
+    if (!create) return (dv.lbl && dv.lbl[info.field]) || null;
     dv.lbl = dv.lbl || {};
-    var cur = dv.lbl[field] || (dv.lbl[field] = { dx: 0, dy: 0, rot: 0 });
+    dv.lbl[info.field] = dv.lbl[info.field] || { dx: 0, dy: 0, rot: 0 };
+    return dv.lbl[info.field];
+  }
+  function lblTitle(info, dv) {
+    if (info.kind === 'pin') return '引脚' + (info.field === 'no' ? '号' : '名') + ' ' + info.pin;
+    return info.field === 'tag' ? '位号' : info.field === 'name' ? '名称' : '规格';
+  }
+  function lblText(info, dv) {
+    if (!dv) return '';
+    if (info.kind === 'pin') {
+      var q = (dv.sym.pins || []).filter(function (p) { return String(p.n) === String(info.pin); })[0];
+      if (!q) return '';
+      return info.field === 'no' ? String(q.n) : (q.name || q.n);
+    }
+    return info.field === 'tag' ? dv.tag : info.field === 'name' ? dv.name : dv.spec;
+  }
+  window.__EVSE_LBL_PARSE = lblParse;
+  window.__EVSE_LBL_NODE = lblNode;
+  window.__EVSE_LBL_TITLE = lblTitle;
+  window.__EVSE_LBL_TEXT = lblText;
+  window.__EVSE_LABEL_SET = function (devId, key, patch) {
+    var dv = D && D.map ? D.map[devId] : null;
+    if (!dv || !key) return;
+    var info = lblParse(devId + '.' + key);
+    pushHist();
+    var cur = lblNode(dv, info, true);
     if (patch && isFinite(patch.dx)) cur.dx = patch.dx;
     if (patch && isFinite(patch.dy)) cur.dy = patch.dy;
     if (patch && isFinite(patch.rot)) cur.rot = ((patch.rot % 360) + 360) % 360;
-    ST.sel = { k: 'label', dev: devId, id: devId + '.' + field, field: field };
+    ST.sel = { k: 'label', dev: devId, id: devId + '.' + info.key, field: info.key, pin: info.pin };
     repaintDevs(); drawSel(); renderInspector();
-    msg('文字已更新：' + (field === 'tag' ? '位号' : field === 'name' ? '名称' : '规格') + '　偏移 ' + Math.round(cur.dx) + ',' + Math.round(cur.dy) + '　旋转 ' + cur.rot + '°');
+    msg('文字「' + lblTitle(info, dv) + '」已更新：偏移 ' + Math.round(cur.dx) + ',' + Math.round(cur.dy) + '　旋转 ' + cur.rot + '°');
   };
   window.__EVSE_SELECT_ALL = function () {
     if (!D) return;
@@ -2899,20 +2939,21 @@
         ['操作', '可直接拖动，所有汇聚电气线一起移动并保持正交']];
     } else if (sel.k === 'label') {
       var d6 = D.map[sel.dev];
-      var lf = sel.field || 'tag';
-      var lcur = (d6 && d6.lbl && d6.lbl[lf]) || { dx: 0, dy: 0, rot: 0 };
-      var ltxt = d6 ? (lf === 'tag' ? d6.tag : lf === 'name' ? d6.name : d6.spec) : '';
-      title = '文字 · ' + (lf === 'tag' ? '位号' : lf === 'name' ? '名称' : '规格');
-      sub = '文字件可单独选中、拖动、右键旋转/复位';
+      var linfo6 = lblParse(sel.id || (sel.dev + '.' + (sel.field || 'tag')));
+      var lcur = lblNode(d6, linfo6, false) || { dx: 0, dy: 0, rot: 0 };
+      var ltxt = lblText(linfo6, d6);
+      title = '文字 · ' + lblTitle(linfo6, d6);
+      sub = linfo6.kind === 'pin' ? '引脚文字，可单独拖动、右键旋转/复位' : '文字件可单独选中、拖动、右键旋转/复位';
       rows = d6 ? [['内容', ltxt || '—'], ['所属器件', d6.tag + ' ' + d6.name],
         ['偏移', Math.round(lcur.dx || 0) + ', ' + Math.round(lcur.dy || 0)],
         ['旋转', (lcur.rot || 0) + '°']] : [];
       pins = null;
+      var lk = linfo6.key.replace(/'/g, "\\'");
       var lbtns = '<div style="margin-top:10px;border-top:1px solid #1f272f;padding-top:8px;display:flex;gap:6px;flex-wrap:wrap">'
-        + '<button class="btn" onclick="window.__EVSE_LABEL_SET(\'' + sel.dev + '\',\'' + lf + '\',{rot:' + (((lcur.rot || 0) + 90) % 360) + '})">↻ 旋转 90°</button>'
-        + '<button class="btn" onclick="window.__EVSE_LABEL_SET(\'' + sel.dev + '\',\'' + lf + '\',{rot:' + (((lcur.rot || 0) + 270) % 360) + '})">↺ 旋转 -90°</button>'
-        + '<button class="btn" onclick="window.__EVSE_LABEL_SET(\'' + sel.dev + '\',\'' + lf + '\',{dx:0,dy:0})">复位位置</button>'
-        + '<button class="btn" onclick="window.__EVSE_LABEL_SET(\'' + sel.dev + '\',\'' + lf + '\',{dx:0,dy:0,rot:0})">全部复位</button>'
+        + '<button class="btn" onclick="window.__EVSE_LABEL_SET(\'' + sel.dev + '\',\'' + lk + '\',{rot:' + (((lcur.rot || 0) + 90) % 360) + '})">↻ 旋转 90°</button>'
+        + '<button class="btn" onclick="window.__EVSE_LABEL_SET(\'' + sel.dev + '\',\'' + lk + '\',{rot:' + (((lcur.rot || 0) + 270) % 360) + '})">↺ 旋转 -90°</button>'
+        + '<button class="btn" onclick="window.__EVSE_LABEL_SET(\'' + sel.dev + '\',\'' + lk + '\',{dx:0,dy:0})">复位位置</button>'
+        + '<button class="btn" onclick="window.__EVSE_LABEL_SET(\'' + sel.dev + '\',\'' + lk + '\',{dx:0,dy:0,rot:0})">全部复位</button>'
         + '</div>';
       rows.__extra = lbtns;
     }
@@ -3586,13 +3627,14 @@ if (docHref) {
       if (!w) return;
       show(e, '<h4>连线 · ' + id + '</h4>' + wireRows(D, w), [{ t: '关闭', f: close }]);
     } else if (k === 'label') {
-      /* V16c: 文字件右键——单独旋转 / 复位 / 隐藏 */
-      var lp = id.split('.'), ldev = D.map[lp[0]], lf = lp[1] || 'tag';
+      /* V16c/d: 文字件右键——单独旋转 / 复位（含引脚名与引脚号） */
+      var linfo = window.__EVSE_LBL_PARSE(id);
+      var ldev = D.map[linfo.dev];
       if (!ldev) { close(); return; }
-      var cur = (ldev.lbl && ldev.lbl[lf]) || { dx: 0, dy: 0, rot: 0 };
-      var fname = lf === 'tag' ? '位号' : lf === 'name' ? '名称' : '规格';
-      var ftext = lf === 'tag' ? ldev.tag : lf === 'name' ? ldev.name : ldev.spec;
-      var doRot = function (deg) { window.__EVSE_LABEL_SET(ldev.id, lf, { rot: (((cur.rot || 0) + deg) % 360 + 360) % 360 }); close(); };
+      var cur = window.__EVSE_LBL_NODE(ldev, linfo) || { dx: 0, dy: 0, rot: 0 };
+      var fname = window.__EVSE_LBL_TITLE(linfo, ldev);
+      var ftext = window.__EVSE_LBL_TEXT(linfo, ldev);
+      var doRot = function (deg) { window.__EVSE_LABEL_SET(ldev.id, linfo.key, { rot: (((cur.rot || 0) + deg) % 360 + 360) % 360 }); close(); };
       show(e, '<h4>文字 · ' + fname + '</h4>'
         + row('内容', ftext || '—') + row('所属器件', (ldev.tag || ldev.id) + ' ' + (ldev.name || ''))
         + row('偏移', Math.round(cur.dx || 0) + ', ' + Math.round(cur.dy || 0)) + row('旋转', (cur.rot || 0) + '°'),
@@ -3600,9 +3642,9 @@ if (docHref) {
           { t: '↻ 旋转 90°', f: function () { doRot(90); } },
           { t: '↺ 旋转 -90°', f: function () { doRot(-90); } },
           { t: '旋转 45°', f: function () { doRot(45); } },
-          { t: '复位位置', f: function () { window.__EVSE_LABEL_SET(ldev.id, lf, { dx: 0, dy: 0 }); close(); } },
-          { t: '复位旋转', f: function () { window.__EVSE_LABEL_SET(ldev.id, lf, { rot: 0 }); close(); } },
-          { t: '全部复位', f: function () { window.__EVSE_LABEL_SET(ldev.id, lf, { dx: 0, dy: 0, rot: 0 }); close(); } },
+          { t: '复位位置', f: function () { window.__EVSE_LABEL_SET(ldev.id, linfo.key, { dx: 0, dy: 0 }); close(); } },
+          { t: '复位旋转', f: function () { window.__EVSE_LABEL_SET(ldev.id, linfo.key, { rot: 0 }); close(); } },
+          { t: '全部复位', f: function () { window.__EVSE_LABEL_SET(ldev.id, linfo.key, { dx: 0, dy: 0, rot: 0 }); close(); } },
           { t: '关闭', f: close }
         ]);
     } else if (k === 'pin') {

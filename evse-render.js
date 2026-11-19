@@ -54,6 +54,28 @@ window.EVSE_RENDER = (function () {
 
   const OFF = { N: [0, -1], S: [0, 1], W: [-1, 0], E: [1, 0] };
 
+  /* V16d: 通用文字件——任意一段文字都可独立偏移 + 旋转，并带透明命中框便于单独点选 */
+  const txtW = function (str, size) {
+    let w = 0;
+    for (const ch of String(str == null ? '' : str)) w += /[\u3000-\u9fff\uff00-\uffef]/.test(ch) ? size : size * 0.55;
+    return w;
+  };
+  const lblOff = function (node) {
+    return { dx: (node && isFinite(node.dx)) ? node.dx : 0, dy: (node && isFinite(node.dy)) ? node.dy : 0, rot: (node && isFinite(node.rot)) ? node.rot : 0 };
+  };
+  /* devId + key 组成 data-id：tag / name / spec / pin.<脚号>.name / pin.<脚号>.no */
+  function labelSVG(devId, key, text, x, y, a, style, size, rot, selKey) {
+    const an = anch[a] || 'start';
+    const tx = n2(x), ty = n2(y);
+    const wid = txtW(text, size) + 4, hh = size + 3;
+    const rx = an === 'middle' ? tx - wid / 2 : (an === 'end' ? tx - wid : tx);
+    const id = esc(devId + '.' + key);
+    const hit = '<rect class="lblhit" data-k="label" data-id="' + id + '" x="' + n2(rx) + '" y="' + n2(ty - size) + '" width="' + n2(wid) + '" height="' + n2(hh) + '" fill="transparent"/>';
+    const on = selKey && selKey === (devId + '.' + key);
+    const t = '<text class="lbl' + (on ? ' lbldon' : '') + '" data-k="label" data-id="' + id + '" x="' + tx + '" y="' + ty + '" text-anchor="' + an + '" style="' + style + '">' + esc(text) + '</text>';
+    return '<g' + (rot ? ' transform="rotate(' + num(rot) + ' ' + tx + ' ' + ty + ')"' : '') + '>' + hit + t + '</g>';
+  }
+
   function devSVG(dv, opts) {
     const o = opts || {};
     let s = '<g class="dev" data-k="dev" data-id="' + esc(dv.id) + '" transform="translate(' + n2(num(dv.x)) + ',' + n2(num(dv.y)) + ')">';
@@ -77,27 +99,21 @@ window.EVSE_RENDER = (function () {
           ix = p.x - v[0] * (p.len + 5); iy = p.y + 2.4;
           a = p.d === 'W' ? 's' : 'e';
         }
-        s += '<text x="' + n2(ix) + '" y="' + n2(iy) + '" text-anchor="' + anch[a] + '" style="' + TS.pinname + '">' + esc(p.name) + '</text>';
+        /* V16d: 引脚名可单独拖动/旋转（dv.pinLbl[脚号].name） */
+        const pn1 = lblOff(dv.pinLbl && dv.pinLbl[p.n] && dv.pinLbl[p.n].name);
+        s += labelSVG(dv.id, 'pin.' + p.n + '.name', p.name, ix + pn1.dx, iy + pn1.dy, a, TS.pinname, 6.8, pn1.rot, o.selLabel);
       }
       if (o.pinNo && p.n) {
         const vert = p.d === 'N' || p.d === 'S';
         const px = vert ? p.x + 4 : p.x + (p.d === 'E' ? 6 : -6);
         const py = p.y + (vert ? (p.d === 'N' ? -3 : 7) : -4);
         const a = vert ? 'start' : (p.d === 'E' ? 'start' : 'end');
-        s += '<text x="' + n2(px) + '" y="' + n2(py) + '" text-anchor="' + a + '" style="' + TS.pinno + '">' + esc(p.n) + '</text>';
+        /* V16d: 引脚号可单独拖动/旋转（dv.pinLbl[脚号].no） */
+        const pn2 = lblOff(dv.pinLbl && dv.pinLbl[p.n] && dv.pinLbl[p.n].no);
+        s += labelSVG(dv.id, 'pin.' + p.n + '.no', p.n, px + pn2.dx, py + pn2.dy, a, TS.pinno, 5.6, pn2.rot, o.selLabel);
       }
     });
-    /* V16c: 位号 / 名称 / 规格三段文字各自独立——独立偏移（dv.lbl[field]）+ 独立旋转，
-     * 每段都带可点击的透明命中框，支持单独选中/拖动/右键旋转与复位。 */
-    const textW = function (str, size) {
-      let w = 0;
-      for (const ch of String(str == null ? '' : str)) w += /[\u3000-\u9fff\uff00-\uffef]/.test(ch) ? size : size * 0.55;
-      return w;
-    };
-    const lblOf = function (f) {
-      const L = dv.lbl && dv.lbl[f];
-      return { dx: (L && isFinite(L.dx)) ? L.dx : 0, dy: (L && isFinite(L.dy)) ? L.dy : 0, rot: (L && isFinite(L.rot)) ? L.rot : 0 };
-    };
+    /* V16c/d: 位号 / 名称 / 规格三段文字各自独立——独立偏移（dv.lbl[field]）+ 独立旋转 */
     if (dv.sym.tagAt) {
       const legacy = dv.tagOff || { dx: 0, dy: 0 };
       const base = { x: dv.sym.tagAt.x + legacy.dx, y: dv.sym.tagAt.y + legacy.dy, a: dv.sym.tagAt.a };
@@ -108,19 +124,9 @@ window.EVSE_RENDER = (function () {
         fields.push({ f: 'name', text: dv.name, x: base.x + below, y: base.y + 10, style: 'name', size: 8 });
         if (dv.spec) fields.push({ f: 'spec', text: dv.spec, x: base.x + below, y: base.y + 19, style: 'spec', size: 7 });
       }
-      const selLbl = o.selLabel || '';
       fields.forEach(function (fd) {
-        const L = lblOf(fd.f);
-        const tx = fd.x + L.dx, ty = fd.y + L.dy;
-        const an = anch[base.a] || 'start';
-        const rotAttr = L.rot ? ' transform="rotate(' + num(L.rot) + ' ' + n2(tx) + ' ' + n2(ty) + ')"' : '';
-        const wid = textW(fd.text, fd.size) + 6, hh = fd.size + 4;
-        const rx = an === 'middle' ? tx - wid / 2 : (an === 'end' ? tx - wid : tx);
-        const hit = '<rect class="lblhit" data-k="label" data-id="' + esc(dv.id) + '.' + fd.f + '" x="' + n2(rx) + '" y="' + n2(ty - fd.size) + '" width="' + n2(wid) + '" height="' + n2(hh) + '" fill="transparent"/>';
-        const on = selLbl === dv.id + '.' + fd.f;
-        s += '<g' + rotAttr + '>' + hit
-          + '<text class="lbl' + (on ? ' lbldon' : '') + '" data-k="label" data-id="' + esc(dv.id) + '.' + fd.f + '" x="' + n2(tx) + '" y="' + n2(ty) + '" text-anchor="' + an + '" style="' + TS[fd.style] + '">' + esc(fd.text) + '</text>'
-          + '</g>';
+        const L = lblOff(dv.lbl && dv.lbl[fd.f]);
+        s += labelSVG(dv.id, fd.f, fd.text, fd.x + L.dx, fd.y + L.dy, base.a, TS[fd.style], fd.size, L.rot, o.selLabel);
       });
     }
     if (dv.rot) s += '</g>';
