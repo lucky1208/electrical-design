@@ -98,6 +98,9 @@
   .foldlab{display:none;writing-mode:vertical-rl;letter-spacing:.2em;color:#6f7a87;font-size:11px;margin:10px auto 0;white-space:nowrap}
   .side.collapsed .foldlab{display:block}
   /* v2.11 audit-fix: 右键菜单 */
+  text.lbl{cursor:move;user-select:none}
+  text.lbl:hover{fill:#0ea5e9}
+  text.lbl.lbldon{fill:#0ea5e9;font-weight:700}
   .ctxmenu{position:fixed;z-index:99;background:#151a20;border:1px solid #2b333d;border-radius:6px;padding:10px 12px;min-width:250px;max-width:340px;font-size:12px;color:#c3ccd7;box-shadow:0 8px 28px rgba(0,0,0,.55)}
   .ctxmenu h4{margin:0 0 7px;font-size:12px;color:#e6eaf0;letter-spacing:.06em}
   .ctxmenu .row{display:flex;justify-content:space-between;gap:14px;line-height:1.75}
@@ -555,6 +558,11 @@
             <option value="open">断开（斜刀）</option>
             <option value="closed">闭合（直通）</option>
           </select></label>
+          <label class="f" style="width:112px"><span>方向</span><select id="cdDir" style="padding:5px 6px">
+            <option value="auto">自动（按引脚）</option>
+            <option value="h">横向（左进右出）</option>
+            <option value="v">竖向（上进下出）</option>
+          </select></label>
           <label class="f" style="width:84px"><span>宽度</span><input id="cdW" type="number" value="120" min="8" max="600" step="2"></label>
           <label class="f" style="width:92px"><span>最小高度</span><input id="cdMinH" type="number" value="56" min="16" max="600" step="2"></label>
         </div>
@@ -777,6 +785,7 @@
   function viewOpts() {
     var L = {}; Object.keys(ST.layers).forEach(function (k) { L[k] = !!ST.layers[k]; });
     return { pinNo: ST.opts.pinNo, pinName: ST.opts.pinName, devName: ST.opts.devName, layers: L,
+      selLabel: ST.sel && ST.sel.k === 'label' ? ST.sel.id : '',
       hiNet: ST.sel && (ST.sel.k === 'wire' || ST.sel.k === 'pin') ? ST.sel.net : null };
   }
   function commitGeneratedDesign(next, fit) {
@@ -983,7 +992,7 @@
   function snap(struct) {
     if (!D) return JSON.stringify({});
     var o = {
-      p: D.devices.map(function (x) { return [x.x, x.y, x.tagOff ? [x.tagOff.dx, x.tagOff.dy] : 0]; }),
+      p: D.devices.map(function (x) { return [x.x, x.y, x.tagOff ? [x.tagOff.dx, x.tagOff.dy] : 0, x.lbl || 0]; }),
       w: D.wires.map(function (x) { return [x.pts, !!x.manual]; })
     };
     /* V16: 结构性操作（增删器件）需要整份快照，否则撤销无法还原器件/网表 */
@@ -1006,7 +1015,13 @@
       paint(false); renderAll();
       return;
     }
-    D.devices.forEach(function (x, i) { var q = o.p[i]; if (q) { x.x = q[0]; x.y = q[1]; x.tagOff = q[2] ? { dx: q[2][0], dy: q[2][1] } : null; } });
+    D.devices.forEach(function (x, i) {
+      var q = o.p[i];
+      if (!q) return;
+      x.x = q[0]; x.y = q[1];
+      x.tagOff = q[2] ? { dx: q[2][0], dy: q[2][1] } : null;
+      x.lbl = q[3] || null; /* V16c: 文字件独立偏移/旋转随撤销恢复 */
+    });
     D.wires.forEach(function (x, i) { var q = o.w[i]; if (q) { x.pts = q[0]; x.manual = q[1]; } });
     window.EVSE_GEO.crossings(D); window.EVSE_GEO.audit(D);
     paint(false); renderAll();
@@ -1122,11 +1137,16 @@
       msg('拖动电气连接点 —— 汇聚于此的所有电气线一起移动，保持连接关系'); return;
     }
     if (k === 'label') {
-      var lid = t.getAttribute('data-id'), dev = lid.split('.')[0], d4 = D.map[dev];
+      /* V16c: 文字按字段独立——data-id 形如 DEV.tag / DEV.name / DEV.spec */
+      var lid = t.getAttribute('data-id'), lp = lid.split('.'), dev = lp[0], field = lp[1] || 'tag', d4 = D.map[dev];
+      if (!d4) return;
       pushHist();
-      drag = { m: 'label', dev: dev, ox: (d4.tagOff ? d4.tagOff.dx : 0) - w0.x, oy: (d4.tagOff ? d4.tagOff.dy : 0) - w0.y };
-      ST.sel = { k: 'label', dev: dev, id: lid }; drawSel(); repaintWires(); renderInspector(); /* v2.38 */
-      msg('位号 / 名称 / 规格文字可单独拖动');
+      d4.lbl = d4.lbl || {};
+      var cur = d4.lbl[field] || (d4.lbl[field] = { dx: 0, dy: 0, rot: 0 });
+      drag = { m: 'label', dev: dev, field: field, ox: (cur.dx || 0) - w0.x, oy: (cur.dy || 0) - w0.y };
+      ST.sel = { k: 'label', dev: dev, id: lid, field: field };
+      drawSel(); repaintWires(); renderInspector();
+      msg('文字「' + (field === 'tag' ? '位号' : field === 'name' ? '名称' : '规格') + '」已选中：可单独拖动，右键可旋转 / 复位');
     }
   }
   function onMove(e) {
@@ -1154,7 +1174,9 @@
     }
     if (drag.m === 'label') {
       var d2 = D.map[drag.dev];
-      d2.tagOff = { dx: Math.round(w0.x + drag.ox), dy: Math.round(w0.y + drag.oy) };
+      d2.lbl = d2.lbl || {};
+      var L2 = d2.lbl[drag.field] || (d2.lbl[drag.field] = { dx: 0, dy: 0, rot: 0 });
+      L2.dx = Math.round(w0.x + drag.ox); L2.dy = Math.round(w0.y + drag.oy);
       repaintDevs(); drawSel(); drag.moved = 1; return;
     }
     if (drag.m === 'junc') {
@@ -2259,6 +2281,20 @@
     ST.msel = [id]; ST.sel = { k: 'dev', id: id };
     drawSel(); repaintWires(); renderInspector();
   };
+  /* V16c: 文字件属性修改（右键菜单 / 属性面板共用） */
+  window.__EVSE_LABEL_SET = function (devId, field, patch) {
+    var dv = D && D.map ? D.map[devId] : null;
+    if (!dv || !field) return;
+    pushHist();
+    dv.lbl = dv.lbl || {};
+    var cur = dv.lbl[field] || (dv.lbl[field] = { dx: 0, dy: 0, rot: 0 });
+    if (patch && isFinite(patch.dx)) cur.dx = patch.dx;
+    if (patch && isFinite(patch.dy)) cur.dy = patch.dy;
+    if (patch && isFinite(patch.rot)) cur.rot = ((patch.rot % 360) + 360) % 360;
+    ST.sel = { k: 'label', dev: devId, id: devId + '.' + field, field: field };
+    repaintDevs(); drawSel(); renderInspector();
+    msg('文字已更新：' + (field === 'tag' ? '位号' : field === 'name' ? '名称' : '规格') + '　偏移 ' + Math.round(cur.dx) + ',' + Math.round(cur.dy) + '　旋转 ' + cur.rot + '°');
+  };
   window.__EVSE_SELECT_ALL = function () {
     if (!D) return;
     ST.msel = D.devices.filter(function (x) { return x.sheet === ST.sheet && x.x != null && !x.sym.isBus && !x.pwr && !x.xref; }).map(function (x) { return x.id; });
@@ -2306,12 +2342,23 @@
             if (/^a1$|^a2$|线圈|coil/i.test(pn)) coil.push(p); else main.push(p);
           });
         });
-        sp.left = coil; sp.right = []; sp.top = []; sp.bottom = [];
-        main.forEach(function (p, i) { (i % 2 === 0 ? sp.top : sp.bottom).push(p); });
-        /* 宽度按极数重算，避免旧件 120 宽只画一根刀片 */
+        /* 方向：原引脚偏左/右 → 横向；否则接触器/继电器默认横向 */
+        var baseL = (sp.left || []).length, baseR = (sp.right || []).length;
+        var baseT = (sp.top || []).length, baseB = (sp.bottom || []).length;
+        var dir = (baseL + baseR) > (baseT + baseB) ? 'h' : ((g === 'contactor' || g === 'contactor3' || g === 'relay') ? 'h' : 'v');
+        sp.dir = dir;
+        var coilSide = dir === 'h' ? 'bottom' : 'left';
+        sp.left = []; sp.right = []; sp.top = []; sp.bottom = [];
+        coil.forEach(function (p) { sp[coilSide].push(p); });
+        main.forEach(function (p, i) {
+          var side = dir === 'h' ? (i % 2 === 0 ? 'left' : 'right') : (i % 2 === 0 ? 'top' : 'bottom');
+          sp[side].push(p);
+        });
+        /* 尺寸按极数重算，避免旧件 120 宽只画一根刀片 */
         var poles = Math.max(1, Math.min(3, Math.ceil(main.length / 2)));
-        sp.w = (g === 'contactor' || g === 'contactor3' || g === 'relay') ? Math.max(70, (poles - 1) * 22 + 56) : 40;
-        if (!sp.minH || sp.minH < 60) sp.minH = 70;
+        if (dir === 'h') { sp.w = (g === 'contactor' || g === 'contactor3' || g === 'relay') ? 110 : 70; sp.minH = (g === 'contactor' || g === 'contactor3') ? (poles - 1) * 18 + 62 : 52; }
+        else { sp.w = (g === 'contactor' || g === 'contactor3' || g === 'relay') ? Math.max(70, (poles - 1) * 22 + 56) : 40; sp.minH = 70; }
+        if (!sp.minH || sp.minH < 52) sp.minH = 60;
         if (typeof sp.closed !== 'boolean') sp.closed = false;
       }
     }
@@ -2397,6 +2444,7 @@
       title: ($('cdTitle').value || '').trim() || (bodyKind === 'rect' ? nm : ''),
       body: bodyKind,
       closed: ($('cdClosed') && $('cdClosed').value === 'closed'),
+      dir: (function () { var v = $('cdDir') && $('cdDir').value; return v === 'h' || v === 'v' ? v : null; })(),
       shapes: shapes,
       w: Math.max(8, +$('cdW').value || 120), minH: Math.max(16, +$('cdMinH').value || 56),
       left: by.left, right: by.right, top: by.top, bottom: by.bottom,
@@ -2475,6 +2523,7 @@
     /* V16: 外形与自绘图元往返无损 */
     if ($('cdBody')) $('cdBody').value = (window.EVSE_CORE.BOX_BODIES.indexOf(spec.body) >= 0) ? spec.body : 'rect';
     if ($('cdClosed')) $('cdClosed').value = spec.closed ? 'closed' : 'open';
+    if ($('cdDir')) $('cdDir').value = (spec.dir === 'h' || spec.dir === 'v') ? spec.dir : 'auto';
     if ($('cdShapes')) $('cdShapes').value = cdPrimsToText(spec.shapes);
     var el = spec.electrical || {};
     $('cdMfr').value = el.manufacturer || ''; $('cdModel').value = el.model || ''; $('cdSourceId').value = el.sourceId || ''; $('cdSourceRev').value = el.sourceRevision || '';
@@ -2498,9 +2547,9 @@
     if (!confirm('删除自定义元器件「' + e.name + '」？（已放置到图纸上的实例不受影响）')) return;
     var arr = customStore(); arr.splice(e.custom, 1); customSave(arr); rebuildCustomLib(); msg('已删除自定义元器件 ' + e.name);
   };
-  var CD_PROMPT = function (what) { return '你是电气原理图符号助手。请从' + what + '中提取元器件符号定义，只输出一个 JSON 对象（禁止 markdown 代码块和其它文字）：{"name":"元器件名称","tag":"位号前缀大写字母","title":"框内标题","body":"rect或none或circle或diamond或hex或switch_no或switch_nc或contact_no或contact_nc或contactor或contactor3或relay或breaker或diode或fuse或coil或resistor或cap或lamp或ground","closed":true或false,"w":宽度整数8到600,"minH":最小高度整数16到600,"pins":[{"n":"引脚号","name":"引脚名","side":"left或right或top或bottom","k":"AC或DC或ESS或AUX或CTL或COMM或SIG或PE","t":"in或out或bi","ercType":"unclassified或passive或input或output或bidirectional或power_input或power_output或power_bidirectional或no_connect"}]}。规则：' +
+  var CD_PROMPT = function (what) { return '你是电气原理图符号助手。请从' + what + '中提取元器件符号定义，只输出一个 JSON 对象（禁止 markdown 代码块和其它文字）：{"name":"元器件名称","tag":"位号前缀大写字母","title":"框内标题","body":"rect或none或circle或diamond或hex或switch_no或switch_nc或contact_no或contact_nc或contactor或contactor3或relay或breaker或diode或fuse或coil或resistor或cap或lamp或ground","closed":true或false,"dir":"h或v（h=横向左进右出，v=竖向上进下出）","w":宽度整数8到600,"minH":最小高度整数16到600,"pins":[{"n":"引脚号","name":"引脚名","side":"left或right或top或bottom","k":"AC或DC或ESS或AUX或CTL或COMM或SIG或PE","t":"in或out或bi","ercType":"unclassified或passive或input或output或bidirectional或power_input或power_output或power_bidirectional或no_connect"}]}。规则：' +
     '（1）接触器/继电器/开关/断路器/触点禁止用 rect 方框，必须用触头刀片画法：接触器 body="contactor"（多极）或 "contactor3"（3 极），继电器 body="relay"，断路器/隔离开关 body="breaker"，开关 body="switch_no" 或 "switch_nc"，单副触点 body="contact_no" 或 "contact_nc"；' +
-    '（2）触头类器件的主触头引脚按 1/3/5 在 top、2/4/6 在 bottom 排列（上奇数下偶数），线圈 A1/A2 放 left；' +
+    '（2）触头类器件方向：dir="h" 横向（主触头 1/3/5 在 left、2/4/6 在 right，线圈 A1/A2 放 bottom；接触器/继电器优先横向），dir="v" 竖向（1/3/5 在 top、2/4/6 在 bottom，线圈 A1/A2 放 left；开关/触点优先竖向）；' +
     '（3）分合状态：「常开/NO/断开」closed=false（斜刀），「常闭/NC/闭合」closed=true（直通）；' +
     '（4）熔断器 fuse、二极管 diode、线圈 coil、电阻 resistor、电容 cap、指示灯 lamp、接地 ground 直接选对应 body，不要套方框；集成电路/功能模块才用 rect；' +
     '（5）引脚数量与名称严格按资料，不得臆造。只有资料明确给出电气驱动类型时才填写 ercType，否则必须为 unclassified；AI 给出的类型一律是待人工复核假设，不得标为已核验。'; };
@@ -2521,27 +2570,40 @@
     if (/开关|按钮|switch|button/i.test(s)) return /常闭|nc|闭合/i.test(s) ? 'switch_nc' : 'switch_no';
     return null;
   }
-  /* 触头类：主触头按上奇下偶分布，线圈脚留左侧，保证刀片正对引脚 */
-  function cdApplyBladePins(kind) {
+  /* 触头类引脚排布：横向=1/3/5 左、2/4/6 右、线圈 A1/A2 下；竖向=上/下、线圈左 */
+  function cdApplyBladePins(kind, dir) {
     var coil = [], main = [];
     cdPins.forEach(function (p) {
       var nm = String(p.name || '') + ' ' + String(p.n || '');
       if (/^a1$|^a2$|线圈|coil/i.test(nm) || /^(a1|a2)$/i.test(String(p.n))) coil.push(p); else main.push(p);
     });
-    if (kind === 'relay' || kind === 'contactor' || kind === 'contactor3') coil.forEach(function (p) { p.side = 'left'; });
-    main.forEach(function (p, i) { p.side = (i % 2 === 0) ? 'top' : 'bottom'; });
+    var horiz = dir === 'h';
+    var coilSide = horiz ? 'bottom' : 'left';
+    if (kind === 'relay' || kind === 'contactor' || kind === 'contactor3') coil.forEach(function (p) { p.side = coilSide; });
+    main.forEach(function (p, i) {
+      p.side = horiz ? (i % 2 === 0 ? 'left' : 'right') : (i % 2 === 0 ? 'top' : 'bottom');
+    });
     cdRenderPins();
   }
-  function cdApplyGuessedBody(kind, keepW) {
+  /* 触头类默认方向：接触器/继电器横置（与常见图纸一致），开关/触点/断路器竖置 */
+  function cdDefaultDir(kind) { return (kind === 'contactor' || kind === 'contactor3' || kind === 'relay') ? 'h' : 'v'; }
+  function cdApplyGuessedBody(kind, keepW, dir) {
     if (!$('cdBody')) return;
     $('cdBody').value = kind;
-    var perPole = 22, poles = kind === 'contactor3' ? 3 : kind === 'contactor' ? Math.max(1, Math.ceil(((cdPins.length - (kind === 'contactor' ? 2 : 0)) || 6) / 2)) : 1;
-    var wantW = (kind === 'contactor' || kind === 'contactor3' || kind === 'relay')
-      ? Math.max(70, Math.min(140, (poles - 1) * perPole + 56))
-      : (kind === 'ground' ? 44 : 40);
-    if (!keepW) $('cdW').value = wantW;
-    if (+$('cdMinH').value < 60) $('cdMinH').value = 70;
-    cdApplyBladePins(kind);
+    var wantDir = (dir === 'h' || dir === 'v') ? dir : cdDefaultDir(kind);
+    if ($('cdDir')) $('cdDir').value = wantDir;
+    var poles = kind === 'contactor3' ? 3 : kind === 'contactor' ? Math.max(1, Math.ceil(((cdPins.length - (kind === 'contactor' ? 2 : 0)) || 6) / 2)) : 1;
+    if (!keepW) {
+      if (wantDir === 'h') {
+        $('cdW').value = (kind === 'contactor' || kind === 'contactor3' || kind === 'relay') ? 110 : 70;
+        $('cdMinH').value = Math.max(+$('cdMinH').value || 0, kind === 'ground' ? 44 : (kind === 'contactor' || kind === 'contactor3' ? (poles - 1) * 18 + 62 : 52));
+      } else {
+        $('cdW').value = (kind === 'contactor' || kind === 'contactor3' || kind === 'relay')
+          ? Math.max(70, Math.min(140, (poles - 1) * 22 + 56)) : (kind === 'ground' ? 44 : 40);
+      }
+    }
+    if (+$('cdMinH').value < 52) $('cdMinH').value = wantDir === 'h' ? 70 : 60;
+    cdApplyBladePins(kind, wantDir);
     if ($('cdClosed')) { $('cdClosed').disabled = !CD_BLADE.test(kind); $('cdClosed').style.opacity = CD_BLADE.test(kind) ? '1' : '.45'; }
   }
   /* V16b: 把 AI 返回的 JSON 落到编辑器（含外形纠正）。抽成独立函数便于测试与复用。 */
@@ -2560,8 +2622,9 @@
     var guess = cdGuessBody(j.name || $('cdName').value, j.title || $('cdTitle').value);
     var finalBody = aiBody;
     if (guess && (!aiBody || aiBody === 'rect' || aiBody === 'none')) finalBody = guess;
+    var aiDir = (j.dir === 'h' || j.dir === 'v') ? j.dir : null;
     if (finalBody === 'rect') { if ($('cdBody')) $('cdBody').value = 'rect'; }
-    else if (finalBody) cdApplyGuessedBody(finalBody, !!j.w);
+    else if (finalBody) cdApplyGuessedBody(finalBody, !!j.w, aiDir);
     if (typeof j.closed === 'boolean' && CD_BLADE.test(finalBody || '')) $('cdClosed').value = j.closed ? 'closed' : 'open';
     cdRenderPins(); cdPreview();
     return { body: finalBody, pins: cdPins.length };
@@ -2618,19 +2681,31 @@
     var BLADE = /^(switch_no|switch_nc|contact_no|contact_nc|contactor|contactor3|relay|breaker)$/;
     var VERT2 = /^(switch_no|switch_nc|contact_no|contact_nc|diode|fuse|coil|resistor|cap|lamp|breaker)$/;
     var boxish = /^(rect|round|circle|diamond|hex)$/;
-    /* 触头类外形：默认建议窄而高（贴合电气画法），用户仍可改 */
-    if (VERT2.test(k) && (+$('cdW').value === 120 || +$('cdW').value < 30)) { $('cdW').value = 40; if (+$('cdMinH').value < 60) $('cdMinH').value = 70; }
-    if ((k === 'contactor' || k === 'contactor3' || k === 'relay') && (+$('cdW').value === 120 || +$('cdW').value < 30)) { $('cdW').value = 96; if (+$('cdMinH').value < 60) $('cdMinH').value = 70; }
-    if (k === 'ground') { $('cdW').value = 44; $('cdMinH').value = 44; }
-    if (boxish.test(k) && +$('cdW').value < 30) $('cdW').value = 120;
-    /* 开合状态只对触头类外形有意义 */
-    if ($('cdClosed')) { $('cdClosed').disabled = !BLADE.test(k); $('cdClosed').style.opacity = BLADE.test(k) ? '1' : '.45'; }
+    /* 触头类外形：切到接触器/继电器时自动改为横置并重排引脚 */
+    if (BLADE.test(k)) {
+      var dirWant = ($('cdDir') && $('cdDir').value !== 'auto') ? $('cdDir').value : cdDefaultDir(k);
+      if ($('cdDir')) $('cdDir').value = dirWant;
+      cdApplyGuessedBody(k, false, dirWant);
+    } else {
+      if (VERT2.test(k) && (+$('cdW').value === 120 || +$('cdW').value < 30)) { $('cdW').value = 40; if (+$('cdMinH').value < 60) $('cdMinH').value = 70; }
+      if (k === 'ground') { $('cdW').value = 44; $('cdMinH').value = 44; }
+      if (boxish.test(k) && +$('cdW').value < 30) $('cdW').value = 120;
+      if ($('cdClosed')) { $('cdClosed').disabled = true; $('cdClosed').style.opacity = '.45'; }
+      var dd = $('cdDir'); if (dd) { dd.disabled = true; dd.style.opacity = '.45'; }
+    }
+    if (BLADE.test(k) && $('cdClosed')) { $('cdClosed').disabled = false; $('cdClosed').style.opacity = '1'; }
+    if (BLADE.test(k) && $('cdDir')) { $('cdDir').disabled = false; $('cdDir').style.opacity = '1'; }
     msg(BLADE.test(k)
-      ? '外形「' + $('cdBody').options[this.selectedIndex].text + '」：触头引脚放 上/下 边（1/3/5 在上、2/4/6 在下），线圈 A1/A2 放左侧；开合状态决定刀片画法'
+      ? '外形「' + $('cdBody').options[this.selectedIndex].text + '」：' + ($('cdDir').value === 'h' ? '横向——主触头 1/3/5 在左、2/4/6 在右，线圈 A1/A2 放下边' : '竖向——主触头 1/3/5 在上、2/4/6 在下，线圈 A1/A2 放左边')
       : '外形已切换为「' + $('cdBody').options[this.selectedIndex].text + '」');
     cdPreview();
   };
   if ($('cdClosed')) $('cdClosed').onchange = function () { cdPreview(); };
+  if ($('cdDir')) $('cdDir').onchange = function () {
+    var k = $('cdBody') ? $('cdBody').value : 'rect';
+    if (CD_BLADE.test(k) && this.value !== 'auto') cdApplyGuessedBody(k, true, this.value);
+    cdPreview();
+  };
   if ($('cdShapes')) $('cdShapes').oninput = function () { cdPreview(); };
   if ($('cdShapesDemo')) $('cdShapesDemo').onclick = function () {
     var k = ($('cdBody') && $('cdBody').value) || 'none';
@@ -2824,13 +2899,28 @@
         ['操作', '可直接拖动，所有汇聚电气线一起移动并保持正交']];
     } else if (sel.k === 'label') {
       var d6 = D.map[sel.dev];
-      title = '文字对象 ' + sel.id; sub = '位号 / 名称 / 规格标注，可独立拖动';
-      rows = d6 ? [['所属器件', d6.tag + ' ' + d6.name],
-        ['偏移', d6.tagOff ? d6.tagOff.dx + ', ' + d6.tagOff.dy : '0, 0（自动避让位）']] : [];
+      var lf = sel.field || 'tag';
+      var lcur = (d6 && d6.lbl && d6.lbl[lf]) || { dx: 0, dy: 0, rot: 0 };
+      var ltxt = d6 ? (lf === 'tag' ? d6.tag : lf === 'name' ? d6.name : d6.spec) : '';
+      title = '文字 · ' + (lf === 'tag' ? '位号' : lf === 'name' ? '名称' : '规格');
+      sub = '文字件可单独选中、拖动、右键旋转/复位';
+      rows = d6 ? [['内容', ltxt || '—'], ['所属器件', d6.tag + ' ' + d6.name],
+        ['偏移', Math.round(lcur.dx || 0) + ', ' + Math.round(lcur.dy || 0)],
+        ['旋转', (lcur.rot || 0) + '°']] : [];
+      pins = null;
+      var lbtns = '<div style="margin-top:10px;border-top:1px solid #1f272f;padding-top:8px;display:flex;gap:6px;flex-wrap:wrap">'
+        + '<button class="btn" onclick="window.__EVSE_LABEL_SET(\'' + sel.dev + '\',\'' + lf + '\',{rot:' + (((lcur.rot || 0) + 90) % 360) + '})">↻ 旋转 90°</button>'
+        + '<button class="btn" onclick="window.__EVSE_LABEL_SET(\'' + sel.dev + '\',\'' + lf + '\',{rot:' + (((lcur.rot || 0) + 270) % 360) + '})">↺ 旋转 -90°</button>'
+        + '<button class="btn" onclick="window.__EVSE_LABEL_SET(\'' + sel.dev + '\',\'' + lf + '\',{dx:0,dy:0})">复位位置</button>'
+        + '<button class="btn" onclick="window.__EVSE_LABEL_SET(\'' + sel.dev + '\',\'' + lf + '\',{dx:0,dy:0,rot:0})">全部复位</button>'
+        + '</div>';
+      rows.__extra = lbtns;
     }
+    var extraHtml = rows.__extra || ''; /* V16c: 文字件的旋转/复位按钮 */
     h = '<div style="font-size:13px;font-weight:700;color:#fff;margin-bottom:2px">' + esc(title) + '</div>'
       + '<div style="color:#7c8794;font-size:11px;margin-bottom:9px">' + esc(sub) + '</div>'
-      + rows.map(function (r) { return '<div class="kv"><b>' + esc(r[0]) + '</b><s>' + esc(r[1]) + '</s></div>'; }).join('');
+      + rows.map(function (r) { return '<div class="kv"><b>' + esc(r[0]) + '</b><s>' + esc(r[1]) + '</s></div>'; }).join('')
+      + extraHtml;
     if (pins) {
       h += '<div style="margin-top:10px;border-top:1px solid #1f272f;padding-top:8px">'
         + '<div style="font-size:10.5px;color:#6f7a87;margin-bottom:5px">引脚 → 对端（点对点可追溯）</div>'
@@ -3495,6 +3585,26 @@ if (docHref) {
       var w = D.wires.filter(function (q) { return q.id === id; })[0];
       if (!w) return;
       show(e, '<h4>连线 · ' + id + '</h4>' + wireRows(D, w), [{ t: '关闭', f: close }]);
+    } else if (k === 'label') {
+      /* V16c: 文字件右键——单独旋转 / 复位 / 隐藏 */
+      var lp = id.split('.'), ldev = D.map[lp[0]], lf = lp[1] || 'tag';
+      if (!ldev) { close(); return; }
+      var cur = (ldev.lbl && ldev.lbl[lf]) || { dx: 0, dy: 0, rot: 0 };
+      var fname = lf === 'tag' ? '位号' : lf === 'name' ? '名称' : '规格';
+      var ftext = lf === 'tag' ? ldev.tag : lf === 'name' ? ldev.name : ldev.spec;
+      var doRot = function (deg) { window.__EVSE_LABEL_SET(ldev.id, lf, { rot: (((cur.rot || 0) + deg) % 360 + 360) % 360 }); close(); };
+      show(e, '<h4>文字 · ' + fname + '</h4>'
+        + row('内容', ftext || '—') + row('所属器件', (ldev.tag || ldev.id) + ' ' + (ldev.name || ''))
+        + row('偏移', Math.round(cur.dx || 0) + ', ' + Math.round(cur.dy || 0)) + row('旋转', (cur.rot || 0) + '°'),
+        [
+          { t: '↻ 旋转 90°', f: function () { doRot(90); } },
+          { t: '↺ 旋转 -90°', f: function () { doRot(-90); } },
+          { t: '旋转 45°', f: function () { doRot(45); } },
+          { t: '复位位置', f: function () { window.__EVSE_LABEL_SET(ldev.id, lf, { dx: 0, dy: 0 }); close(); } },
+          { t: '复位旋转', f: function () { window.__EVSE_LABEL_SET(ldev.id, lf, { rot: 0 }); close(); } },
+          { t: '全部复位', f: function () { window.__EVSE_LABEL_SET(ldev.id, lf, { dx: 0, dy: 0, rot: 0 }); close(); } },
+          { t: '关闭', f: close }
+        ]);
     } else if (k === 'pin') {
       var pp = id.split('/');
       var dv = D.map[pp[0]];

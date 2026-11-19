@@ -87,15 +87,41 @@ window.EVSE_RENDER = (function () {
         s += '<text x="' + n2(px) + '" y="' + n2(py) + '" text-anchor="' + a + '" style="' + TS.pinno + '">' + esc(p.n) + '</text>';
       }
     });
-    if (dv.tag && dv.sym.tagAt) {
-      const off = dv.tagOff || { dx: 0, dy: 0 };
-      const t = { x: dv.sym.tagAt.x + off.dx, y: dv.sym.tagAt.y + off.dy, a: dv.sym.tagAt.a };
-      s += '<text class="lbl" data-k="label" data-id="' + dv.id + '.tag" x="' + n2(t.x) + '" y="' + n2(t.y) + '" text-anchor="' + (anch[t.a] || 'start') + '" style="' + TS.tag + '">' + esc(dv.tag) + '</text>';
+    /* V16c: 位号 / 名称 / 规格三段文字各自独立——独立偏移（dv.lbl[field]）+ 独立旋转，
+     * 每段都带可点击的透明命中框，支持单独选中/拖动/右键旋转与复位。 */
+    const textW = function (str, size) {
+      let w = 0;
+      for (const ch of String(str == null ? '' : str)) w += /[\u3000-\u9fff\uff00-\uffef]/.test(ch) ? size : size * 0.55;
+      return w;
+    };
+    const lblOf = function (f) {
+      const L = dv.lbl && dv.lbl[f];
+      return { dx: (L && isFinite(L.dx)) ? L.dx : 0, dy: (L && isFinite(L.dy)) ? L.dy : 0, rot: (L && isFinite(L.rot)) ? L.rot : 0 };
+    };
+    if (dv.sym.tagAt) {
+      const legacy = dv.tagOff || { dx: 0, dy: 0 };
+      const base = { x: dv.sym.tagAt.x + legacy.dx, y: dv.sym.tagAt.y + legacy.dy, a: dv.sym.tagAt.a };
+      const below = base.a === 'e' ? -4 : 0;
+      const fields = [];
+      if (dv.tag) fields.push({ f: 'tag', text: dv.tag, x: base.x, y: base.y, style: 'tag', size: 11 });
       if (o.devName) {
-        const below = t.a === 'e' ? -4 : 0;
-        s += '<text class="lbl" data-k="label" data-id="' + dv.id + '.name" x="' + n2(t.x + below) + '" y="' + n2(t.y + 10) + '" text-anchor="' + (anch[t.a] || 'start') + '" style="' + TS.name + '">' + esc(dv.name) + '</text>';
-        if (dv.spec) s += '<text class="lbl" data-k="label" data-id="' + dv.id + '.spec" x="' + n2(t.x + below) + '" y="' + n2(t.y + 19) + '" text-anchor="' + (anch[t.a] || 'start') + '" style="' + TS.spec + '">' + esc(dv.spec) + '</text>';
+        fields.push({ f: 'name', text: dv.name, x: base.x + below, y: base.y + 10, style: 'name', size: 8 });
+        if (dv.spec) fields.push({ f: 'spec', text: dv.spec, x: base.x + below, y: base.y + 19, style: 'spec', size: 7 });
       }
+      const selLbl = o.selLabel || '';
+      fields.forEach(function (fd) {
+        const L = lblOf(fd.f);
+        const tx = fd.x + L.dx, ty = fd.y + L.dy;
+        const an = anch[base.a] || 'start';
+        const rotAttr = L.rot ? ' transform="rotate(' + num(L.rot) + ' ' + n2(tx) + ' ' + n2(ty) + ')"' : '';
+        const wid = textW(fd.text, fd.size) + 6, hh = fd.size + 4;
+        const rx = an === 'middle' ? tx - wid / 2 : (an === 'end' ? tx - wid : tx);
+        const hit = '<rect class="lblhit" data-k="label" data-id="' + esc(dv.id) + '.' + fd.f + '" x="' + n2(rx) + '" y="' + n2(ty - fd.size) + '" width="' + n2(wid) + '" height="' + n2(hh) + '" fill="transparent"/>';
+        const on = selLbl === dv.id + '.' + fd.f;
+        s += '<g' + rotAttr + '>' + hit
+          + '<text class="lbl' + (on ? ' lbldon' : '') + '" data-k="label" data-id="' + esc(dv.id) + '.' + fd.f + '" x="' + n2(tx) + '" y="' + n2(ty) + '" text-anchor="' + an + '" style="' + TS[fd.style] + '">' + esc(fd.text) + '</text>'
+          + '</g>';
+      });
     }
     if (dv.rot) s += '</g>';
     s += '</g>';
